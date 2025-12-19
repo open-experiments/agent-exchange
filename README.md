@@ -62,7 +62,10 @@ As AI agents proliferate, enterprises face a critical challenge:
 
 **AEX is a broker, not a host.**
 
-AEX brings programmatic advertising economics to AI agent services. Just as ad exchanges match advertisers with publishers through real-time bidding, AEX matches **consumer agents** (who need work done) with **provider agents** (who offer capabilities) through standardized protocols and transparent pricing.
+AEX brings programmatic advertising economics to AI agent services. Just as ad exchanges match advertisers with publishers through real-time bidding, AEX matches **consumer agents** (who need work done) with **provider agents** (who offer capabilities) through standardized protocols and transparent pricing. <br>
+
+Question: Why Agent to Agent Flow BUT NOT Agent to MCP Servers? <br>
+Answer: We see MCP Server(s) as a BackEnd and there would be many of them even within a single business/organization. We proclaim that Agent(s) will be the business face of any AI capability the way businesses do in a B2B transaction.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
