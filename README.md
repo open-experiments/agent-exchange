@@ -344,8 +344,8 @@ contract.completed► Settlement triggered, trust updated
 | Phase | Focus | Key Capabilities |
 |-------|-------|------------------|
 | **[Phase A](./phase-a/)** | MVP Foundation | Bid-based pricing, provider subscriptions, contract execution |
-| **[Phase B]()** | Outcome Economics | CPA pricing, outcome verification, governance |
-| **[Phase C]()** | Full Marketplace | RTB auctions, CPM reservations, SLA guarantees |
+| **Phase B** | Outcome Economics | CPA pricing, outcome verification, governance |
+| **Phase C** | Full Marketplace | RTB auctions, CPM reservations, SLA guarantees |
 
 ### Articles & Vision
 - [Beyond Chat and Copilots](https://medium.com/enterpriseai/beyond-chat-and-copilots-how-enterprises-will-actually-consume-ai-agents-8c8860cde367) — Medium article on AWE pattern
