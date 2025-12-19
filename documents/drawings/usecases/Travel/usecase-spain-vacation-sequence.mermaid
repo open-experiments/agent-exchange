@@ -1,0 +1,134 @@
+---
+title: AEX Use Case — Spain Vacation Booking (Sequence)
+---
+sequenceDiagram
+    autonumber
+    participant C as Consumer Agent<br/>(Travel Planner)
+    participant GW as aex-gateway
+    participant WP as aex-work-publisher
+    participant BG as aex-bid-gateway
+    participant BE as aex-bid-evaluator
+    participant CE as aex-contract-engine
+    participant SE as aex-settlement
+
+    box rgb(96, 125, 139) Flight Providers
+        participant AA as American Airlines
+        participant UA as United
+    end
+
+    box rgb(96, 125, 139) Hotel Providers
+        participant MR as Marriott
+        participant HI as Hilton
+    end
+
+    box rgb(96, 125, 139) Other Providers
+        participant UB as Uber
+        participant OT as OpenTable
+    end
+
+    Note over C: User wants vacation in Spain:<br/>Flights + Hotel + Transfers + Dining
+
+    rect rgb(66, 133, 244, 0.1)
+        Note over GW,WP: PHASE 1: Work Publication
+        C->>+GW: POST /v1/work (vacation package)
+        GW->>GW: Validate, authenticate
+        GW->>+WP: Forward work request
+        WP->>WP: Decompose into 4 work items
+
+        par Broadcast to Flight Providers
+            WP-->>AA: work.published (flights)
+            WP-->>UA: work.published (flights)
+        and Broadcast to Hotel Providers
+            WP-->>MR: work.published (hotel)
+            WP-->>HI: work.published (hotel)
+        and Broadcast to Other Providers
+            WP-->>UB: work.published (transfers)
+            WP-->>OT: work.published (dining)
+        end
+        WP-->>-GW: Work IDs created
+        GW-->>-C: 202 Accepted (work_ids)
+    end
+
+    rect rgb(52, 168, 83, 0.1)
+        Note over BG,BE: PHASE 2: Bid Collection & Evaluation
+
+        par Providers Submit Bids (within bid window)
+            AA->>BG: Bid: $847 direct JFK→MAD
+            UA->>BG: Bid: $792 (1 stop)
+            MR->>BG: Bid: $289/night AC Hotel
+            HI->>BG: Bid: $312/night Hilton Madrid
+            UB->>BG: Bid: $45 each way
+            OT->>BG: Bid: $0 + CPA bonus
+        end
+
+        Note over BG: Bid window closes
+
+        BG->>+BE: Evaluate bids per work item
+        BE->>BE: Score: price × trust × requirements
+
+        Note over BE: Flight scores:<br/>AA: 0.94 (direct bonus)<br/>UA: 0.87 (1 stop penalty)
+        Note over BE: Hotel scores:<br/>MR: 0.96 (price + proximity)<br/>HI: 0.89
+
+        BE-->>-BG: Ranked bids
+    end
+
+    rect rgb(234, 67, 53, 0.1)
+        Note over CE: PHASE 3: Contract Award
+
+        BE->>+CE: Winning bids
+
+        par Award Contracts (parallel)
+            CE->>AA: Contract awarded (flights)
+            CE->>MR: Contract awarded (hotel)
+            CE->>UB: Contract awarded (transfers)
+            CE->>OT: Contract awarded (dining)
+        end
+
+        CE-->>-C: Contracts + A2A endpoints
+    end
+
+    rect rgb(147, 52, 230, 0.1)
+        Note over C,OT: PHASE 4: Direct A2A Execution (AEX exits path)
+
+        par Direct Provider Communication
+            C->>AA: Book flights via A2A
+            AA-->>C: Confirmation: AA1234
+
+            C->>MR: Reserve room via A2A
+            MR-->>C: Booking #: MR789456
+
+            C->>UB: Schedule transfers via A2A
+            UB-->>C: Ride codes: UB-ARR, UB-DEP
+
+            C->>OT: Book restaurants via A2A
+            OT-->>C: Reservations confirmed
+        end
+    end
+
+    rect rgb(251, 188, 4, 0.1)
+        Note over SE: PHASE 5: Settlement
+
+        par Providers Report Completion
+            AA->>CE: Completion report
+            MR->>CE: Completion report
+            UB->>CE: Completion report
+            OT->>CE: Completion report + CPA claim
+        end
+
+        CE->>+SE: Trigger settlement
+
+        SE->>SE: Calculate totals:<br/>$847 + $2,023 + $90 + $0 = $2,960
+        SE->>SE: Platform fee: $444 (15%)
+        SE->>SE: Process CPA bonuses
+
+        par Pay Providers
+            SE-->>AA: Payout: $719.95
+            SE-->>MR: Payout: $1,719.55
+            SE-->>UB: Payout: $76.50
+            SE-->>OT: Payout: CPA bonus $5
+        end
+
+        SE-->>-CE: Settlement complete
+    end
+
+    Note over C: ✅ Vacation booked!<br/>Total: $2,960<br/>Savings vs retail: ~$400

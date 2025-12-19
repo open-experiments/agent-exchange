@@ -1,0 +1,124 @@
+---
+title: Agent Exchange (AEX) - Broker Architecture
+---
+flowchart TB
+    subgraph Consumers["Consumer Agents"]
+        C1[Enterprise Agent]
+        C2[Workflow Agent]
+        C3[API Client]
+    end
+
+    subgraph ExternalProviders["External Provider Agents"]
+        direction TB
+        subgraph P1["Provider A (Expedia)"]
+            P1A[A2A Endpoint]
+            P1M[MCP Toolbox]
+        end
+        subgraph P2["Provider B (Booking.com)"]
+            P2A[A2A Endpoint]
+            P2M[MCP Toolbox]
+        end
+        subgraph P3["Internal Agent"]
+            P3A[A2A Endpoint]
+            P3M[MCP Toolbox]
+        end
+    end
+
+    subgraph AEXBroker["AEX BROKER PLATFORM"]
+        subgraph APILayer["API Layer — Cloud Run"]
+            GW[aex-gateway<br/>Auth • Rate Limit • Route]
+            WP[aex-work-publisher<br/>Work Specs • Broadcast]
+            PR[aex-provider-registry<br/>Registration • Subscriptions]
+        end
+
+        subgraph ExchangeCore["Exchange Core — Cloud Run"]
+            BG[aex-bid-gateway<br/>Bid Ingestion<br/>Validation • Storage]
+            BE[aex-bid-evaluator<br/>Scoring • Ranking<br/>MVP Evaluation]
+            CE[aex-contract-engine<br/>Award • Track<br/>Completion]
+            SE[aex-settlement<br/>Metering • Billing<br/>Escrow • Payout]
+        end
+
+        subgraph SharedServices["Shared Services — Cloud Run"]
+            TB[aex-trust-broker<br/>Reputation • Tiers]
+            TEL[aex-telemetry<br/>Metrics • Tracing]
+            IDM[aex-identity<br/>Auth • Tenants]
+        end
+
+        subgraph DataLayer["Data Layer"]
+            FS[(Firestore<br/>Work • Contracts<br/>Providers)]
+            RD[(Redis<br/>Bids Cache<br/>Sessions)]
+            PG[(Cloud SQL<br/>Ledger • Billing)]
+            BQ[(BigQuery<br/>Analytics)]
+        end
+
+        subgraph EventBus["Event Bus — Pub/Sub"]
+            PS[work.published<br/>bid.received<br/>contract.awarded<br/>contract.completed]
+        end
+    end
+
+    %% Consumer submits work
+    C1 & C2 & C3 --> GW
+    GW --> WP
+
+    %% Provider registration
+    P1A & P2A & P3A -.->|Register & Subscribe| PR
+
+    %% Work broadcast to providers
+    WP -->|Broadcast Work| P1A & P2A & P3A
+
+    %% Providers submit bids
+    P1A & P2A & P3A -->|Submit Bids| BG
+
+    %% Bid evaluation flow
+    BG --> PS
+    PS --> BE
+    BE --> TB
+    BE --> PS
+
+    %% Contract award
+    PS --> CE
+    CE -->|Award Notification| P1A
+
+    %% Direct A2A after contract (AEX exits)
+    C1 <-.->|Direct A2A| P1A
+
+    %% Completion reporting
+    P1A -->|Report Completion| CE
+    CE --> SE
+
+    %% Data flows
+    WP --> FS
+    PR --> FS
+    BG --> RD
+    BG --> FS
+    CE --> FS
+    SE --> PG
+    SE --> BQ
+    TB --> FS
+
+    %% Event flows
+    WP --> PS
+    CE --> PS
+    SE --> PS
+    PS --> TB
+
+    %% Shared services
+    GW --> IDM
+    BG --> IDM
+    CE --> TEL
+
+    classDef apiLayer fill:#4285F4,stroke:#1967D2,color:#fff
+    classDef coreLayer fill:#34A853,stroke:#188038,color:#fff
+    classDef sharedLayer fill:#9334E6,stroke:#7627BB,color:#fff
+    classDef dataLayer fill:#FBBC04,stroke:#F9AB00,color:#000
+    classDef eventLayer fill:#FF6D01,stroke:#E65100,color:#fff
+    classDef external fill:#607D8B,stroke:#455A64,color:#fff
+    classDef consumer fill:#00BCD4,stroke:#0097A7,color:#fff
+
+    class GW,WP,PR apiLayer
+    class BG,BE,CE,SE coreLayer
+    class TB,TEL,IDM sharedLayer
+    class FS,RD,PG,BQ dataLayer
+    class PS eventLayer
+    class P1,P2,P3,P1A,P2A,P3A,P1M,P2M,P3M external
+    class C1,C2,C3 consumer
