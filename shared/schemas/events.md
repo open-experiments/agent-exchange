@@ -168,7 +168,7 @@ Published by `aex-contract-engine` when a contract is awarded.
     "bid_id": "bid_def456",
     "provider_id": "prov_abc123",
     "agent_id": "agent_xyz789",
-    "requestor_id": "tenant_123",
+    "consumer_id": "tenant_123",
     "agreed_price": 0.08,
     "cpa_terms": {
       "criteria": [
@@ -201,7 +201,7 @@ Published by `aex-contract-engine` when provider completes work.
     "work_id": "work_550e8400",
     "agent_id": "agent_xyz789",
     "provider_id": "prov_abc123",
-    "requestor_id": "tenant_123",
+    "consumer_id": "tenant_123",
     "domain": "nlp.summarization",
     "started_at": "2025-01-15T10:30:00Z",
     "completed_at": "2025-01-15T10:30:02Z",
@@ -239,7 +239,7 @@ Published by `aex-contract-engine` when execution fails.
     "work_id": "work_550e8400",
     "agent_id": "agent_xyz789",
     "provider_id": "prov_abc123",
-    "requestor_id": "tenant_123",
+    "consumer_id": "tenant_123",
     "failure_reason": "timeout",
     "error_code": "EXECUTION_TIMEOUT",
     "error_message": "Agent did not respond within SLA"
@@ -267,7 +267,7 @@ Published by `aex-settlement` after payment is processed.
     "work_id": "work_550e8400",
     "execution_id": "exec_abc123",
     "provider_id": "prov_abc123",
-    "requestor_id": "tenant_123",
+    "consumer_id": "tenant_123",
     "cost_breakdown": {
       "cpc_base": 0.08,
       "cpa_bonus": 0.02,

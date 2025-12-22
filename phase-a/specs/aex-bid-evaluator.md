@@ -80,7 +80,7 @@ Gateway  Broker    Engine
 
 ### Evaluate Bids (Internal)
 
-#### POST /internal/evaluate
+#### POST /internal/v1/evaluate
 
 Evaluate bids for a work spec.
 

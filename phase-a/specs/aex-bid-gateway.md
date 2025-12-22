@@ -81,7 +81,7 @@ Authorization: Bearer {provider_api_key}
 
 ### Get Bids (Internal)
 
-#### GET /internal/bids?work_id={id}
+#### GET /internal/v1/bids?work_id={id}
 
 Get all bids for a work spec (used by Bid Evaluator).
 

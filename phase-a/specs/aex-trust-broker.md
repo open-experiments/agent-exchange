@@ -187,7 +187,7 @@ Get current trust score and tier for a provider.
 
 ### Get Trust Score (Internal - Batch)
 
-#### POST /internal/trust/batch
+#### POST /internal/v1/trust/batch
 
 Get trust scores for multiple providers (used by Bid Evaluator).
 
@@ -209,7 +209,7 @@ Get trust scores for multiple providers (used by Bid Evaluator).
 
 ### Record Outcome
 
-#### POST /internal/outcomes
+#### POST /internal/v1/outcomes
 
 Record a contract outcome (called by Contract Engine).
 
@@ -305,7 +305,7 @@ Report a dispute against a provider.
 
 ### Verify Provider
 
-#### POST /internal/providers/{provider_id}/verify
+#### POST /internal/v1/providers/{provider_id}/verify
 
 Verify provider identity (admin action).
 

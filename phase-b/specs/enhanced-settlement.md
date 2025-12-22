@@ -12,7 +12,7 @@ Phase B enhances the `aex-settlement` service to support CPA (Cost Per Action) p
 | Cost Calculation | Fixed per invocation | Base + bonus - penalty |
 | Dependencies | - | Outcome Verification, Governance |
 | Billing Records | Simple | Detailed breakdown |
-| Ledger Entries | Single per task | Multiple (base, bonus, penalty) |
+| Ledger Entries | Single per contract | Multiple (base, bonus, penalty) |
 
 ## Architecture
 
@@ -21,7 +21,7 @@ Phase B enhances the `aex-settlement` service to support CPA (Cost Per Action) p
 │                    ENHANCED SETTLEMENT                          │
 │                                                                 │
 │  ┌──────────────┐                                               │
-│  │  Pub/Sub     │─── task.completed ──►┌────────────────────┐   │
+│  │  Pub/Sub     │─── contract.completed►┌────────────────────┐   │
 │  │              │    (with metrics)    │                    │   │
 │  └──────────────┘                      │  Settlement Engine │   │
 │                                        │                    │   │
@@ -49,9 +49,10 @@ Phase B enhances the `aex-settlement` service to support CPA (Cost Per Action) p
 ```python
 class Execution(BaseModel):
     id: str
-    task_id: str
+    work_id: str
+    contract_id: str
     agent_id: str
-    requestor_id: str
+    consumer_id: str
     provider_id: str
     domain: str
     started_at: datetime
@@ -100,17 +101,17 @@ class CPACriterion(BaseModel):
 
 ```python
 class LedgerEntryType(str, Enum):
-    # Requestor entries
-    TASK_BASE_CHARGE = "task_base_charge"       # CPC charge
-    TASK_BONUS_CHARGE = "task_bonus_charge"     # CPA bonus charge
-    TASK_PENALTY_CREDIT = "task_penalty_credit" # Penalty refund
+    # Consumer entries
+    CONTRACT_BASE_CHARGE = "contract_base_charge"       # CPC charge
+    CONTRACT_BONUS_CHARGE = "contract_bonus_charge"     # CPA bonus charge
+    CONTRACT_PENALTY_CREDIT = "contract_penalty_credit" # Penalty refund
     DEPOSIT = "deposit"
     REFUND = "refund"
 
     # Provider entries
-    TASK_BASE_EARNING = "task_base_earning"     # CPC earning
-    TASK_BONUS_EARNING = "task_bonus_earning"   # CPA bonus earning
-    TASK_PENALTY_DEBIT = "task_penalty_debit"   # Penalty deduction
+    CONTRACT_BASE_EARNING = "contract_base_earning"     # CPC earning
+    CONTRACT_BONUS_EARNING = "contract_bonus_earning"   # CPA bonus earning
+    CONTRACT_PENALTY_DEBIT = "contract_penalty_debit"   # Penalty deduction
     PLATFORM_FEE = "platform_fee"
     WITHDRAWAL = "withdrawal"
 ```
@@ -135,20 +136,21 @@ class EnhancedSettlementEngine:
 
     async def settle_execution(
         self,
-        event: TaskCompletedEvent
+        event: ContractCompletedEvent
     ) -> SettlementResult:
-        # 1. Get execution and task details
+        # 1. Get execution and contract details
         execution = await self.db.get_execution(event.execution_id)
-        task = await self.db.get_task(event.task_id)
+        contract = await self.db.get_contract(event.contract_id)
 
         # 2. Verify outcome (if CPA)
         verification = None
         if execution.cpa_terms:
             verification = await self.verifier.verify(
-                task_id=task.id,
-                task_input=task.payload,
-                task_output=event.result,
-                success_criteria=task.success_criteria,
+                contract_id=contract.id,
+                work_id=contract.work_id,
+                contract_input=contract.payload,
+                contract_output=event.result,
+                success_criteria=contract.success_criteria,
                 execution_metadata={
                     "duration_ms": event.duration_ms,
                     "agent_id": execution.agent_id
@@ -157,7 +159,7 @@ class EnhancedSettlementEngine:
 
             # Governance validation
             gov_result = await self.governance.validate_outcome(
-                task_id=task.id,
+                contract_id=contract.id,
                 agent_id=execution.agent_id,
                 claimed_metrics=event.metrics,
                 execution_context=event.metadata
@@ -172,8 +174,8 @@ class EnhancedSettlementEngine:
 
         # 4. Update ledger (atomic transaction)
         async with self.db.transaction() as tx:
-            # Charge requestor
-            await self._charge_requestor(tx, execution, cost)
+            # Charge consumer
+            await self._charge_consumer(tx, execution, cost)
 
             # Pay provider
             await self._pay_provider(tx, execution, cost)
@@ -242,7 +244,7 @@ class EnhancedSettlementEngine:
             requestor_charge=gross_total
         )
 
-    async def _charge_requestor(
+    async def _charge_consumer(
         self,
         tx: Transaction,
         execution: Execution,
@@ -252,31 +254,31 @@ class EnhancedSettlementEngine:
 
         # Base CPC charge
         entries.append(LedgerEntry(
-            tenant_id=execution.requestor_id,
-            entry_type=LedgerEntryType.TASK_BASE_CHARGE,
+            tenant_id=execution.consumer_id,
+            entry_type=LedgerEntryType.CONTRACT_BASE_CHARGE,
             amount=-cost.cpc_base,  # Negative = debit
             reference_id=execution.id,
-            description=f"Task {execution.task_id} - Base"
+            description=f"Contract {execution.contract_id} - Base"
         ))
 
         # CPA bonus charge (if any)
         if cost.cpa_bonus > 0:
             entries.append(LedgerEntry(
-                tenant_id=execution.requestor_id,
-                entry_type=LedgerEntryType.TASK_BONUS_CHARGE,
+                tenant_id=execution.consumer_id,
+                entry_type=LedgerEntryType.CONTRACT_BONUS_CHARGE,
                 amount=-cost.cpa_bonus,
                 reference_id=execution.id,
-                description=f"Task {execution.task_id} - CPA Bonus"
+                description=f"Contract {execution.contract_id} - CPA Bonus"
             ))
 
         # Penalty credit/refund (if any)
         if cost.cpa_penalty > 0:
             entries.append(LedgerEntry(
-                tenant_id=execution.requestor_id,
-                entry_type=LedgerEntryType.TASK_PENALTY_CREDIT,
+                tenant_id=execution.consumer_id,
+                entry_type=LedgerEntryType.CONTRACT_PENALTY_CREDIT,
                 amount=cost.cpa_penalty,  # Positive = credit
                 reference_id=execution.id,
-                description=f"Task {execution.task_id} - Penalty Refund"
+                description=f"Contract {execution.contract_id} - Penalty Refund"
             ))
 
         # Apply entries
@@ -299,10 +301,10 @@ class EnhancedSettlementEngine:
         base_earning = cost.cpc_base * (1 - self.PLATFORM_FEE_RATE)
         entries.append(LedgerEntry(
             tenant_id=execution.provider_id,
-            entry_type=LedgerEntryType.TASK_BASE_EARNING,
+            entry_type=LedgerEntryType.CONTRACT_BASE_EARNING,
             amount=base_earning,
             reference_id=execution.id,
-            description=f"Task {execution.task_id} - Base Earning"
+            description=f"Contract {execution.contract_id} - Base Earning"
         ))
 
         # Bonus earning (if any)
@@ -310,10 +312,10 @@ class EnhancedSettlementEngine:
             bonus_earning = cost.cpa_bonus * (1 - self.PLATFORM_FEE_RATE)
             entries.append(LedgerEntry(
                 tenant_id=execution.provider_id,
-                entry_type=LedgerEntryType.TASK_BONUS_EARNING,
+                entry_type=LedgerEntryType.CONTRACT_BONUS_EARNING,
                 amount=bonus_earning,
                 reference_id=execution.id,
-                description=f"Task {execution.task_id} - CPA Bonus"
+                description=f"Contract {execution.contract_id} - CPA Bonus"
             ))
 
         # Penalty deduction (if any)
@@ -321,10 +323,10 @@ class EnhancedSettlementEngine:
             penalty_deduction = cost.cpa_penalty * (1 - self.PLATFORM_FEE_RATE)
             entries.append(LedgerEntry(
                 tenant_id=execution.provider_id,
-                entry_type=LedgerEntryType.TASK_PENALTY_DEBIT,
+                entry_type=LedgerEntryType.CONTRACT_PENALTY_DEBIT,
                 amount=-penalty_deduction,
                 reference_id=execution.id,
-                description=f"Task {execution.task_id} - Penalty"
+                description=f"Contract {execution.contract_id} - Penalty"
             ))
 
         # Platform fee entry
@@ -333,7 +335,7 @@ class EnhancedSettlementEngine:
             entry_type=LedgerEntryType.PLATFORM_FEE,
             amount=-cost.platform_fee,
             reference_id=execution.id,
-            description=f"Task {execution.task_id} - Platform Fee (15%)"
+            description=f"Contract {execution.contract_id} - Platform Fee (15%)"
         ))
 
         # Apply entries
@@ -375,7 +377,7 @@ CREATE VIEW provider_earnings_breakdown AS
 SELECT
     provider_id,
     DATE_TRUNC('day', created_at) as date,
-    COUNT(*) as total_tasks,
+    COUNT(*) as total_contracts,
     SUM(cost_cpc_base) as total_cpc,
     SUM(cost_cpa_bonus) as total_bonus,
     SUM(cost_cpa_penalty) as total_penalty,
@@ -387,17 +389,18 @@ GROUP BY provider_id, DATE_TRUNC('day', created_at);
 
 ## Events
 
-### task.settled Event
+### contract.settled Event
 
 ```python
-# Pub/Sub topic: aex-events
+# Pub/Sub topic: aex-settlement-events
 {
-    "event_type": "task.settled",
+    "event_type": "contract.settled",
     "event_id": "evt-uuid",
-    "task_id": "task-uuid",
+    "work_id": "work-uuid",
+    "contract_id": "contract-uuid",
     "execution_id": "exec-uuid",
     "agent_id": "agent-uuid",
-    "requestor_id": "req-uuid",
+    "consumer_id": "consumer-uuid",
     "provider_id": "prov-uuid",
     "settlement": {
         "cost_breakdown": {
@@ -437,7 +440,8 @@ Authorization: Bearer {token}
 Response:
 {
   "id": "exec-uuid",
-  "task_id": "task-uuid",
+  "work_id": "work-uuid",
+  "contract_id": "contract-uuid",
   "agent_id": "agent-uuid",
   "status": "COMPLETED",
   "started_at": "2024-01-15T10:29:00Z",
@@ -482,7 +486,7 @@ Response:
     "to": "2024-01-31"
   },
   "summary": {
-    "total_tasks": 1500,
+    "total_contracts": 1500,
     "total_cpc": 75.00,
     "total_bonus": 22.50,
     "total_penalty": 3.75,
@@ -492,7 +496,7 @@ Response:
   "by_day": [
     {
       "date": "2024-01-15",
-      "tasks": 50,
+      "contracts": 50,
       "cpc": 2.50,
       "bonus": 0.75,
       "penalty": 0.10,
@@ -503,7 +507,7 @@ Response:
     {
       "agent_id": "agent-uuid",
       "agent_name": "summarizer-v2",
-      "tasks": 500,
+      "contracts": 500,
       "cpc": 25.00,
       "bonus": 10.00,
       "penalty": 1.00,
@@ -582,7 +586,7 @@ class ProviderDashboardService:
     ) -> EarningsSummary:
         query = """
         SELECT
-            COUNT(*) as total_tasks,
+            COUNT(*) as total_contracts,
             SUM(cost_cpc_base) as total_cpc,
             SUM(cost_cpa_bonus) as total_bonus,
             SUM(cost_cpa_penalty) as total_penalty,
@@ -632,5 +636,5 @@ class ProviderDashboardService:
    - All new fields have sensible defaults
 
 3. **Event Compatibility**:
-   - New fields in task.settled event
+   - New fields in contract.settled event
    - Consumers should ignore unknown fields

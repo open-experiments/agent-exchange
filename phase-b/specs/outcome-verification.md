@@ -364,15 +364,15 @@ class VerificationEngine:
 
     async def verify(
         self,
-        task_id: str,
-        task_input: dict,
-        task_output: dict,
+        contract_id: str,
+        work_input: dict,
+        work_output: dict,
         success_criteria: SuccessCriteria,
         execution_metadata: dict
     ) -> VerificationResult:
         # 1. Extract all required metrics
         metrics = await self._extract_metrics(
-            task_input, task_output, execution_metadata,
+            work_input, work_output, execution_metadata,
             success_criteria.criteria
         )
 
@@ -391,7 +391,7 @@ class VerificationEngine:
 
         # 4. Governance check (fraud detection)
         governance_result = await self.governance.validate_outcome(
-            task_id=task_id,
+            contract_id=contract_id,
             claimed_metrics=metrics,
             execution_context=execution_metadata
         )
@@ -400,7 +400,7 @@ class VerificationEngine:
         bonus, penalty = self._calculate_incentives(criterion_results)
 
         return VerificationResult(
-            task_id=task_id,
+            contract_id=contract_id,
             success=success and governance_result.valid,
             metrics=metrics,
             criterion_results=criterion_results,
@@ -536,7 +536,7 @@ class CriterionResult(BaseModel):
     error: Optional[str] = None
 
 class VerificationResult(BaseModel):
-    task_id: str
+    contract_id: str
     success: bool
     metrics: dict[str, float]
     criterion_results: list[CriterionResult]
@@ -549,9 +549,9 @@ class VerificationResult(BaseModel):
 class OutcomeRecord(BaseModel):
     """Persisted outcome for audit and ML training"""
     id: str
-    task_id: str
+    contract_id: str
     agent_id: str
-    requestor_id: str
+    consumer_id: str
     domain: str
     success_criteria: SuccessCriteria
     verification_result: VerificationResult
@@ -562,15 +562,15 @@ class OutcomeRecord(BaseModel):
 
 ## API Integration
 
-### Task Intake Integration
+### Work Publisher Integration
 
 ```python
-# In aex-task-intake: Accept success criteria
-@router.post("/v1/tasks")
-async def submit_task(task: TaskSubmission):
+# In aex-work-publisher: Accept success criteria
+@router.post("/v1/work")
+async def submit_work(work: WorkSubmission):
     # Validate success criteria
-    if task.success_criteria:
-        for criterion in task.success_criteria.criteria:
+    if work.success_criteria:
+        for criterion in work.success_criteria.criteria:
             # Verify metric is extractable
             if not extractor_registry.can_extract(criterion.metric):
                 raise HTTPException(
@@ -585,16 +585,16 @@ async def submit_task(task: TaskSubmission):
                     f"Invalid threshold for metric: {criterion.metric}"
                 )
 
-    # Store task with criteria
-    task_doc = await firestore.create_task(task)
+    # Store work with criteria
+    work_doc = await firestore.create_work(work)
 
     # Publish event
-    await pubsub.publish("task.submitted", {
-        "task_id": task_doc.id,
-        "has_cpa": task.success_criteria is not None
+    await pubsub.publish("work.submitted", {
+        "work_id": work_doc.id,
+        "has_cpa": work.success_criteria is not None
     })
 
-    return task_doc
+    return work_doc
 ```
 
 ### Settlement Integration

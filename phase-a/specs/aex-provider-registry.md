@@ -143,12 +143,12 @@ Remove a subscription.
 
 ### Internal APIs (Exchange Use Only)
 
-#### GET /internal/providers/subscribed
+#### GET /internal/v1/providers/subscribed
 
 Get providers subscribed to a work category.
 
 ```json
-// Request: GET /internal/providers/subscribed?category=travel.booking
+// Request: GET /internal/v1/providers/subscribed?category=travel.booking
 
 // Response
 {

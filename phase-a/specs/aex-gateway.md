@@ -32,40 +32,41 @@
          ┌─────────────┼─────────────┐
          ▼             ▼             ▼
    ┌───────────┐ ┌───────────┐ ┌───────────┐
-   │aex-task-  │ │aex-agent- │ │aex-       │
-   │intake     │ │registry   │ │settlement │
-   └───────────┘ └───────────┘ └───────────┘
+   │aex-work-  │ │aex-       │ │aex-       │
+   │publisher  │ │provider-  │ │settlement │
+   └───────────┘ │registry   │ └───────────┘
+                 └───────────┘
 ```
 
 ## API Endpoints
 
-### Task Management (→ aex-task-intake)
+### Work Management (→ aex-work-publisher)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/tasks` | Submit new task |
-| `GET` | `/v1/tasks/{task_id}` | Get task status/result |
-| `GET` | `/v1/tasks` | List tasks (paginated, filtered) |
-| `DELETE` | `/v1/tasks/{task_id}` | Cancel pending task |
-| `WS` | `/v1/tasks/{task_id}/stream` | Stream task updates |
+| `POST` | `/v1/work` | Submit new work spec |
+| `GET` | `/v1/work/{work_id}` | Get work status/result |
+| `GET` | `/v1/work` | List work specs (paginated, filtered) |
+| `DELETE` | `/v1/work/{work_id}` | Cancel pending work |
+| `WS` | `/v1/work/{work_id}/stream` | Stream work updates |
 
-### Agent Management (→ aex-agent-registry)
+### Provider Management (→ aex-provider-registry)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/agents` | Register new agent |
-| `GET` | `/v1/agents/{agent_id}` | Get agent details |
-| `GET` | `/v1/agents` | List agents (paginated, filtered) |
-| `PUT` | `/v1/agents/{agent_id}` | Update agent config |
-| `DELETE` | `/v1/agents/{agent_id}` | Deregister agent |
-| `POST` | `/v1/agents/{agent_id}/heartbeat` | Agent health check |
+| `POST` | `/v1/providers` | Register new provider |
+| `GET` | `/v1/providers/{provider_id}` | Get provider details |
+| `GET` | `/v1/providers` | List providers (paginated, filtered) |
+| `PUT` | `/v1/providers/{provider_id}` | Update provider config |
+| `DELETE` | `/v1/providers/{provider_id}` | Deregister provider |
+| `POST` | `/v1/subscriptions` | Subscribe to work categories |
 
-### Capability Discovery (→ aex-agent-registry)
+### Capability Discovery (→ aex-provider-registry)
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/capabilities` | List all capability domains |
-| `GET` | `/v1/capabilities/{domain}` | Get agents for domain |
+| `GET` | `/v1/capabilities/{domain}` | Get providers for domain |
 
 ### Usage & Billing (→ aex-settlement)
 
@@ -145,7 +146,7 @@ type RateLimitConfig struct {
     BurstSize         int     // Default: 50
 
     // Per-endpoint overrides
-    EndpointLimits map[string]int // e.g., "/v1/tasks": 500/min
+    EndpointLimits map[string]int // e.g., "/v1/work": 500/min
 }
 ```
 
@@ -195,8 +196,8 @@ func RateLimitMiddleware(redis *redis.Client) func(http.Handler) http.Handler {
 
 ```yaml
 services:
-  task-intake: "https://aex-task-intake-xxxxx.run.app"
-  agent-registry: "https://aex-agent-registry-xxxxx.run.app"
+  work-publisher: "https://aex-work-publisher-xxxxx.run.app"
+  provider-registry: "https://aex-provider-registry-xxxxx.run.app"
   settlement: "https://aex-settlement-xxxxx.run.app"
 ```
 
@@ -204,9 +205,10 @@ services:
 
 ```go
 var routes = map[string]string{
-    "/v1/tasks":        "task-intake",
-    "/v1/agents":       "agent-registry",
-    "/v1/capabilities": "agent-registry",
+    "/v1/work":         "work-publisher",
+    "/v1/providers":    "provider-registry",
+    "/v1/subscriptions":"provider-registry",
+    "/v1/capabilities": "provider-registry",
     "/v1/usage":        "settlement",
     "/v1/balance":      "settlement",
 }
@@ -306,8 +308,8 @@ PORT=8080
 ENV=production                    # development|staging|production
 
 # Service Discovery
-TASK_INTAKE_URL=https://aex-task-intake-xxx.run.app
-AGENT_REGISTRY_URL=https://aex-agent-registry-xxx.run.app
+WORK_PUBLISHER_URL=https://aex-work-publisher-xxx.run.app
+PROVIDER_REGISTRY_URL=https://aex-provider-registry-xxx.run.app
 SETTLEMENT_URL=https://aex-settlement-xxx.run.app
 
 # Redis (for rate limiting)
@@ -426,10 +428,10 @@ aex_gateway_auth_failure_total{method, reason}
   "request_id": "550e8400-e29b-41d4-a716-446655440000",
   "tenant_id": "tenant-123",
   "method": "POST",
-  "path": "/v1/tasks",
+  "path": "/v1/work",
   "status": 201,
   "duration_ms": 45,
-  "upstream": "task-intake",
+  "upstream": "work-publisher",
   "client_ip": "203.0.113.50"
 }
 ```
