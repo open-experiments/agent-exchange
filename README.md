@@ -333,11 +333,13 @@ All services run on **Cloud Run** (serverless). See [Phase A specs](./phase-a/sp
 ### Event Bus (Pub/Sub)
 
 ```
-work.published ──► Subscribed providers receive work opportunities
-bid.received ────► Bid Evaluator processes incoming bids
-contract.awarded ► Provider notified, consumer gets endpoint
-contract.completed► Settlement triggered, trust updated
+work.submitted ───► Subscribed providers receive work opportunities
+bids.evaluated ───► Contract Engine awards to winning bid
+contract.awarded ─► Provider notified, consumer gets A2A endpoint
+contract.completed► Settlement triggered, trust scores updated
 ```
+
+See [shared/schemas/events.md](./shared/schemas/events.md) for complete event definitions.
 
 ---
 
