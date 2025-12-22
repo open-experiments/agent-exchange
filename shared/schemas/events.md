@@ -195,10 +195,11 @@ Published by `aex-contract-engine` when a contract is awarded.
     "consumer_id": "tenant_123",
     "agreed_price": 0.08,
     "cpa_terms": {
-      "criteria": [
+      "success_criteria": [
         {"metric": "accuracy", "threshold": 0.90, "bonus": 0.02}
       ],
-      "max_bonus": 0.05
+      "max_bonus": 0.05,
+      "max_penalty_rate": 0.20
     },
     "a2a_endpoint": "https://provider.example.com/a2a"
   }
