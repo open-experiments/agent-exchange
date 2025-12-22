@@ -73,7 +73,7 @@ Phase B introduces 3 new services:
 |---------|------|----------|---------|---------|
 | aex-governance | [spec](./specs/aex-governance.md) | Python | Cloud Run | Policy engine, safety rails, compliance |
 | aex-trust-scoring | [spec](./specs/aex-trust-scoring.md) | Python | Cloud Run | ML-based trust score predictions |
-| aex-outcome-oracle | TODO | Python | Cloud Run | Advanced outcome verification |
+| aex-outcome-oracle | [spec](./specs/aex-outcome-oracle.md) | Python | Cloud Run | CPA outcome verification |
 
 ## Enhanced Services
 
@@ -81,13 +81,13 @@ Phase B enhances 7 existing Phase A services with CPA support:
 
 | Service | Enhancement Spec | Changes |
 |---------|-----------------|---------|
-| aex-work-publisher | TODO | Success criteria definition, CPA bonus terms |
-| aex-bid-gateway | TODO | CPA bid terms, outcome guarantees |
-| aex-bid-evaluator | TODO | ML-based outcome prediction, expected value ranking |
-| aex-contract-engine | TODO | CPA tracking, outcome verification triggers |
+| aex-work-publisher | [spec](./specs/enhanced-work-publisher.md) | Success criteria definition, CPA bonus terms |
+| aex-bid-gateway | [spec](./specs/enhanced-bid-gateway.md) | CPA bid terms, outcome guarantees |
+| aex-bid-evaluator | [spec](./specs/enhanced-bid-evaluator.md) | ML-based outcome prediction, expected value ranking |
+| aex-contract-engine | [spec](./specs/enhanced-contract-engine.md) | CPA tracking, outcome verification triggers |
 | aex-settlement | [spec](./specs/enhanced-settlement.md) | CPA calculation, bonus/penalty processing |
-| aex-provider-registry | TODO | CPA pricing tiers, outcome history |
-| aex-trust-broker | TODO | ML model integration, prediction caching |
+| aex-provider-registry | [spec](./specs/enhanced-provider-registry.md) | CPA pricing tiers, outcome history |
+| aex-trust-broker | [spec](./specs/enhanced-trust-broker.md) | ML model integration, prediction caching |
 
 ## Frameworks
 
