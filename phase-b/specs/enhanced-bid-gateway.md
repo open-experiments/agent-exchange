@@ -327,7 +327,7 @@ func (h *BidHandler) notifyConsumer(ctx context.Context, bid *BidPacket) {
 
 ## Internal API Enhancements
 
-### GET /internal/bids?work_id={id} (Enhanced Response)
+### GET /internal/v1/bids?work_id={id} (Enhanced Response)
 
 ```json
 {

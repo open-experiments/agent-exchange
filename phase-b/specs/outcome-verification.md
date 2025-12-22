@@ -700,4 +700,4 @@ outcome-verification/
 └── README.md
 ```
 
-This framework is used as a shared library by `aex-task-intake`, `aex-settlement`, and `aex-governance` services.
+This framework is used as a shared library by `aex-work-publisher`, `aex-settlement`, and `aex-governance` services.

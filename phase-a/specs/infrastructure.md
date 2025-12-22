@@ -229,7 +229,7 @@ resource "google_firestore_database" "aex_firestore" {
 {
   "indexes": [
     {
-      "collectionGroup": "tasks",
+      "collectionGroup": "work",
       "queryScope": "COLLECTION",
       "fields": [
         {"fieldPath": "tenant_id", "order": "ASCENDING"},
@@ -237,7 +237,7 @@ resource "google_firestore_database" "aex_firestore" {
       ]
     },
     {
-      "collectionGroup": "tasks",
+      "collectionGroup": "work",
       "queryScope": "COLLECTION",
       "fields": [
         {"fieldPath": "tenant_id", "order": "ASCENDING"},
@@ -246,7 +246,7 @@ resource "google_firestore_database" "aex_firestore" {
       ]
     },
     {
-      "collectionGroup": "agents",
+      "collectionGroup": "providers",
       "queryScope": "COLLECTION",
       "fields": [
         {"fieldPath": "status", "order": "ASCENDING"},
@@ -254,7 +254,7 @@ resource "google_firestore_database" "aex_firestore" {
       ]
     },
     {
-      "collectionGroup": "agents",
+      "collectionGroup": "providers",
       "queryScope": "COLLECTION",
       "fields": [
         {"fieldPath": "capabilities.domain", "arrayConfig": "CONTAINS"},
@@ -296,36 +296,41 @@ resource "google_redis_instance" "aex_redis" {
 # terraform/pubsub.tf
 
 # Topics
-resource "google_pubsub_topic" "aex_tasks" {
-  name    = "aex-tasks"
+resource "google_pubsub_topic" "aex_work_events" {
+  name    = "aex-work-events"
   project = var.project_id
 
   message_retention_duration = "86400s"  # 24 hours
 }
 
-resource "google_pubsub_topic" "aex_agents" {
-  name    = "aex-agents"
+resource "google_pubsub_topic" "aex_bid_events" {
+  name    = "aex-bid-events"
   project = var.project_id
 }
 
-resource "google_pubsub_topic" "aex_execution" {
-  name    = "aex-execution"
+resource "google_pubsub_topic" "aex_contract_events" {
+  name    = "aex-contract-events"
+  project = var.project_id
+}
+
+resource "google_pubsub_topic" "aex_provider_events" {
+  name    = "aex-provider-events"
   project = var.project_id
 }
 
 # Subscriptions
-resource "google_pubsub_subscription" "matching_tasks" {
-  name    = "aex-matching-tasks-sub"
-  topic   = google_pubsub_topic.aex_tasks.name
+resource "google_pubsub_subscription" "bid_evaluator_work" {
+  name    = "aex-bid-evaluator-work-sub"
+  topic   = google_pubsub_topic.aex_work_events.name
   project = var.project_id
 
-  filter = "attributes.event_type = \"task.submitted\""
+  filter = "attributes.event_type = \"work.submitted\""
 
   push_config {
-    push_endpoint = "https://aex-matching-${var.project_number}.${var.region}.run.app/events/task.submitted"
+    push_endpoint = "https://aex-bid-evaluator-${var.project_number}.${var.region}.run.app/events/work.submitted"
 
     oidc_token {
-      service_account_email = google_service_account.aex_matching.email
+      service_account_email = google_service_account.aex_bid_evaluator.email
     }
   }
 
@@ -342,18 +347,18 @@ resource "google_pubsub_subscription" "matching_tasks" {
   }
 }
 
-resource "google_pubsub_subscription" "router_matched" {
-  name    = "aex-router-matched-sub"
-  topic   = google_pubsub_topic.aex_tasks.name
+resource "google_pubsub_subscription" "contract_engine_awarded" {
+  name    = "aex-contract-engine-awarded-sub"
+  topic   = google_pubsub_topic.aex_bid_events.name
   project = var.project_id
 
-  filter = "attributes.event_type = \"task.matched\""
+  filter = "attributes.event_type = \"bids.evaluated\""
 
   push_config {
-    push_endpoint = "https://aex-router-${var.project_number}.${var.region}.run.app/events/task.matched"
+    push_endpoint = "https://aex-contract-engine-${var.project_number}.${var.region}.run.app/events/bids.evaluated"
 
     oidc_token {
-      service_account_email = google_service_account.aex_router.email
+      service_account_email = google_service_account.aex_contract_engine.email
     }
   }
 
@@ -362,10 +367,10 @@ resource "google_pubsub_subscription" "router_matched" {
 
 resource "google_pubsub_subscription" "settlement_completed" {
   name    = "aex-settlement-completed-sub"
-  topic   = google_pubsub_topic.aex_execution.name
+  topic   = google_pubsub_topic.aex_contract_events.name
   project = var.project_id
 
-  filter = "attributes.event_type = \"task.completed\" OR attributes.event_type = \"task.failed\""
+  filter = "attributes.event_type = \"contract.completed\" OR attributes.event_type = \"contract.failed\""
 
   push_config {
     push_endpoint = "https://aex-settlement-${var.project_number}.${var.region}.run.app/events"
@@ -435,27 +440,39 @@ resource "google_service_account" "aex_gateway" {
   project      = var.project_id
 }
 
-resource "google_service_account" "aex_task_intake" {
-  account_id   = "aex-task-intake"
-  display_name = "AEX Task Intake Service"
+resource "google_service_account" "aex_work_publisher" {
+  account_id   = "aex-work-publisher"
+  display_name = "AEX Work Publisher Service"
   project      = var.project_id
 }
 
-resource "google_service_account" "aex_agent_registry" {
-  account_id   = "aex-agent-registry"
-  display_name = "AEX Agent Registry Service"
+resource "google_service_account" "aex_provider_registry" {
+  account_id   = "aex-provider-registry"
+  display_name = "AEX Provider Registry Service"
   project      = var.project_id
 }
 
-resource "google_service_account" "aex_matching" {
-  account_id   = "aex-matching"
-  display_name = "AEX Matching Service"
+resource "google_service_account" "aex_contract_engine" {
+  account_id   = "aex-contract-engine"
+  display_name = "AEX Contract Engine Service"
   project      = var.project_id
 }
 
-resource "google_service_account" "aex_router" {
-  account_id   = "aex-router"
-  display_name = "AEX Router Service"
+resource "google_service_account" "aex_bid_evaluator" {
+  account_id   = "aex-bid-evaluator"
+  display_name = "AEX Bid Evaluator Service"
+  project      = var.project_id
+}
+
+resource "google_service_account" "aex_bid_gateway" {
+  account_id   = "aex-bid-gateway"
+  display_name = "AEX Bid Gateway Service"
+  project      = var.project_id
+}
+
+resource "google_service_account" "aex_trust_broker" {
+  account_id   = "aex-trust-broker"
+  display_name = "AEX Trust Broker Service"
   project      = var.project_id
 }
 
@@ -468,29 +485,41 @@ resource "google_service_account" "aex_settlement" {
 # IAM Bindings
 
 # Firestore access
-resource "google_project_iam_member" "task_intake_firestore" {
+resource "google_project_iam_member" "work_publisher_firestore" {
   project = var.project_id
   role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.aex_task_intake.email}"
+  member  = "serviceAccount:${google_service_account.aex_work_publisher.email}"
 }
 
-resource "google_project_iam_member" "agent_registry_firestore" {
+resource "google_project_iam_member" "provider_registry_firestore" {
   project = var.project_id
   role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.aex_agent_registry.email}"
+  member  = "serviceAccount:${google_service_account.aex_provider_registry.email}"
+}
+
+resource "google_project_iam_member" "contract_engine_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.aex_contract_engine.email}"
 }
 
 # Pub/Sub access
-resource "google_project_iam_member" "task_intake_pubsub" {
+resource "google_project_iam_member" "work_publisher_pubsub" {
   project = var.project_id
   role    = "roles/pubsub.publisher"
-  member  = "serviceAccount:${google_service_account.aex_task_intake.email}"
+  member  = "serviceAccount:${google_service_account.aex_work_publisher.email}"
 }
 
-resource "google_project_iam_member" "matching_pubsub" {
+resource "google_project_iam_member" "bid_evaluator_pubsub" {
   project = var.project_id
   role    = "roles/pubsub.subscriber"
-  member  = "serviceAccount:${google_service_account.aex_matching.email}"
+  member  = "serviceAccount:${google_service_account.aex_bid_evaluator.email}"
+}
+
+resource "google_project_iam_member" "contract_engine_pubsub" {
+  project = var.project_id
+  role    = "roles/pubsub.subscriber"
+  member  = "serviceAccount:${google_service_account.aex_contract_engine.email}"
 }
 
 # Cloud SQL access
