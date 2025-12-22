@@ -36,14 +36,14 @@ sequenceDiagram
         WP->>WP: Decompose into 4 work items
 
         par Broadcast to Flight Providers
-            WP-->>AA: work.published (flights)
-            WP-->>UA: work.published (flights)
+            WP-->>AA: work.submitted (flights)
+            WP-->>UA: work.submitted (flights)
         and Broadcast to Hotel Providers
-            WP-->>MR: work.published (hotel)
-            WP-->>HI: work.published (hotel)
+            WP-->>MR: work.submitted (hotel)
+            WP-->>HI: work.submitted (hotel)
         and Broadcast to Other Providers
-            WP-->>UB: work.published (transfers)
-            WP-->>OT: work.published (dining)
+            WP-->>UB: work.submitted (transfers)
+            WP-->>OT: work.submitted (dining)
         end
         WP-->>-GW: Work IDs created
         GW-->>-C: 202 Accepted (work_ids)

@@ -331,7 +331,7 @@ func (h *BidHandler) notifyConsumer(ctx context.Context, bid *BidPacket) {
 ```json
 // Bid received
 {
-  "event_type": "bid.received",
+  "event_type": "bid.submitted",
   "bid_id": "bid_abc123",
   "work_id": "work_550e8400",
   "provider_id": "prov_expedia",

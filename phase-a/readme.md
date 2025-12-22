@@ -93,7 +93,7 @@ Phase A delivers the minimum viable exchange: Work specs come in, get broadcast 
 1.  Consumer Agent → aex-gateway: POST /v1/work {category, description, budget}
 2.  aex-gateway → aex-work-publisher: Validate, persist work spec (OPEN)
 3.  aex-work-publisher → aex-provider-registry: Get subscribed providers
-4.  aex-work-publisher → Pub/Sub: Broadcast "work.published" to subscribed providers
+4.  aex-work-publisher → Pub/Sub: Broadcast "work.submitted" to subscribed providers
 5.  External Providers: Receive work opportunity, decide to bid
 6.  External Providers → aex-bid-gateway: POST /v1/bids {price, confidence, mvp_sample}
 7.  aex-bid-gateway: Store bids, notify consumer of incoming bids

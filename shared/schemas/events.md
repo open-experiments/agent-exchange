@@ -94,6 +94,31 @@ Published by `aex-work-publisher` when bid collection window expires.
 
 ## Bid Events
 
+### bid.submitted
+
+Published by `aex-bid-gateway` when a provider submits a bid.
+
+**Topic:** `aex-bid-events`
+
+```json
+{
+  "event_type": "bid.submitted",
+  "data": {
+    "bid_id": "bid_abc123",
+    "work_id": "work_550e8400",
+    "provider_id": "prov_expedia",
+    "price": 0.08,
+    "confidence": 0.92,
+    "a2a_endpoint": "https://agent.expedia.com/a2a/v1"
+  }
+}
+```
+
+**Consumers:**
+- `aex-work-publisher` - Updates bid count, notifies consumer via WebSocket
+
+---
+
 ### bids.evaluated
 
 Published by `aex-bid-evaluator` after ranking bids.
@@ -459,7 +484,7 @@ Published by `aex-governance` when content fails safety check.
 | Topic | Publishers | Events |
 |-------|------------|--------|
 | `aex-work-events` | work-publisher | work.submitted, work.bid_window_closed |
-| `aex-bid-events` | bid-evaluator | bids.evaluated |
+| `aex-bid-events` | bid-gateway, bid-evaluator | bid.submitted, bids.evaluated |
 | `aex-contract-events` | contract-engine | contract.awarded, contract.completed, contract.failed |
 | `aex-settlement-events` | settlement | contract.settled |
 | `aex-trust-events` | trust-broker, trust-scoring | trust.score_updated, trust.tier_changed, trust.prediction_updated |

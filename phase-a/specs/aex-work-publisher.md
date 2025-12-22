@@ -234,7 +234,7 @@ async def publish_work(consumer_id: str, req: WorkSubmission) -> WorkResponse:
     await schedule_bid_window_close(work.id, work.bid_window_ends_at)
 
     # 8. Publish event
-    await pubsub.publish("work.published", {
+    await pubsub.publish("work.submitted", {
         "work_id": work.id,
         "category": work.category,
         "providers_notified": len(providers)
@@ -308,7 +308,7 @@ async def close_bid_window(work_id: str):
 ```python
 # Work published
 {
-    "event_type": "work.published",
+    "event_type": "work.submitted",
     "work_id": "work_550e8400",
     "category": "travel.booking",
     "consumer_id": "tenant_123",
@@ -336,7 +336,7 @@ async def close_bid_window(work_id: str):
 ```python
 # Bid received (from Bid Gateway)
 {
-    "event_type": "bid.received",
+    "event_type": "bid.submitted",
     "work_id": "work_550e8400",
     "bid_id": "bid_123"
 }

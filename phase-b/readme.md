@@ -111,11 +111,11 @@ Phase B enhances 7 existing Phase A services with CPA support:
 1.  Consumer → aex-gateway: POST /v1/work {category, payload, budget, success_criteria, cpa_bonus}
 2.  aex-gateway → aex-governance: Validate policy compliance
 3.  aex-gateway → aex-work-publisher: Validate, persist work with CPA terms
-4.  aex-work-publisher → Pub/Sub: Publish "work.published"
+4.  aex-work-publisher → Pub/Sub: Publish "work.submitted"
 5.  aex-work-publisher → External Providers: Broadcast work opportunity with CPA terms
 6.  Provider decides: Can I meet success criteria? What bonus can I earn?
 7.  Provider → aex-bid-gateway: Submit bid with CPA guarantees
-8.  aex-bid-gateway → Pub/Sub: Publish "bid.received"
+8.  aex-bid-gateway → Pub/Sub: Publish "bid.submitted"
 9.  (Bid window closes)
 10. Pub/Sub → aex-bid-evaluator: Receive "work.bid_window_closed"
 11. aex-bid-evaluator → aex-trust-scoring: Get ML-predicted success probability
