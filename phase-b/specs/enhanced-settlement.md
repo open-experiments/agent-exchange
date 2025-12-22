@@ -78,7 +78,7 @@ class CostBreakdown(BaseModel):
     gross_total: float           # cpc + bonus - penalty
     platform_fee: float          # Platform's cut
     provider_payout: float       # Provider receives
-    requestor_charge: float      # Requestor pays (gross_total)
+    consumer_charge: float       # Consumer pays (gross_total)
 ```
 
 ### CPA Terms (from matching)
@@ -241,7 +241,7 @@ class EnhancedSettlementEngine:
             gross_total=gross_total,
             platform_fee=platform_fee,
             provider_payout=provider_payout,
-            requestor_charge=gross_total
+            consumer_charge=gross_total
         )
 
     async def _charge_consumer(
@@ -410,7 +410,7 @@ GROUP BY provider_id, DATE_TRUNC('day', created_at);
             "gross_total": 0.08,
             "platform_fee": 0.012,
             "provider_payout": 0.068,
-            "requestor_charge": 0.08
+            "consumer_charge": 0.08
         },
         "verification": {
             "success": true,
@@ -453,7 +453,7 @@ Response:
     "gross_total": 0.08,
     "platform_fee": 0.012,
     "provider_payout": 0.068,
-    "requestor_charge": 0.08
+    "consumer_charge": 0.08
   },
   "outcome_metrics": {
     "accuracy": 0.94,

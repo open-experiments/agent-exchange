@@ -16,7 +16,7 @@ The `aex-governance` service is the policy engine for the Agent Exchange. It enf
 ┌──────────────────────────────────────────────────────────────────┐
 │                      EXCHANGE CORE                               │
 │  aex-settlement ──► aex-governance (validate outcome claims)     │
-│  aex-matching ──► aex-governance (filter policy-violating agents)│
+│  aex-bid-evaluator ──► aex-governance (filter policy violations) │
 └──────────────────────────────────────────────────────────────────┘
 ```
 

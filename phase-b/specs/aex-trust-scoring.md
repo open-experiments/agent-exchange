@@ -10,7 +10,7 @@ The `aex-trust-scoring` service provides ML-based trust score calculation for ag
 ┌─────────────────────────────────────────────────────────────────┐
 │                      EXCHANGE CORE                              │
 │                                                                 │
-│  aex-matching ──► aex-trust-scoring (get predicted success)     │
+│  aex-bid-evaluator ──► aex-trust-scoring (get predicted success)│
 │                                                                 │
 │  aex-settlement ──► aex-trust-scoring (update after execution)  │
 └─────────────────────────────────────────────────────────────────┘
@@ -413,13 +413,13 @@ class FeatureExtractor:
 CREATE OR REPLACE TABLE `aex.ml_training_data` AS
 SELECT
     e.agent_id,
-    e.task_id,
+    e.work_id,
     e.domain,
     e.payload_size_bytes,
     e.num_criteria,
     e.max_latency_ms,
 
-    -- Agent historical features (as of task time)
+    -- Agent historical features (as of work submission time)
     a.total_executions_before,
     a.success_rate_30d,
     a.avg_latency_30d,
@@ -444,7 +444,7 @@ OPTIONS(
     max_iterations = 50
 ) AS
 SELECT
-    * EXCEPT(task_id, outcome_accuracy, outcome_latency)
+    * EXCEPT(work_id, outcome_accuracy, outcome_latency)
 FROM `aex.ml_training_data`;
 
 -- Train linear regression for accuracy prediction
@@ -455,7 +455,7 @@ OPTIONS(
     l2_reg = 0.01
 ) AS
 SELECT
-    * EXCEPT(task_id, label, outcome_latency)
+    * EXCEPT(work_id, label, outcome_latency)
 FROM `aex.ml_training_data`
 WHERE outcome_accuracy IS NOT NULL;
 ```

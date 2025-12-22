@@ -92,6 +92,30 @@ Published by `aex-work-publisher` when bid collection window expires.
 
 ---
 
+### work.cancelled
+
+Published by `aex-work-publisher` when work is cancelled before completion.
+
+**Topic:** `aex-work-events`
+
+```json
+{
+  "event_type": "work.cancelled",
+  "data": {
+    "work_id": "work_550e8400",
+    "consumer_id": "tenant_123",
+    "reason": "consumer_requested",
+    "cancelled_at": "2025-01-15T10:30:10Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-bid-gateway` - Stops accepting bids
+- `aex-contract-engine` - Cancels pending contracts
+
+---
+
 ## Bid Events
 
 ### bid.submitted
@@ -362,6 +386,57 @@ Published by `aex-trust-scoring` when ML model updates predictions.
 
 ---
 
+### trust.dispute_opened
+
+Published by `aex-trust-broker` when a dispute is opened against a provider.
+
+**Topic:** `aex-trust-events`
+
+```json
+{
+  "event_type": "trust.dispute_opened",
+  "data": {
+    "dispute_id": "dispute_abc123",
+    "provider_id": "prov_abc123",
+    "contract_id": "contract_789xyz",
+    "consumer_id": "tenant_123",
+    "reason": "quality_issue",
+    "opened_at": "2025-01-15T10:35:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-settlement` - May hold pending payouts
+- `aex-telemetry` - Dispute tracking
+
+---
+
+### trust.dispute_resolved
+
+Published by `aex-trust-broker` when a dispute is resolved.
+
+**Topic:** `aex-trust-events`
+
+```json
+{
+  "event_type": "trust.dispute_resolved",
+  "data": {
+    "dispute_id": "dispute_abc123",
+    "provider_id": "prov_abc123",
+    "resolution": "provider_favor",
+    "score_impact": 0.0,
+    "resolved_at": "2025-01-15T11:00:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-settlement` - Releases held payouts
+- `aex-provider-registry` - Updates provider status
+
+---
+
 ## Identity Events
 
 ### tenant.created
@@ -430,6 +505,81 @@ Published by `aex-identity` when an API key is revoked.
 
 ---
 
+## Provider Events
+
+### provider.registered
+
+Published by `aex-provider-registry` when a new provider registers.
+
+**Topic:** `aex-provider-events`
+
+```json
+{
+  "event_type": "provider.registered",
+  "data": {
+    "provider_id": "prov_abc123",
+    "name": "Expedia Travel Agent",
+    "capabilities": ["travel.booking", "travel.search"],
+    "status": "PENDING_VERIFICATION",
+    "registered_at": "2025-01-15T10:00:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-trust-broker` - Initializes trust score
+- `aex-telemetry` - Provider analytics
+
+---
+
+### provider.status_changed
+
+Published by `aex-provider-registry` when provider status changes.
+
+**Topic:** `aex-provider-events`
+
+```json
+{
+  "event_type": "provider.status_changed",
+  "data": {
+    "provider_id": "prov_abc123",
+    "previous_status": "PENDING_VERIFICATION",
+    "new_status": "ACTIVE",
+    "changed_at": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-bid-evaluator` - Updates provider eligibility
+- `aex-telemetry` - Status tracking
+
+---
+
+### subscription.created
+
+Published by `aex-provider-registry` when provider subscribes to work categories.
+
+**Topic:** `aex-provider-events`
+
+```json
+{
+  "event_type": "subscription.created",
+  "data": {
+    "subscription_id": "sub_xyz789",
+    "provider_id": "prov_abc123",
+    "categories": ["travel.*", "hospitality.hotels"],
+    "created_at": "2025-01-15T10:05:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-work-publisher` - Routes matching work specs
+- `aex-telemetry` - Subscription analytics
+
+---
+
 ## Governance Events (Phase B)
 
 ### policy.evaluated
@@ -479,17 +629,211 @@ Published by `aex-governance` when content fails safety check.
 
 ---
 
+### outcome.validated
+
+Published by `aex-governance` when outcome claims pass validation.
+
+**Topic:** `aex-governance-events`
+
+```json
+{
+  "event_type": "outcome.validated",
+  "data": {
+    "contract_id": "contract_789xyz",
+    "validation_id": "val_abc123",
+    "criteria_validated": ["accuracy", "latency"],
+    "all_passed": true,
+    "validated_at": "2025-01-15T10:31:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-settlement` - Proceeds with CPA settlement
+- `aex-telemetry` - Validation tracking
+
+---
+
+## Outcome Events (Phase B)
+
+### outcome.verified
+
+Published by `aex-outcome-oracle` when outcome verification completes.
+
+**Topic:** `aex-outcome-events`
+
+```json
+{
+  "event_type": "outcome.verified",
+  "data": {
+    "verification_id": "ver_abc123",
+    "contract_id": "contract_789xyz",
+    "work_id": "work_550e8400",
+    "provider_id": "prov_abc123",
+    "criteria_results": [
+      {
+        "metric": "accuracy",
+        "claimed": 0.94,
+        "verified": 0.93,
+        "met": true
+      }
+    ],
+    "verified_at": "2025-01-15T10:30:30Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-settlement` - Uses verified metrics for CPA
+- `aex-trust-broker` - Updates trust based on accuracy
+
+---
+
+### outcome.anomaly_detected
+
+Published by `aex-outcome-oracle` when suspicious outcome patterns detected.
+
+**Topic:** `aex-outcome-events`
+
+```json
+{
+  "event_type": "outcome.anomaly_detected",
+  "data": {
+    "anomaly_id": "anom_abc123",
+    "provider_id": "prov_abc123",
+    "anomaly_type": "sudden_quality_drop",
+    "severity": "medium",
+    "details": {
+      "expected_accuracy": 0.92,
+      "observed_accuracy": 0.65,
+      "sample_size": 50
+    },
+    "detected_at": "2025-01-15T11:00:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-trust-broker` - May trigger review
+- `aex-governance` - Policy enforcement
+
+---
+
+## Enhanced Phase B Events
+
+### contract.verification_pending
+
+Published by `aex-contract-engine` when awaiting outcome verification.
+
+**Topic:** `aex-contract-events`
+
+```json
+{
+  "event_type": "contract.verification_pending",
+  "data": {
+    "contract_id": "contract_789xyz",
+    "work_id": "work_550e8400",
+    "provider_id": "prov_abc123",
+    "awaiting_metrics": ["accuracy", "completeness"],
+    "deadline": "2025-01-15T10:35:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-outcome-oracle` - Triggers verification
+- `aex-settlement` - Waits for verification
+
+---
+
+### trust.outcome_recorded
+
+Published by `aex-trust-broker` (Phase B) when outcome is recorded for trust.
+
+**Topic:** `aex-trust-events`
+
+```json
+{
+  "event_type": "trust.outcome_recorded",
+  "data": {
+    "provider_id": "prov_abc123",
+    "agent_id": "agent_xyz789",
+    "contract_id": "contract_789xyz",
+    "criteria_met": 3,
+    "criteria_total": 4,
+    "score_delta": 0.02
+  }
+}
+```
+
+**Consumers:**
+- `aex-trust-scoring` - Updates ML features
+- `aex-telemetry` - Outcome analytics
+
+---
+
+### provider.outcome_recorded
+
+Published by `aex-provider-registry` (Phase B) when provider outcome tracked.
+
+**Topic:** `aex-provider-events`
+
+```json
+{
+  "event_type": "provider.outcome_recorded",
+  "data": {
+    "provider_id": "prov_abc123",
+    "domain": "travel.booking",
+    "success": true,
+    "cpa_bonus_earned": 0.03,
+    "recorded_at": "2025-01-15T10:32:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-trust-scoring` - Feature updates
+- `aex-telemetry` - Provider analytics
+
+---
+
+### provider.cpa_certified
+
+Published by `aex-provider-registry` (Phase B) when provider achieves CPA certification.
+
+**Topic:** `aex-provider-events`
+
+```json
+{
+  "event_type": "provider.cpa_certified",
+  "data": {
+    "provider_id": "prov_abc123",
+    "certification_level": "GOLD",
+    "domains": ["travel.booking", "travel.search"],
+    "valid_until": "2025-04-15T00:00:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-bid-evaluator` - Prioritizes certified providers
+- `aex-telemetry` - Certification tracking
+
+---
+
 ## Pub/Sub Topics Summary
 
 | Topic | Publishers | Events |
 |-------|------------|--------|
-| `aex-work-events` | work-publisher | work.submitted, work.bid_window_closed |
+| `aex-work-events` | work-publisher | work.submitted, work.bid_window_closed, work.cancelled |
 | `aex-bid-events` | bid-gateway, bid-evaluator | bid.submitted, bids.evaluated |
-| `aex-contract-events` | contract-engine | contract.awarded, contract.completed, contract.failed |
+| `aex-contract-events` | contract-engine | contract.awarded, contract.completed, contract.failed, contract.verification_pending |
 | `aex-settlement-events` | settlement | contract.settled |
-| `aex-trust-events` | trust-broker, trust-scoring | trust.score_updated, trust.tier_changed, trust.prediction_updated |
+| `aex-trust-events` | trust-broker, trust-scoring | trust.score_updated, trust.tier_changed, trust.prediction_updated, trust.dispute_opened, trust.dispute_resolved, trust.outcome_recorded |
 | `aex-identity-events` | identity | tenant.created, tenant.suspended, apikey.revoked |
-| `aex-governance-events` | governance | policy.evaluated, safety.violation |
+| `aex-provider-events` | provider-registry | provider.registered, provider.status_changed, subscription.created, provider.outcome_recorded, provider.cpa_certified |
+| `aex-governance-events` | governance | policy.evaluated, safety.violation, outcome.validated |
+| `aex-outcome-events` | outcome-oracle | outcome.verified, outcome.anomaly_detected |
 
 ---
 

@@ -87,12 +87,12 @@ CREATE TABLE `aex-prod.ml.training_success_prediction` (
   budget_headroom_ratio FLOAT64,
 
   -- Target
-  task_success BOOL,
+  success BOOL,
   outcome_accuracy FLOAT64,
   outcome_latency_ms INT64,
 
   -- Metadata
-  task_id STRING,
+  work_id STRING,
   created_at TIMESTAMP
 )
 PARTITION BY DATE(created_at)
