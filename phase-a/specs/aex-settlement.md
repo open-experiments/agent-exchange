@@ -14,7 +14,7 @@
 
 ```
               Pub/Sub
-        (task.completed)
+       (contract.completed)
                 │
                 ▼
        ┌────────────────┐
@@ -33,7 +33,7 @@
 
 ## Core Responsibilities
 
-1. **Record executions** from task.completed events
+1. **Record executions** from contract.completed events
 2. **Calculate costs** based on CPC pricing (Phase A)
 3. **Manage ledger** with ACID transactions
 4. **Track balances** per tenant
@@ -65,7 +65,8 @@ CREATE TABLE tenant_balances (
 -- Execution records (source of truth)
 CREATE TABLE executions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    task_id VARCHAR(255) NOT NULL,
+    work_id VARCHAR(255) NOT NULL,       -- Links to work spec from aex-work-publisher
+    contract_id VARCHAR(255) NOT NULL,   -- Links to contract from aex-contract-engine
     agent_id VARCHAR(255) NOT NULL,
     requestor_tenant_id UUID NOT NULL REFERENCES tenants(id),
     provider_tenant_id UUID NOT NULL REFERENCES tenants(id),
@@ -90,7 +91,7 @@ CREATE TABLE executions (
     created_at TIMESTAMPTZ DEFAULT NOW(),
 
     -- Indexes
-    CONSTRAINT unique_task_execution UNIQUE (task_id)
+    CONSTRAINT unique_contract_execution UNIQUE (contract_id)
 );
 
 CREATE INDEX idx_executions_requestor ON executions(requestor_tenant_id, created_at);
@@ -160,7 +161,8 @@ class Execution(Base):
     __tablename__ = "executions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    task_id = Column(String(255), unique=True, nullable=False)
+    work_id = Column(String(255), nullable=False)
+    contract_id = Column(String(255), unique=True, nullable=False)
     agent_id = Column(String(255), nullable=False)
     requestor_tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     provider_tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
@@ -236,10 +238,10 @@ from decimal import Decimal
 
 async def settle_execution(
     db: Session,
-    event: TaskCompletedEvent
+    event: ContractCompletedEvent
 ) -> Execution:
     """
-    Settle a completed task execution with ACID guarantees.
+    Settle a completed contract execution with ACID guarantees.
     """
     # Calculate costs
     agreed_price = Decimal(str(event.data.billing.cost))
@@ -253,7 +255,8 @@ async def settle_execution(
     try:
         # 1. Create execution record
         execution = Execution(
-            task_id=event.task_id,
+            work_id=event.work_id,
+            contract_id=event.contract_id,
             agent_id=event.data.agent_id,
             requestor_tenant_id=requestor.id,
             provider_tenant_id=provider.id,
@@ -289,7 +292,7 @@ async def settle_execution(
             balance_after=new_requestor_balance,
             reference_type="execution",
             reference_id=execution.id,
-            description=f"Task execution: {event.task_id}"
+            description=f"Contract execution: {event.contract_id}"
         ))
 
         # 3. Credit provider
@@ -319,7 +322,7 @@ async def settle_execution(
 
     except Exception as e:
         db.rollback()
-        logger.error("settlement_failed", task_id=event.task_id, error=str(e))
+        logger.error("settlement_failed", contract_id=event.contract_id, error=str(e))
         raise
 ```
 
@@ -342,42 +345,47 @@ async def get_balance_for_update(db: Session, tenant_id: UUID) -> TenantBalance:
 
 ### Consumed Events
 
-#### task.completed
+#### contract.completed
+
+Published by `aex-contract-engine` when a provider completes work.
 
 ```python
-@app.post("/events/task.completed")
-async def handle_task_completed(request: Request, db: Session = Depends(get_db)):
+@app.post("/events/contract.completed")
+async def handle_contract_completed(request: Request, db: Session = Depends(get_db)):
     envelope = await request.json()
-    event = TaskCompletedEvent.parse_obj(decode_pubsub_message(envelope))
+    event = ContractCompletedEvent.parse_obj(decode_pubsub_message(envelope))
 
     try:
         execution = await settle_execution(db, event)
         logger.info("settlement_completed",
-            task_id=event.task_id,
+            contract_id=event.contract_id,
             execution_id=str(execution.id),
             cost=float(execution.agreed_price)
         )
     except InsufficientFundsError as e:
-        logger.error("insufficient_funds", task_id=event.task_id, error=str(e))
-        # Could trigger alert or flag the task
+        logger.error("insufficient_funds", contract_id=event.contract_id, error=str(e))
+        # Could trigger alert or flag the contract
     except Exception as e:
-        logger.error("settlement_error", task_id=event.task_id, error=str(e))
+        logger.error("settlement_error", contract_id=event.contract_id, error=str(e))
         raise
 
     return {"status": "ok"}
 ```
 
-#### task.failed
+#### contract.failed
+
+Published by `aex-contract-engine` when execution fails.
 
 ```python
-@app.post("/events/task.failed")
-async def handle_task_failed(request: Request, db: Session = Depends(get_db)):
+@app.post("/events/contract.failed")
+async def handle_contract_failed(request: Request, db: Session = Depends(get_db)):
     """Record failed executions (no billing, but track for analytics)."""
     envelope = await request.json()
-    event = TaskFailedEvent.parse_obj(decode_pubsub_message(envelope))
+    event = ContractFailedEvent.parse_obj(decode_pubsub_message(envelope))
 
     execution = Execution(
-        task_id=event.task_id,
+        work_id=event.work_id,
+        contract_id=event.contract_id,
         agent_id=event.data.agent_id,
         status="FAILED",
         success=False,
@@ -451,7 +459,8 @@ List transactions with pagination.
       "balance_after": 99.95,
       "reference": {
         "type": "execution",
-        "task_id": "task_550e8400"
+        "work_id": "work_550e8400",
+        "contract_id": "contract_789xyz"
       },
       "created_at": "2025-01-15T10:30:05Z"
     }
@@ -489,7 +498,8 @@ Withdraw funds.
 -- BigQuery table: aex_analytics.executions
 CREATE TABLE aex_analytics.executions (
     execution_id STRING,
-    task_id STRING,
+    work_id STRING,
+    contract_id STRING,
     agent_id STRING,
     requestor_tenant_id STRING,
     provider_tenant_id STRING,
@@ -518,7 +528,8 @@ async def export_to_bigquery(execution: Execution):
     """Async export to BigQuery for analytics."""
     row = {
         "execution_id": str(execution.id),
-        "task_id": execution.task_id,
+        "work_id": execution.work_id,
+        "contract_id": execution.contract_id,
         "agent_id": execution.agent_id,
         "requestor_tenant_id": str(execution.requestor_tenant_id),
         "provider_tenant_id": str(execution.provider_tenant_id),
@@ -563,7 +574,8 @@ BIGQUERY_DATASET=aex_analytics
 
 # Pub/Sub
 PUBSUB_PROJECT_ID=aex-prod
-PUBSUB_SUBSCRIPTION_COMPLETED=aex-settlement-completed-sub
+PUBSUB_SUBSCRIPTION_CONTRACT_COMPLETED=aex-settlement-contract-completed-sub
+PUBSUB_SUBSCRIPTION_CONTRACT_FAILED=aex-settlement-contract-failed-sub
 
 # Business
 PLATFORM_FEE_RATE=0.15

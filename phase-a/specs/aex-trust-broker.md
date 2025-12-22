@@ -30,6 +30,51 @@
          (scores)    (history)   (adjustments)
 ```
 
+## Phase A vs Phase B: Trust Service Responsibilities
+
+In Phase B, the `aex-trust-scoring` service is introduced for ML-based predictions.
+The two services have distinct responsibilities:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    TRUST SERVICE SEPARATION                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  aex-trust-broker (Phase A & B)          aex-trust-scoring (Phase B only)  │
+│  ─────────────────────────────           ────────────────────────────────  │
+│                                                                             │
+│  TRUST MANAGEMENT:                       ML PREDICTIONS:                    │
+│  • Trust tier assignment                 • Success probability prediction   │
+│    (UNVERIFIED → PREFERRED)              • Metric forecasting               │
+│  • Verification status tracking          • Feature extraction from BigQuery │
+│  • Dispute handling & resolution         • Model training & evaluation      │
+│  • Compliance enforcement                                                   │
+│  • Historical score calculation          INTEGRATION:                       │
+│    (weighted average of outcomes)        • Publishes predictions            │
+│                                          • Trust-broker may use for         │
+│  SOURCE OF TRUTH:                          tier boundary decisions          │
+│  • Provider reputation record                                               │
+│  • Contract outcome history                                                 │
+│  • Dispute records                                                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Phase B Integration Flow:
+
+    contract.completed ──► aex-trust-broker ──► Updates trust score & tier
+                      └──► aex-trust-scoring ──► Updates ML model features
+                                    │
+                                    ▼
+                           trust.prediction_updated
+                                    │
+                                    ▼
+                           aex-trust-broker (optional: use for tier edge cases)
+```
+
+**Key Distinction:**
+- `aex-trust-broker`: Deterministic scoring based on historical outcomes
+- `aex-trust-scoring`: Probabilistic predictions for future performance
+
 ## Core Responsibilities
 
 1. **Trust Score Calculation** - Rolling reputation based on outcomes

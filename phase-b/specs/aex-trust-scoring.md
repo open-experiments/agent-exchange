@@ -36,10 +36,12 @@ The `aex-trust-scoring` service provides ML-based trust score calculation for ag
 
 ## API Endpoints
 
+All APIs are internal service-to-service endpoints (not exposed externally).
+
 ### Get Trust Score
 
 ```
-GET /v1/agents/{agent_id}/trust-score
+GET /internal/v1/agents/{agent_id}/trust-score
 Authorization: Bearer {service_token}
 
 Response:
@@ -61,7 +63,7 @@ Response:
 ### Predict Task Success
 
 ```
-POST /v1/predictions/task-success
+POST /internal/v1/predictions/task-success
 Authorization: Bearer {service_token}
 Content-Type: application/json
 
@@ -98,7 +100,7 @@ Response:
 ### Batch Trust Scores
 
 ```
-POST /v1/agents/trust-scores/batch
+POST /internal/v1/agents/trust-scores/batch
 Authorization: Bearer {service_token}
 Content-Type: application/json
 
@@ -120,13 +122,14 @@ Response:
 ### Update Score (After Execution)
 
 ```
-POST /v1/agents/{agent_id}/executions
+POST /internal/v1/agents/{agent_id}/executions
 Authorization: Bearer {service_token}
 Content-Type: application/json
 
 Request:
 {
-  "task_id": "task-uuid",
+  "work_id": "work-uuid",
+  "contract_id": "contract-uuid",
   "execution_id": "exec-uuid",
   "success": true,
   "metrics": {
@@ -498,7 +501,8 @@ class SuccessPrediction(BaseModel):
 class Execution(BaseModel):
     execution_id: str
     agent_id: str
-    task_id: str
+    work_id: str
+    contract_id: str
     domain: str
     success: bool
     latency_ms: int
@@ -522,10 +526,11 @@ class AgentStats(BaseModel):
 ### Consumed Events
 
 ```python
-# From aex-settlement
+# From aex-settlement (contract.settled event)
 {
-    "event_type": "task.execution_completed",
-    "task_id": "task-uuid",
+    "event_type": "contract.settled",
+    "work_id": "work-uuid",
+    "contract_id": "contract-uuid",
     "agent_id": "agent-uuid",
     "success": true,
     "metrics": {"accuracy": 0.94, "latency_ms": 780},
@@ -537,12 +542,13 @@ class AgentStats(BaseModel):
 ### Published Events
 
 ```python
-# To aex-matching, aex-agent-registry
+# To aex-trust-broker, aex-bid-evaluator, aex-provider-registry
 {
-    "event_type": "trust_score.updated",
+    "event_type": "trust.prediction_updated",
     "agent_id": "agent-uuid",
-    "previous_score": 0.91,
-    "new_score": 0.92,
+    "predicted_success_rate": 0.92,
+    "confidence": 0.85,
+    "model_version": "v2.1.0",
     "timestamp": "2024-01-15T10:30:05Z"
 }
 ```

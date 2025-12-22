@@ -30,10 +30,13 @@ The `aex-governance` service is the policy engine for the Agent Exchange. It enf
 
 ## API Endpoints
 
+All policy evaluation and validation APIs are internal service-to-service endpoints.
+Policy management APIs (GET/POST/PUT/DELETE /v1/policies) are admin-facing.
+
 ### Policy Evaluation
 
 ```
-POST /v1/policies/evaluate
+POST /internal/v1/policies/evaluate
 Authorization: Bearer {service_token}
 Content-Type: application/json
 
@@ -68,13 +71,14 @@ Response:
 ### Outcome Validation
 
 ```
-POST /v1/outcomes/validate
+POST /internal/v1/outcomes/validate
 Authorization: Bearer {service_token}
 Content-Type: application/json
 
 Request:
 {
-  "task_id": "task-uuid",
+  "work_id": "work-uuid",
+  "contract_id": "contract-uuid",
   "agent_id": "agent-uuid",
   "claimed_metrics": {
     "accuracy": 0.92,
@@ -112,7 +116,7 @@ Response:
 ### Content Safety Check
 
 ```
-POST /v1/safety/check
+POST /internal/v1/safety/check
 Authorization: Bearer {service_token}
 Content-Type: application/json
 
@@ -303,7 +307,8 @@ class PolicyDecision(BaseModel):
 ```python
 class OutcomeValidation(BaseModel):
     id: str
-    task_id: str
+    work_id: str
+    contract_id: str
     agent_id: str
     claimed_metrics: dict[str, float]
     verified_metrics: dict[str, float]
@@ -399,7 +404,8 @@ class OutcomeValidator:
 
     async def validate(
         self,
-        task_id: str,
+        work_id: str,
+        contract_id: str,
         agent_id: str,
         claimed_metrics: dict[str, float],
         success_criteria: list[dict],
@@ -412,7 +418,8 @@ class OutcomeValidator:
         policy_result = await self.policy_engine.evaluate(
             PolicyType.OUTCOME,
             {
-                "task_id": task_id,
+                "work_id": work_id,
+                "contract_id": contract_id,
                 "agent_id": agent_id,
                 "claimed_metrics": claimed_metrics,
                 "execution_context": execution_context,
@@ -450,7 +457,8 @@ class OutcomeValidator:
 
         validation = OutcomeValidation(
             id=str(uuid.uuid4()),
-            task_id=task_id,
+            work_id=work_id,
+            contract_id=contract_id,
             agent_id=agent_id,
             claimed_metrics=claimed_metrics,
             verified_metrics=claimed_metrics,  # Phase B: trust claimed values
@@ -520,7 +528,8 @@ class OutcomeValidator:
 {
     "event_type": "outcome.validated",
     "validation_id": "val-uuid",
-    "task_id": "task-uuid",
+    "work_id": "work-uuid",
+    "contract_id": "contract-uuid",
     "agent_id": "agent-uuid",
     "valid": true,
     "flags": [],
