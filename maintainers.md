@@ -1,3 +1,3 @@
-Murat Parlakisik <parlakisik@gmail.com>
-Fatih Nar <fenar@yahoo.com>
-Onur Cinar <onur.cinar@gmail.com>
+Murat Parlakisik <parlakisik@gmail.com> <br>
+Fatih Nar <fenar@yahoo.com>  <br>
+Onur Cinar <onur.cinar@gmail.com>  <br>
