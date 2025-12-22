@@ -106,7 +106,7 @@ CLUSTER BY domain, agent_id;
 CREATE OR REPLACE MODEL `aex-prod.ml.success_predictor_v1`
 OPTIONS(
   model_type = 'LOGISTIC_REG',
-  input_label_cols = ['task_success'],
+  input_label_cols = ['success'],
   auto_class_weights = TRUE,
   enable_global_explain = TRUE,
   l2_reg = 0.01,
@@ -128,7 +128,7 @@ SELECT
   agent_trust_score,
   sla_headroom_ratio,
   budget_headroom_ratio,
-  task_success
+  success
 FROM `aex-prod.ml.training_success_prediction`
 WHERE created_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY);
 
@@ -266,8 +266,8 @@ resource "google_vertex_ai_endpoint_deployment" "success_predictor" {
 -- Example prediction query
 SELECT
   agent_id,
-  predicted_task_success,
-  predicted_task_success_probs[OFFSET(1)].prob as success_probability
+  predicted_success,
+  predicted_success_probs[OFFSET(1)].prob as success_probability
 FROM ML.PREDICT(
   MODEL `aex-prod.ml.success_predictor_v1`,
   (
@@ -431,7 +431,7 @@ resource "google_pubsub_subscription" "trust_scoring_executions" {
   name  = "aex-trust-scoring-executions-sub"
   topic = google_pubsub_topic.events.name  # Main events topic
 
-  filter = "attributes.event_type = \"task.execution_completed\""
+  filter = "attributes.event_type = \"contract.completed\""
 
   ack_deadline_seconds = 60
 
@@ -447,7 +447,7 @@ resource "google_pubsub_subscription" "governance_validation" {
   name  = "aex-governance-validation-sub"
   topic = google_pubsub_topic.events.name
 
-  filter = "attributes.event_type = \"outcome.validation_requested\""
+  filter = "attributes.event_type = \"contract.verification_pending\""
 
   ack_deadline_seconds = 30
 

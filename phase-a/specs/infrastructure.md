@@ -576,7 +576,7 @@ resource "google_bigquery_table" "executions" {
     field = "created_at"
   }
 
-  clustering = ["domain", "requestor_tenant_id"]
+  clustering = ["domain", "consumer_id"]
 
   schema = file("${path.module}/schemas/executions.json")
 }

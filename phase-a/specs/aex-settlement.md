@@ -68,8 +68,8 @@ CREATE TABLE executions (
     work_id VARCHAR(255) NOT NULL,       -- Links to work spec from aex-work-publisher
     contract_id VARCHAR(255) NOT NULL,   -- Links to contract from aex-contract-engine
     agent_id VARCHAR(255) NOT NULL,
-    requestor_tenant_id UUID NOT NULL REFERENCES tenants(id),
-    provider_tenant_id UUID NOT NULL REFERENCES tenants(id),
+    consumer_id UUID NOT NULL REFERENCES tenants(id),
+    provider_id UUID NOT NULL REFERENCES tenants(id),
     domain VARCHAR(255) NOT NULL,
 
     -- Timing
@@ -94,8 +94,8 @@ CREATE TABLE executions (
     CONSTRAINT unique_contract_execution UNIQUE (contract_id)
 );
 
-CREATE INDEX idx_executions_requestor ON executions(requestor_tenant_id, created_at);
-CREATE INDEX idx_executions_provider ON executions(provider_tenant_id, created_at);
+CREATE INDEX idx_executions_consumer ON executions(consumer_id, created_at);
+CREATE INDEX idx_executions_provider ON executions(provider_id, created_at);
 CREATE INDEX idx_executions_domain ON executions(domain, created_at);
 
 -- Ledger entries (immutable, append-only)
@@ -164,8 +164,8 @@ class Execution(Base):
     work_id = Column(String(255), nullable=False)
     contract_id = Column(String(255), unique=True, nullable=False)
     agent_id = Column(String(255), nullable=False)
-    requestor_tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
-    provider_tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    consumer_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    provider_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     domain = Column(String(255), nullable=False)
 
     started_at = Column(DateTime(timezone=True), nullable=False)
@@ -258,8 +258,8 @@ async def settle_execution(
             work_id=event.work_id,
             contract_id=event.contract_id,
             agent_id=event.data.agent_id,
-            requestor_tenant_id=requestor.id,
-            provider_tenant_id=provider.id,
+            consumer_id=consumer.id,
+            provider_id=provider.id,
             domain=event.data.domain,
             started_at=event.data.started_at,
             completed_at=event.timestamp,
@@ -501,8 +501,8 @@ CREATE TABLE aex_analytics.executions (
     work_id STRING,
     contract_id STRING,
     agent_id STRING,
-    requestor_tenant_id STRING,
-    provider_tenant_id STRING,
+    consumer_id STRING,
+    provider_id STRING,
     domain STRING,
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
@@ -531,8 +531,8 @@ async def export_to_bigquery(execution: Execution):
         "work_id": execution.work_id,
         "contract_id": execution.contract_id,
         "agent_id": execution.agent_id,
-        "requestor_tenant_id": str(execution.requestor_tenant_id),
-        "provider_tenant_id": str(execution.provider_tenant_id),
+        "consumer_id": str(execution.consumer_id),
+        "provider_id": str(execution.provider_id),
         "domain": execution.domain,
         "started_at": execution.started_at.isoformat(),
         "completed_at": execution.completed_at.isoformat(),

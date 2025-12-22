@@ -772,6 +772,61 @@ Published by `aex-trust-broker` (Phase B) when outcome is recorded for trust.
 
 ---
 
+### trust.outcome_dispute_opened
+
+Published by `aex-trust-broker` (Phase B) when CPA outcome dispute is opened.
+
+**Topic:** `aex-trust-events`
+
+```json
+{
+  "event_type": "trust.outcome_dispute_opened",
+  "data": {
+    "dispute_id": "disp_abc123",
+    "contract_id": "contract_789xyz",
+    "provider_id": "prov_abc123",
+    "consumer_id": "tenant_123",
+    "disputed_metrics": ["accuracy"],
+    "reason": "metric_mismatch",
+    "opened_at": "2025-01-15T10:40:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-settlement` - Holds CPA payout pending resolution
+- `aex-outcome-oracle` - May trigger re-verification
+
+---
+
+### trust.outcome_dispute_resolved
+
+Published by `aex-trust-broker` (Phase B) when CPA outcome dispute is resolved.
+
+**Topic:** `aex-trust-events`
+
+```json
+{
+  "event_type": "trust.outcome_dispute_resolved",
+  "data": {
+    "dispute_id": "disp_abc123",
+    "contract_id": "contract_789xyz",
+    "resolution": "consumer_favor",
+    "revised_metrics": {
+      "accuracy": 0.82
+    },
+    "payout_adjustment": -0.02,
+    "resolved_at": "2025-01-15T11:00:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-settlement` - Adjusts CPA payout
+- `aex-trust-broker` - Updates trust score based on resolution
+
+---
+
 ### provider.outcome_recorded
 
 Published by `aex-provider-registry` (Phase B) when provider outcome tracked.
@@ -794,6 +849,30 @@ Published by `aex-provider-registry` (Phase B) when provider outcome tracked.
 **Consumers:**
 - `aex-trust-scoring` - Feature updates
 - `aex-telemetry` - Provider analytics
+
+---
+
+### provider.ml_features_updated
+
+Published by `aex-provider-registry` (Phase B) when ML features are refreshed.
+
+**Topic:** `aex-provider-events`
+
+```json
+{
+  "event_type": "provider.ml_features_updated",
+  "data": {
+    "provider_id": "prov_abc123",
+    "features_hash": "sha256:abc123def456",
+    "features_updated": ["success_rate_30d", "avg_latency_30d"],
+    "updated_at": "2025-01-15T10:35:00Z"
+  }
+}
+```
+
+**Consumers:**
+- `aex-trust-scoring` - Refreshes predictions
+- `aex-bid-evaluator` - Updates scoring cache
 
 ---
 
@@ -829,9 +908,9 @@ Published by `aex-provider-registry` (Phase B) when provider achieves CPA certif
 | `aex-bid-events` | bid-gateway, bid-evaluator | bid.submitted, bids.evaluated |
 | `aex-contract-events` | contract-engine | contract.awarded, contract.completed, contract.failed, contract.verification_pending |
 | `aex-settlement-events` | settlement | contract.settled |
-| `aex-trust-events` | trust-broker, trust-scoring | trust.score_updated, trust.tier_changed, trust.prediction_updated, trust.dispute_opened, trust.dispute_resolved, trust.outcome_recorded |
+| `aex-trust-events` | trust-broker, trust-scoring | trust.score_updated, trust.tier_changed, trust.prediction_updated, trust.dispute_opened, trust.dispute_resolved, trust.outcome_recorded, trust.outcome_dispute_opened, trust.outcome_dispute_resolved |
 | `aex-identity-events` | identity | tenant.created, tenant.suspended, apikey.revoked |
-| `aex-provider-events` | provider-registry | provider.registered, provider.status_changed, subscription.created, provider.outcome_recorded, provider.cpa_certified |
+| `aex-provider-events` | provider-registry | provider.registered, provider.status_changed, subscription.created, provider.outcome_recorded, provider.ml_features_updated, provider.cpa_certified |
 | `aex-governance-events` | governance | policy.evaluated, safety.violation, outcome.validated |
 | `aex-outcome-events` | outcome-oracle | outcome.verified, outcome.anomaly_detected |
 
