@@ -347,7 +347,7 @@ contract.completed► Settlement triggered, trust updated
 | Phase | Focus | Key Capabilities |
 |-------|-------|------------------|
 | **[Phase A](./phase-a/)** | MVP Foundation | Bid-based pricing, provider subscriptions, contract execution |
-| **Phase B** | Outcome Economics | CPA pricing, outcome verification, governance |
+| **[Phase B](./phase-b/)** | Outcome Economics | CPA pricing, outcome verification, governance |
 | **Phase C** | Full Marketplace | RTB auctions, CPM reservations, SLA guarantees |
 
 ### Articles & Vision
