@@ -50,8 +50,8 @@ Published by `aex-work-publisher` when a new work spec is submitted.
       "max_latency_ms": 5000
     },
     "budget": {
-      "max_cpc": 0.10,
-      "max_cpa_total": 0.05
+      "max_price": 0.10,
+      "max_cpa_bonus": 0.05
     },
     "success_criteria": [
       {
