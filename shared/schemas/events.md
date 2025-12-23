@@ -45,7 +45,7 @@ Published by `aex-work-publisher` when a new work spec is submitted.
   "event_type": "work.submitted",
   "data": {
     "work_id": "work_550e8400",
-    "domain": "nlp.summarization",
+    "category": "nlp.summarization",
     "requirements": {
       "max_latency_ms": 5000
     },
@@ -228,7 +228,7 @@ Published by `aex-contract-engine` when provider completes work.
     "agent_id": "agent_xyz789",
     "provider_id": "prov_abc123",
     "consumer_id": "tenant_123",
-    "domain": "nlp.summarization",
+    "category": "nlp.summarization",
     "started_at": "2025-01-15T10:30:00Z",
     "completed_at": "2025-01-15T10:30:02Z",
     "duration_ms": 2000,
@@ -840,7 +840,7 @@ Published by `aex-provider-registry` (Phase B) when provider outcome tracked.
   "event_type": "provider.outcome_recorded",
   "data": {
     "provider_id": "prov_abc123",
-    "domain": "travel.booking",
+    "category": "travel.booking",
     "success": true,
     "cpa_bonus_earned": 0.03,
     "recorded_at": "2025-01-15T10:32:00Z"
