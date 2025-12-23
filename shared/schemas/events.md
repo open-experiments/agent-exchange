@@ -326,8 +326,8 @@ Published by `aex-trust-broker` when a provider's trust score changes.
     "agent_id": "agent_xyz789",
     "previous_score": 0.85,
     "new_score": 0.87,
-    "previous_tier": "SILVER",
-    "new_tier": "SILVER",
+    "previous_tier": "VERIFIED",
+    "new_tier": "VERIFIED",
     "reason": "contract_completed"
   }
 }
@@ -350,8 +350,8 @@ Published by `aex-trust-broker` when provider tier changes.
   "event_type": "trust.tier_changed",
   "data": {
     "provider_id": "prov_abc123",
-    "previous_tier": "SILVER",
-    "new_tier": "GOLD",
+    "previous_tier": "TRUSTED",
+    "new_tier": "PREFERRED",
     "effective_at": "2025-01-15T00:00:00Z"
   }
 }
