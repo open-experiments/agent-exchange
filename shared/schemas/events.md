@@ -131,6 +131,7 @@ Published by `aex-bid-gateway` when a provider submits a bid.
     "bid_id": "bid_abc123",
     "work_id": "work_550e8400",
     "provider_id": "prov_expedia",
+    "agent_id": "agent_xyz789",
     "price": 0.08,
     "confidence": 0.92,
     "a2a_endpoint": "https://agent.expedia.com/a2a/v1"
