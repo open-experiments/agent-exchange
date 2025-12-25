@@ -176,7 +176,7 @@ sequenceDiagram
     A->>E: Award Contract
     A-->>C: Return Connection Info
 
-    box
+    par
         Note over C, E: 5. DIRECT EXECUTION (A2A)
         C->>E: Execute: "Book the $299 Delta flight"
         E-->>C: "Confirmed: DL1234, Conf# ABC123"
