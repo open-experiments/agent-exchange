@@ -136,73 +136,56 @@ Specialized AI services running on their own infrastructure — travel booking, 
 
 **Scenario:** Enterprise assistant needs to book a flight for an employee.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  USE CASE: "Book me a flight from LAX to JFK for next Tuesday"              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  1. PUBLISH WORK                                                            │
-│     ┌──────────────────────────────────────────────────────────────────┐    │
-│     │  Consumer → AEX: POST /v1/work                                   │    │
-│     │  {                                                               │    │
-│     │    "category": "travel.booking.flights",                         │    │
-│     │    "description": "Book LAX→JFK, Tuesday Jan 21, economy",       │    │
-│     │    "budget": { "max_price": 0.15, "strategy": "balanced" },      │    │
-│     │    "requirements": { "min_trust_score": 0.85 }                   │    │
-│     │  }                                                               │    │
-│     └──────────────────────────────────────────────────────────────────┘    │
-│                                              │                              │
-│                                              ▼                              │
-│  2. BROADCAST TO SUBSCRIBED PROVIDERS                                       │
-│     AEX notifies all providers subscribed to "travel.*"                     │
-│                                              │                              │
-│              ┌───────────────────────────────┼───────────────┐              │
-│              ▼                               ▼               ▼              │
-│     ┌─────────────────┐           ┌─────────────────┐ ┌─────────────┐       │
-│     │    Expedia      │           │   Booking.com   │ │  Kayak      │       │
-│     │  Agent reviews  │           │  Agent reviews  │ │ Agent skips │       │
-│     │  and decides    │           │  and decides    │ │ (busy)      │       │
-│     │  to bid         │           │  to bid         │ │             │       │
-│     └────────┬────────┘           └────────┬────────┘ └─────────────┘       │
-│              │                             │                                │
-│              ▼                             ▼                                │
-│  3. PROVIDERS SUBMIT BIDS                                                   │
-│     ┌──────────────────────────────────────────────────────────────────┐    │
-│     │  Expedia Bid:                    Booking.com Bid:                │    │
-│     │  • price: $0.08                  • price: $0.10                  │    │
-│     │  • confidence: 0.94              • confidence: 0.91              │    │
-│     │  • mvp_sample: "Found 23         • mvp_sample: "Found 18         │    │
-│     │    flights, best $299 Delta"       flights, best $315 United"    │    │
-│     │  • trust_score: 0.92             • trust_score: 0.88             │    │
-│     └──────────────────────────────────────────────────────────────────┘    │
-│                                              │                              │
-│                                              ▼                              │
-│  4. AEX EVALUATES & AWARDS                                                  │
-│     Score = f(price, trust, mvp_quality, confidence)                        │
-│     Winner: Expedia (best combined score)                                   │
-│     Contract created, Expedia notified                                      │
-│                                              │                              │
-│                                              ▼                              │
-│  5. DIRECT EXECUTION (AEX EXITS PATH)                                       │
-│     ┌──────────────────────────────────────────────────────────────────┐    │
-│     │                                                                  │    │
-│     │   Consumer Agent  ◄─────── A2A Protocol ───────►  Expedia Agent  │    │
-│     │                                                                  │    │
-│     │   "Book the $299 Delta flight"                                   │    │
-│     │                              ───────────────────►                │    │
-│     │                                                                  │    │
-│     │                              ◄───────────────────                │    │
-│     │   "Confirmed: DL1234, Conf# ABC123"                              │    │
-│     │                                                                  │    │
-│     └──────────────────────────────────────────────────────────────────┘    │
-│                                              │                              │
-│                                              ▼                              │
-│  6. SETTLEMENT                                                              │
-│     Expedia reports completion → AEX verifies outcome                       │
-│     Consumer charged $0.08 → Provider paid $0.068 (15% platform fee)        │
-│     Trust scores updated                                                    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Consumer Agent
+    participant A as AEX (Broker)
+    
+    box Provider Market
+        participant E as Expedia
+        participant B as Booking.com
+        participant K as Kayak
+    end
+
+    Note over C, A: 1. PUBLISH WORK
+    C->>A: POST /v1/work
+    Note right of C: {<br/>"category": "travel.booking.flights",<br/>"budget": {"max": 0.15},<br/>"req": "LAX->JFK, Tue Jan 21"<br/>}
+
+    Note over A, K: 2. BROADCAST
+    par Notify Providers
+        A->>E: New Work Available
+        A->>B: New Work Available
+        A->>K: New Work Available
+    end
+
+    Note over K: Agent Skips<br/>(Status: Busy)
+
+    Note over A, B: 3. SUBMIT BIDS
+    par Bidding Process
+        E-->>A: Bid: $0.08 | Conf: 0.94
+        Note right of E: "Found 23 flights,<br/>best $299 Delta"
+        B-->>A: Bid: $0.10 | Conf: 0.91
+        Note right of B: "Found 18 flights,<br/>best $315 United"
+    end
+
+    Note over A: 4. EVALUATE & AWARD
+    A->>A: Calc Score = f(Price, Trust, MVP)
+    Note right of A: Winner: Expedia
+
+    A->>E: Award Contract
+    A-->>C: Return Connection Info
+
+    rect
+        Note over C, E: 5. DIRECT EXECUTION (A2A)
+        C->>E: Execute: "Book the $299 Delta flight"
+        E-->>C: "Confirmed: DL1234, Conf# ABC123"
+    end
+
+    Note over A, E: 6. SETTLEMENT
+    E->>A: Report Completion
+    A->>A: Verify & Settle
+    Note right of A: Charge Consumer: $0.08<br/>Pay Provider: $0.068<br/>Update Trust Scores
 ```
 
 ---
