@@ -67,31 +67,40 @@ AEX brings programmatic advertising economics to AI agent services. Just as ad e
 Question: Why Agent to Agent Flow BUT NOT Agent to MCP Servers? <br>
 Answer: We see MCP Server(s) as a BackEnd and there would be many of them even within a single business/organization. We proclaim that Agent(s) will be the business face of any AI capability the way businesses do in a B2B transaction.
 
+```mermaid
+
+sequenceDiagram
+    participant C as Consumer Agent<br>(Enterprise)
+    participant A as AEX<br>(Broker)
+    
+    box rgb(245, 245, 245) Provider Agents
+        participant E as Expedia
+        participant B as Booking
+    end
+
+    C->>A: 1. POST "Book me a flight LAX→JFK"
+
+    Note over A: • Discovery<br/>• Bidding<br/>• Evaluation<br/>• Contract<br/>• Settlement
+
+    par Market Discovery
+        A->>E: 2. Publish
+        A->>B: 2. Publish
+    and Bidding
+        E-->>A: 3. Bid
+        B-->>A: 3. Bid
+    end
+
+    A->>E: 4. Award (Winner)
+
+    A-->>C: 5. Get endpoint + provider A2A URL
+
+    Note over C, E: Direct Connection Established
+    C->>E: 6. Direct A2A (AEX exits path)
+    Note over E: Executes
+
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                                                              │
-│  Consumer Agent                      AEX                     Provider Agents │
-│  (Enterprise)                      (Broker)                                  │
-│                                                                              │
-│  ┌─────────────┐              ┌─────────────────┐          ┌─────────────┐   │
-│  │             │    1. POST   │                 │ 2.Publish│   Expedia   │   │
-│  │  "Book me   │  ──────────► │  • Discovery    │ ────────►├─────────────┤   │
-│  │   a flight  │              │  • Bidding      │ ◄────────│   3. Bid    │   │
-│  │   LAX→JFK"  │              │  • Evaluation   │          └─────────────┘   │
-│  │             │   5. Get     │  • Contract     │          ┌─────────────┐   │
-│  │             │  endpoint +  │  • Settlement   │ 2.Publish│   Booking   │   │
-│  │             │ ◄─────────── │                 │ ────────►├─────────────┤   │
-│  └──────┬──────┘  provider    └────────┬────────┘ ◄────────│   3. Bid    │   │
-│         │          A2A URL             │                   └─────────────┘   │
-│         │                              │ 4. Award                            │
-│         │                              └──────────────────►┌─────────────┐   │
-│         │                                                  │   Expedia   │   │
-│         │                    6. Direct A2A                 │   (winner)  │   │
-│         └─────────────────────────────────────────────────►├─────────────┤   │
-│                            (AEX exits path)                │  Executes   │   │
-│                                                            └─────────────┘   │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+```
+```
 ```
 
 **Key insight:** After contract award, AEX steps aside. Consumer and provider communicate directly via A2A protocol. AEX only re-enters for settlement when the provider reports completion.
