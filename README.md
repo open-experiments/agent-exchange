@@ -73,7 +73,7 @@ sequenceDiagram
     participant C as Consumer Agent<br>(Enterprise)
     participant A as AEX<br>(Broker)
     
-    box rgb(245, 245, 245) Provider Agents
+    box Provider Agents
         participant E as Expedia
         participant B as Booking
     end
@@ -98,7 +98,6 @@ sequenceDiagram
     C->>E: 6. Direct A2A (AEX exits path)
     Note over E: Executes
 
-```
 ```
 ```
 ```
