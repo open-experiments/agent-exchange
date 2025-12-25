@@ -4,8 +4,8 @@
 
 **Purpose:** Manage provider reputation through outcome tracking, calculate trust scores, and enforce trust-based access controls. This is the reputation and compliance layer for the marketplace.
 
-**Language:** Python 3.11+
-**Framework:** FastAPI + Event-driven (Pub/Sub)
+**Language:** Go 1.22+
+**Framework:** Chi router + Event-driven (Pub/Sub)
 **Runtime:** Cloud Run
 **Port:** 8080
 
@@ -331,251 +331,300 @@ Verify provider identity (admin action).
 
 ### TrustRecord
 
-```python
-class TrustRecord(BaseModel):
-    provider_id: str
+```go
+type TrustTier string
 
-    # Current scores
-    trust_score: float           # 0.0 - 1.0
-    trust_tier: TrustTier
-    base_score: float
+const (
+	TrustTierUnverified TrustTier = "UNVERIFIED"
+	TrustTierVerified   TrustTier = "VERIFIED"
+	TrustTierTrusted    TrustTier = "TRUSTED"
+	TrustTierPreferred  TrustTier = "PREFERRED"
+	TrustTierInternal   TrustTier = "INTERNAL"
+)
 
-    # Verification status
-    identity_verified: bool
-    endpoint_verified: bool
-    compliance_verified: bool
+type OutcomeType string
 
-    # Statistics
-    total_contracts: int
-    successful_contracts: int
-    failed_contracts: int
-    disputed_contracts: int
-    disputes_won: int
-    disputes_lost: int
+const (
+	OutcomeSuccess        OutcomeType = "SUCCESS"
+	OutcomeSuccessPartial OutcomeType = "SUCCESS_PARTIAL"
+	OutcomeFailureProvider OutcomeType = "FAILURE_PROVIDER"
+	OutcomeFailureExternal OutcomeType = "FAILURE_EXTERNAL"
+	OutcomeFailureConsumer OutcomeType = "FAILURE_CONSUMER"
+	OutcomeDisputeWon     OutcomeType = "DISPUTE_WON"
+	OutcomeDisputeLost    OutcomeType = "DISPUTE_LOST"
+	OutcomeExpired        OutcomeType = "EXPIRED"
+)
 
-    # Timestamps
-    registered_at: datetime
-    last_contract_at: datetime | None
-    last_updated: datetime
+type DisputeStatus string
 
-class TrustTier(str, Enum):
-    UNVERIFIED = "UNVERIFIED"    # New, limited access
-    VERIFIED = "VERIFIED"        # Basic verification
-    TRUSTED = "TRUSTED"          # Established track record
-    PREFERRED = "PREFERRED"      # Top tier external
-    INTERNAL = "INTERNAL"        # Enterprise-managed
+const (
+	DisputeOpen               DisputeStatus = "OPEN"
+	DisputeInvestigating      DisputeStatus = "INVESTIGATING"
+	DisputeResolvedForReporter DisputeStatus = "RESOLVED_FOR_REPORTER"
+	DisputeResolvedForDefendant DisputeStatus = "RESOLVED_FOR_DEFENDANT"
+	DisputeResolvedSplit      DisputeStatus = "RESOLVED_SPLIT"
+	DisputeClosed             DisputeStatus = "CLOSED"
+)
 
-class ContractOutcome(BaseModel):
-    id: str
-    contract_id: str
-    provider_id: str
-    consumer_id: str
+type TrustRecord struct {
+	ProviderID string `json:"provider_id"`
 
-    outcome: OutcomeType
-    metrics: dict
+	TrustScore float64  `json:"trust_score"`
+	TrustTier  TrustTier `json:"trust_tier"`
+	BaseScore  float64  `json:"base_score"`
 
-    agreed_price: float
-    final_price: float
+	IdentityVerified   bool `json:"identity_verified"`
+	EndpointVerified   bool `json:"endpoint_verified"`
+	ComplianceVerified bool `json:"compliance_verified"`
 
-    completed_at: datetime
-    recorded_at: datetime
+	TotalContracts      int `json:"total_contracts"`
+	SuccessfulContracts int `json:"successful_contracts"`
+	FailedContracts     int `json:"failed_contracts"`
+	DisputedContracts   int `json:"disputed_contracts"`
+	DisputesWon         int `json:"disputes_won"`
+	DisputesLost        int `json:"disputes_lost"`
 
-class OutcomeType(str, Enum):
-    SUCCESS = "SUCCESS"
-    SUCCESS_PARTIAL = "SUCCESS_PARTIAL"
-    FAILURE_PROVIDER = "FAILURE_PROVIDER"
-    FAILURE_EXTERNAL = "FAILURE_EXTERNAL"
-    FAILURE_CONSUMER = "FAILURE_CONSUMER"
-    DISPUTE_WON = "DISPUTE_WON"
-    DISPUTE_LOST = "DISPUTE_LOST"
-    EXPIRED = "EXPIRED"
+	RegisteredAt   time.Time  `json:"registered_at"`
+	LastContractAt *time.Time `json:"last_contract_at,omitempty"`
+	LastUpdated    time.Time  `json:"last_updated"`
+}
 
-class Dispute(BaseModel):
-    id: str
-    contract_id: str
-    reporter_type: str           # "consumer" or "provider"
-    reporter_id: str
-    defendant_id: str
+type ContractOutcome struct {
+	ID         string `json:"id"`
+	ContractID string `json:"contract_id"`
+	ProviderID string `json:"provider_id"`
+	ConsumerID string `json:"consumer_id"`
 
-    reason: str
-    description: str
-    evidence: dict
+	Outcome  OutcomeType     `json:"outcome"`
+	Metrics  map[string]any  `json:"metrics"`
 
-    status: DisputeStatus
-    resolution: str | None
-    resolved_by: str | None
+	AgreedPrice float64 `json:"agreed_price"`
+	FinalPrice  float64 `json:"final_price"`
 
-    created_at: datetime
-    resolved_at: datetime | None
+	CompletedAt time.Time `json:"completed_at"`
+	RecordedAt  time.Time `json:"recorded_at"`
+}
 
-class DisputeStatus(str, Enum):
-    OPEN = "OPEN"
-    INVESTIGATING = "INVESTIGATING"
-    RESOLVED_FOR_REPORTER = "RESOLVED_FOR_REPORTER"
-    RESOLVED_FOR_DEFENDANT = "RESOLVED_FOR_DEFENDANT"
-    RESOLVED_SPLIT = "RESOLVED_SPLIT"
-    CLOSED = "CLOSED"
+type Dispute struct {
+	ID           string `json:"dispute_id"`
+	ContractID   string `json:"contract_id"`
+	ReporterType string `json:"reporter_type"` // "consumer" or "provider"
+	ReporterID   string `json:"reporter_id"`
+	DefendantID  string `json:"defendant_id"`
+
+	Reason      string         `json:"reason"`
+	Description string         `json:"description"`
+	Evidence    map[string]any `json:"evidence"`
+
+	Status     DisputeStatus `json:"status"`
+	Resolution *string       `json:"resolution,omitempty"`
+	ResolvedBy *string       `json:"resolved_by,omitempty"`
+
+	CreatedAt  time.Time  `json:"created_at"`
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+}
 ```
 
 ## Core Functions
 
 ### Calculate Trust Score
 
-```python
-async def calculate_trust_score(provider_id: str) -> TrustRecord:
-    # 1. Fetch outcome history
-    outcomes = await firestore.get_outcomes(provider_id, limit=200)
+```go
+func (s *Service) CalculateTrustScore(ctx context.Context, providerID string) (TrustRecord, error) {
+	// 1. Fetch outcome history
+	outcomes, err := s.store.GetOutcomes(ctx, providerID, 200)
+	if err != nil {
+		return TrustRecord{}, err
+	}
 
-    # 2. Calculate weighted base score
-    base_score = calculate_weighted_score(outcomes)
+	// 2. Calculate weighted base score
+	baseScore := calculateWeightedScore(outcomes)
 
-    # 3. Get verification status
-    record = await firestore.get_trust_record(provider_id)
+	// 3. Get verification status + current record
+	record, err := s.store.GetTrustRecord(ctx, providerID)
+	if err != nil {
+		return TrustRecord{}, err
+	}
 
-    # 4. Calculate modifiers
-    modifiers = 0.0
-    if record.identity_verified:
-        modifiers += 0.05
-    if record.endpoint_verified:
-        modifiers += 0.05
+	// 4. Calculate modifiers
+	modifiers := 0.0
+	if record.IdentityVerified {
+		modifiers += 0.05
+	}
+	if record.EndpointVerified {
+		modifiers += 0.05
+	}
 
-    # Tenure bonus (months since registration, max 5 months = 0.1)
-    tenure_months = min(5, months_since(record.registered_at))
-    modifiers += tenure_months * 0.02
+	tenureMonths := monthsSince(record.RegisteredAt)
+	if tenureMonths > 5 {
+		tenureMonths = 5
+	}
+	modifiers += float64(tenureMonths) * 0.02
 
-    # Dispute penalty
-    open_disputes = await firestore.count_open_disputes(provider_id)
-    modifiers -= open_disputes * 0.1
+	openDisputes, err := s.store.CountOpenDisputes(ctx, providerID)
+	if err != nil {
+		return TrustRecord{}, err
+	}
+	modifiers -= float64(openDisputes) * 0.1
 
-    # Compliance penalty
-    violations = await firestore.get_compliance_violations(provider_id)
-    modifiers -= len(violations) * 0.2
+	violations, err := s.store.GetComplianceViolations(ctx, providerID)
+	if err != nil {
+		return TrustRecord{}, err
+	}
+	modifiers -= float64(len(violations)) * 0.2
 
-    # 5. Calculate final score
-    final_score = max(0.0, min(1.0, base_score + modifiers))
+	// 5. Calculate final score
+	finalScore := clamp01(baseScore + modifiers)
 
-    # 6. Determine tier
-    tier = determine_tier(final_score, record)
+	// 6. Determine tier
+	tier := determineTier(finalScore, record)
 
-    # 7. Update record
-    record.trust_score = final_score
-    record.base_score = base_score
-    record.trust_tier = tier
-    record.last_updated = datetime.utcnow()
+	// 7. Update record
+	record.TrustScore = finalScore
+	record.BaseScore = baseScore
+	record.TrustTier = tier
+	record.LastUpdated = time.Now().UTC()
+	if err := s.store.UpdateTrustRecord(ctx, record); err != nil {
+		return TrustRecord{}, err
+	}
 
-    await firestore.update_trust_record(record)
+	return record, nil
+}
 
-    return record
+func calculateWeightedScore(outcomes []ContractOutcome) float64 {
+	if len(outcomes) == 0 {
+		return 0.3
+	}
+	weightedSum := 0.0
+	weightSum := 0.0
+	for i, o := range outcomes {
+		weight := 0.1
+		switch {
+		case i < 10:
+			weight = 1.0
+		case i < 50:
+			weight = 0.5
+		case i < 100:
+			weight = 0.25
+		}
+		score := outcomeToScore(o.Outcome)
+		weightedSum += score * weight
+		weightSum += weight
+	}
+	if weightSum == 0 {
+		return 0.3
+	}
+	return weightedSum / weightSum
+}
 
-def calculate_weighted_score(outcomes: list[ContractOutcome]) -> float:
-    if not outcomes:
-        return 0.3  # Default for new providers
+func outcomeToScore(outcome OutcomeType) float64 {
+	switch outcome {
+	case OutcomeSuccess:
+		return 1.0
+	case OutcomeSuccessPartial:
+		return 0.7
+	case OutcomeFailureProvider:
+		return 0.0
+	case OutcomeFailureExternal:
+		return 0.5
+	case OutcomeFailureConsumer:
+		return 0.8
+	case OutcomeDisputeWon:
+		return 0.8
+	case OutcomeDisputeLost:
+		return 0.0
+	case OutcomeExpired:
+		return 0.2
+	default:
+		return 0.5
+	}
+}
 
-    weighted_sum = 0.0
-    weight_sum = 0.0
-
-    for i, outcome in enumerate(outcomes):
-        # Determine weight based on recency
-        if i < 10:
-            weight = 1.0
-        elif i < 50:
-            weight = 0.5
-        elif i < 100:
-            weight = 0.25
-        else:
-            weight = 0.1
-
-        # Get outcome score
-        score = outcome_to_score(outcome.outcome)
-
-        weighted_sum += score * weight
-        weight_sum += weight
-
-    return weighted_sum / weight_sum if weight_sum > 0 else 0.3
-
-def outcome_to_score(outcome: OutcomeType) -> float:
-    scores = {
-        OutcomeType.SUCCESS: 1.0,
-        OutcomeType.SUCCESS_PARTIAL: 0.7,
-        OutcomeType.FAILURE_PROVIDER: 0.0,
-        OutcomeType.FAILURE_EXTERNAL: 0.5,
-        OutcomeType.FAILURE_CONSUMER: 0.8,
-        OutcomeType.DISPUTE_WON: 0.8,
-        OutcomeType.DISPUTE_LOST: 0.0,
-        OutcomeType.EXPIRED: 0.2
-    }
-    return scores.get(outcome, 0.5)
-
-def determine_tier(score: float, record: TrustRecord) -> TrustTier:
-    # Internal providers have fixed tier
-    if record.trust_tier == TrustTier.INTERNAL:
-        return TrustTier.INTERNAL
-
-    # Check tier requirements
-    if score >= 0.9 and record.total_contracts >= 100:
-        return TrustTier.PREFERRED
-    elif score >= 0.7 and record.total_contracts >= 25:
-        return TrustTier.TRUSTED
-    elif score >= 0.5 and record.total_contracts >= 5:
-        return TrustTier.VERIFIED
-    else:
-        return TrustTier.UNVERIFIED
+func determineTier(score float64, record TrustRecord) TrustTier {
+	if record.TrustTier == TrustTierInternal {
+		return TrustTierInternal
+	}
+	switch {
+	case score >= 0.9 && record.TotalContracts >= 100:
+		return TrustTierPreferred
+	case score >= 0.7 && record.TotalContracts >= 25:
+		return TrustTierTrusted
+	case score >= 0.5 && record.TotalContracts >= 5:
+		return TrustTierVerified
+	default:
+		return TrustTierUnverified
+	}
+}
 ```
 
 ### Record Outcome
 
-```python
-async def record_outcome(outcome: ContractOutcome) -> dict:
-    # 1. Store outcome
-    await firestore.save_outcome(outcome)
+```go
+func (s *Service) RecordOutcome(ctx context.Context, outcome ContractOutcome) (map[string]any, error) {
+	// 1. Store outcome
+	if err := s.store.SaveOutcome(ctx, outcome); err != nil {
+		return nil, err
+	}
 
-    # 2. Update provider stats
-    record = await firestore.get_trust_record(outcome.provider_id)
-    previous_score = record.trust_score
+	// 2. Update provider stats (and capture old tier/score)
+	record, err := s.store.GetTrustRecord(ctx, outcome.ProviderID)
+	if err != nil {
+		return nil, err
+	}
+	previousScore := record.TrustScore
+	previousTier := record.TrustTier
 
-    record.total_contracts += 1
-    if outcome.outcome in [OutcomeType.SUCCESS, OutcomeType.SUCCESS_PARTIAL]:
-        record.successful_contracts += 1
-    elif outcome.outcome in [OutcomeType.FAILURE_PROVIDER, OutcomeType.DISPUTE_LOST]:
-        record.failed_contracts += 1
+	record.TotalContracts++
+	switch outcome.Outcome {
+	case OutcomeSuccess, OutcomeSuccessPartial:
+		record.SuccessfulContracts++
+	case OutcomeFailureProvider, OutcomeDisputeLost:
+		record.FailedContracts++
+	}
+	record.LastContractAt = &outcome.CompletedAt
+	if err := s.store.UpdateTrustRecord(ctx, record); err != nil {
+		return nil, err
+	}
 
-    record.last_contract_at = outcome.completed_at
+	// 3. Recalculate trust score
+	updated, err := s.CalculateTrustScore(ctx, outcome.ProviderID)
+	if err != nil {
+		return nil, err
+	}
 
-    # 3. Recalculate trust score
-    updated_record = await calculate_trust_score(outcome.provider_id)
+	// 4. Check for tier change
+	tierChanged := updated.TrustTier != previousTier
+	if tierChanged {
+		_ = s.events.Publish(ctx, "trust.tier_changed", map[string]any{
+			"provider_id": outcome.ProviderID,
+			"old_tier":    string(previousTier),
+			"new_tier":    string(updated.TrustTier),
+			"trust_score": updated.TrustScore,
+		})
+	}
 
-    # 4. Check for tier change
-    tier_changed = updated_record.trust_tier != record.trust_tier
+	// 5. Store to BigQuery for analytics
+	_ = s.bigquery.InsertOutcome(ctx, outcome)
 
-    # 5. Publish event if tier changed
-    if tier_changed:
-        await pubsub.publish("trust.tier_changed", {
-            "provider_id": outcome.provider_id,
-            "old_tier": record.trust_tier.value,
-            "new_tier": updated_record.trust_tier.value,
-            "trust_score": updated_record.trust_score
-        })
-
-    # 6. Store to BigQuery for analytics
-    await bigquery.insert_outcome(outcome)
-
-    return {
-        "recorded": True,
-        "provider_id": outcome.provider_id,
-        "previous_score": previous_score,
-        "new_score": updated_record.trust_score,
-        "tier_changed": tier_changed
-    }
+	return map[string]any{
+		"recorded":       true,
+		"provider_id":    outcome.ProviderID,
+		"previous_score": previousScore,
+		"new_score":      updated.TrustScore,
+		"tier_changed":   tierChanged,
+	}, nil
+}
 ```
 
 ### Get Initial Trust Score
 
-```python
-async def get_initial_score(provider_type: str = "external") -> float:
-    """Get initial trust score for new providers."""
-    if provider_type == "internal":
-        return 1.0
-    return 0.3  # New external providers start at 0.3
+```go
+func getInitialScore(providerType string) float64 {
+	if providerType == "internal" {
+		return 1.0
+	}
+	return 0.3
+}
 ```
 
 ## Events
@@ -674,32 +723,32 @@ LOG_LEVEL=info
 
 ```
 aex-trust-broker/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   ├── models/
-│   │   ├── trust.py
-│   │   ├── outcome.py
-│   │   └── dispute.py
-│   ├── services/
-│   │   ├── trust_calculator.py
-│   │   ├── outcome_recorder.py
-│   │   ├── dispute_handler.py
-│   │   └── tier_manager.py
+├── cmd/
+│   └── trust-broker/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── api/
+│   │   ├── trust.go
+│   │   ├── outcomes.go
+│   │   └── disputes.go
+│   ├── model/
+│   │   ├── trust.go
+│   │   ├── outcome.go
+│   │   └── dispute.go
+│   ├── service/
+│   │   ├── calculator.go
+│   │   ├── recorder.go
+│   │   └── tiers.go
 │   ├── store/
-│   │   ├── firestore.py
-│   │   └── bigquery.py
-│   ├── events/
-│   │   └── handlers.py
-│   └── api/
-│       ├── trust.py
-│       ├── outcomes.py
-│       └── disputes.py
-├── tests/
-│   ├── test_trust_calculator.py
-│   ├── test_outcome_recorder.py
-│   └── test_tier_manager.py
+│   │   ├── firestore.go
+│   │   └── bigquery.go
+│   └── events/
+│       └── handler.go
+├── hack/
+│   └── tests/
 ├── Dockerfile
-└── requirements.txt
+├── go.mod
+└── go.sum
 ```

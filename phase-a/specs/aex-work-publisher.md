@@ -4,8 +4,8 @@
 
 **Purpose:** Accept work specifications from consumer agents, validate them, and broadcast to subscribed providers. This is the entry point for consumers seeking agent services.
 
-**Language:** Python 3.11+
-**Framework:** FastAPI
+**Language:** Go 1.22+
+**Framework:** Chi router (net/http)
 **Runtime:** Cloud Run
 **Port:** 8080
 
@@ -144,208 +144,234 @@ Stream bid updates in real-time.
 
 ### WorkSpec
 
-```python
-class WorkSpec(BaseModel):
-    id: str
-    consumer_id: str                 # From JWT
-    category: str                    # Work category (matches subscriptions)
-    description: str                 # Semantic description
-    constraints: WorkConstraints
-    budget: Budget
-    success_criteria: list[SuccessCriterion]
-    bid_window_ms: int               # How long to collect bids
-    payload: dict                    # Work-specific data
+```go
+type WorkState string
 
-    # State
-    state: WorkState
-    providers_notified: int
-    bids_received: int
-    contract_id: str | None
+const (
+	WorkStateOpen       WorkState = "OPEN"
+	WorkStateEvaluating WorkState = "EVALUATING"
+	WorkStateAwarded    WorkState = "AWARDED"
+	WorkStateExecuting  WorkState = "EXECUTING"
+	WorkStateCompleted  WorkState = "COMPLETED"
+	WorkStateFailed     WorkState = "FAILED"
+	WorkStateCancelled  WorkState = "CANCELLED"
+)
 
-    # Timestamps
-    created_at: datetime
-    bid_window_ends_at: datetime
-    awarded_at: datetime | None
-    completed_at: datetime | None
+type Budget struct {
+	MaxPrice    float64  `json:"max_price"`
+	BidStrategy string   `json:"bid_strategy"`           // "lowest_price" | "best_quality" | "balanced"
+	MaxCPABonus *float64 `json:"max_cpa_bonus,omitempty"`
+}
 
-class WorkState(str, Enum):
-    OPEN = "OPEN"                    # Accepting bids
-    EVALUATING = "EVALUATING"        # Bid window closed, evaluating
-    AWARDED = "AWARDED"              # Contract awarded
-    EXECUTING = "EXECUTING"          # Provider executing
-    COMPLETED = "COMPLETED"          # Finished successfully
-    FAILED = "FAILED"                # Failed
-    CANCELLED = "CANCELLED"          # Cancelled by consumer
+type WorkConstraints struct {
+	MaxLatencyMs   *int64   `json:"max_latency_ms,omitempty"`
+	RequiredFields []string `json:"required_fields,omitempty"`
+	MinTrustTier   *string  `json:"min_trust_tier,omitempty"`
+	InternalOnly   bool     `json:"internal_only"`
+	Regions        []string `json:"regions,omitempty"`
+}
 
-class Budget(BaseModel):
-    max_price: float                 # Maximum willing to pay
-    bid_strategy: str                # "lowest_price" | "best_quality" | "balanced"
-    max_cpa_bonus: float | None      # Maximum bonus for outcomes
+type SuccessCriterion struct {
+	Metric     string   `json:"metric"`
+	Type       string   `json:"type"` // "boolean" | "numeric"
+	Comparison *string  `json:"comparison,omitempty"`
+	Threshold  any      `json:"threshold"`
+	Bonus      *float64 `json:"bonus,omitempty"`
+}
 
-class WorkConstraints(BaseModel):
-    max_latency_ms: int | None
-    required_fields: list[str] | None
-    min_trust_tier: str | None
-    internal_only: bool = False
-    regions: list[str] | None
+type WorkSpec struct {
+	ID             string `json:"work_id"`
+	ConsumerID     string `json:"consumer_id"` // From JWT
+	Category       string `json:"category"`
+	Description    string `json:"description"`
+	Constraints    WorkConstraints `json:"constraints"`
+	Budget         Budget          `json:"budget"`
+	SuccessCriteria []SuccessCriterion `json:"success_criteria"`
+	BidWindowMs    int64           `json:"bid_window_ms"`
+	Payload        map[string]any  `json:"payload"`
+
+	State           WorkState `json:"status"`
+	ProvidersNotified int     `json:"providers_notified"`
+	BidsReceived      int     `json:"bids_received"`
+	ContractID        *string `json:"contract_id,omitempty"`
+
+	CreatedAt        time.Time  `json:"created_at"`
+	BidWindowEndsAt  time.Time  `json:"bid_window_ends_at"`
+	AwardedAt        *time.Time `json:"awarded_at,omitempty"`
+	CompletedAt      *time.Time `json:"completed_at,omitempty"`
+}
 ```
 
 ## Core Functions
 
 ### Work Submission
 
-```python
-async def publish_work(consumer_id: str, req: WorkSubmission) -> WorkResponse:
-    # 1. Validate work spec
-    validate_work_spec(req)
+```go
+func (s *Service) PublishWork(ctx context.Context, consumerID string, req WorkSubmission) (WorkResponse, error) {
+	// 1. Validate work spec
+	if err := validateWorkSpec(req); err != nil {
+		return WorkResponse{}, err
+	}
 
-    # 2. Check consumer budget/credits
-    balance = await billing.get_balance(consumer_id)
-    if balance < req.budget.max_price:
-        raise HTTPException(402, "Insufficient balance")
+	// 2. Check consumer budget/credits (Settlement/Identity integration)
+	balance, err := s.billing.GetBalance(ctx, consumerID)
+	if err != nil {
+		return WorkResponse{}, err
+	}
+	if balance < req.Budget.MaxPrice {
+		return WorkResponse{}, ErrInsufficientBalance
+	}
 
-    # 3. Create work record
-    work = WorkSpec(
-        id=generate_work_id(),
-        consumer_id=consumer_id,
-        category=req.category,
-        description=req.description,
-        constraints=req.constraints,
-        budget=req.budget,
-        success_criteria=req.success_criteria,
-        bid_window_ms=req.bid_window_ms,
-        payload=req.payload,
-        state=WorkState.OPEN,
-        created_at=datetime.utcnow(),
-        bid_window_ends_at=datetime.utcnow() + timedelta(milliseconds=req.bid_window_ms)
-    )
+	// 3. Create work record
+	now := time.Now().UTC()
+	workID := generateWorkID()
+	work := WorkSpec{
+		ID:             workID,
+		ConsumerID:     consumerID,
+		Category:       req.Category,
+		Description:    req.Description,
+		Constraints:    req.Constraints,
+		Budget:         req.Budget,
+		SuccessCriteria: req.SuccessCriteria,
+		BidWindowMs:    req.BidWindowMs,
+		Payload:        req.Payload,
+		State:          WorkStateOpen,
+		CreatedAt:      now,
+		BidWindowEndsAt: now.Add(time.Duration(req.BidWindowMs) * time.Millisecond),
+	}
 
-    # 4. Persist to Firestore
-    await firestore.save_work(work)
+	// 4. Persist to Firestore
+	if err := s.store.SaveWork(ctx, work); err != nil {
+		return WorkResponse{}, err
+	}
 
-    # 5. Get subscribed providers
-    providers = await provider_registry.get_subscribed_providers(req.category)
+	// 5. Get subscribed providers
+	providers, err := s.providerRegistry.GetSubscribedProviders(ctx, req.Category)
+	if err != nil {
+		return WorkResponse{}, err
+	}
 
-    # 6. Broadcast work opportunity
-    await broadcast_work(work, providers)
-    work.providers_notified = len(providers)
+	// 6. Broadcast work opportunity
+	if err := s.broadcastWork(ctx, work, providers); err != nil {
+		return WorkResponse{}, err
+	}
 
-    # 7. Schedule bid window close
-    await schedule_bid_window_close(work.id, work.bid_window_ends_at)
+	// 7. Schedule bid window close (Cloud Tasks)
+	if err := s.scheduler.ScheduleBidWindowClose(ctx, work.ID, work.BidWindowEndsAt); err != nil {
+		return WorkResponse{}, err
+	}
 
-    # 8. Publish event
-    await pubsub.publish("work.submitted", {
-        "work_id": work.id,
-        "category": work.category,
-        "providers_notified": len(providers)
-    })
+	// 8. Publish event
+	_ = s.events.Publish(ctx, "work.submitted", map[string]any{
+		"work_id":            work.ID,
+		"domain":             work.Category,
+		"providers_notified": len(providers),
+		"bid_window_ends_at": work.BidWindowEndsAt.Format(time.RFC3339Nano),
+	})
 
-    return WorkResponse(
-        work_id=work.id,
-        status=work.state,
-        bid_window_ends_at=work.bid_window_ends_at,
-        providers_notified=len(providers)
-    )
+	return WorkResponse{
+		WorkID:          work.ID,
+		Status:          string(work.State),
+		BidWindowEndsAt: work.BidWindowEndsAt,
+		ProvidersNotified: len(providers),
+		CreatedAt:       work.CreatedAt,
+	}, nil
+}
 ```
 
 ### Provider Broadcast
 
-```python
-async def broadcast_work(work: WorkSpec, providers: list[Provider]):
-    """Notify subscribed providers of work opportunity."""
-    # Build work opportunity message
-    opportunity = WorkOpportunity(
-        work_id=work.id,
-        category=work.category,
-        description=work.description,
-        constraints=work.constraints,
-        budget=BudgetInfo(
-            max_price=work.budget.max_price,
-            strategy=work.budget.bid_strategy
-        ),
-        bid_deadline=work.bid_window_ends_at,
-        payload_preview=truncate_payload(work.payload, max_chars=500)
-    )
+```go
+func (s *Service) broadcastWork(ctx context.Context, work WorkSpec, providers []Provider) error {
+	opportunity := WorkOpportunity{
+		WorkID:       work.ID,
+		Category:     work.Category,
+		Description:  work.Description,
+		Constraints:  work.Constraints,
+		Budget: BudgetInfo{
+			MaxPrice: work.Budget.MaxPrice,
+			Strategy: work.Budget.BidStrategy,
+		},
+		BidDeadline:    work.BidWindowEndsAt,
+		PayloadPreview: truncatePayload(work.Payload, 500),
+	}
 
-    # Send to each provider
-    for provider in providers:
-        if provider.bid_webhook:
-            # Webhook delivery
-            await send_webhook(
-                url=provider.bid_webhook,
-                payload=opportunity.dict(),
-                signature=sign_webhook(opportunity, provider.webhook_secret)
-            )
-        # Also publish to provider-specific Pub/Sub topic for polling
-        await pubsub.publish(f"work.opportunity.{provider.id}", opportunity)
+	for _, p := range providers {
+		if p.BidWebhook != "" {
+			if err := s.webhooks.Send(ctx, p.BidWebhook, opportunity, p.WebhookSecret); err != nil {
+				// Decide retry policy: fail-fast vs best-effort
+				return err
+			}
+		}
+		_ = s.events.Publish(ctx, "work.opportunity."+p.ID, opportunity)
+	}
+	return nil
+}
 ```
 
 ### Bid Window Management
 
-```python
-async def close_bid_window(work_id: str):
-    """Called when bid window expires."""
-    work = await firestore.get_work(work_id)
+```go
+func (s *Service) CloseBidWindow(ctx context.Context, workID string) error {
+	work, err := s.store.GetWork(ctx, workID)
+	if err != nil {
+		return err
+	}
+	if work.State != WorkStateOpen {
+		return nil // Already closed
+	}
 
-    if work.state != WorkState.OPEN:
-        return  # Already closed
+	work.State = WorkStateEvaluating
+	if err := s.store.UpdateWork(ctx, work); err != nil {
+		return err
+	}
 
-    # Update state
-    work.state = WorkState.EVALUATING
-    await firestore.update_work(work)
-
-    # Trigger bid evaluation
-    await pubsub.publish("work.bid_window_closed", {
-        "work_id": work.id,
-        "bids_received": work.bids_received
-    })
+	_ = s.events.Publish(ctx, "work.bid_window_closed", map[string]any{
+		"work_id":        work.ID,
+		"bids_received":  work.BidsReceived,
+		"evaluating_at":  time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	return nil
+}
 ```
 
 ## Events
 
 ### Published Events
 
-```python
-# Work published
+```json
 {
-    "event_type": "work.submitted",
-    "work_id": "work_550e8400",
-    "category": "travel.booking",
-    "consumer_id": "tenant_123",
-    "providers_notified": 12,
-    "bid_window_ends_at": "2025-01-15T10:30:30Z"
+  "event_type": "work.submitted",
+  "work_id": "work_550e8400",
+  "domain": "travel.booking",
+  "consumer_id": "tenant_123",
+  "providers_notified": 12,
+  "bid_window_ends_at": "2025-01-15T10:30:30Z"
 }
-
-# Bid window closed
 {
-    "event_type": "work.bid_window_closed",
-    "work_id": "work_550e8400",
-    "bids_received": 5
+  "event_type": "work.bid_window_closed",
+  "work_id": "work_550e8400",
+  "bids_received": 5
 }
-
-# Work cancelled
 {
-    "event_type": "work.cancelled",
-    "work_id": "work_550e8400",
-    "reason": "consumer_requested"
+  "event_type": "work.cancelled",
+  "work_id": "work_550e8400",
+  "reason": "consumer_requested"
 }
 ```
 
 ### Consumed Events
 
-```python
-# Bid received (from Bid Gateway)
+```json
 {
-    "event_type": "bid.submitted",
-    "work_id": "work_550e8400",
-    "bid_id": "bid_123"
+  "event_type": "bid.submitted",
+  "work_id": "work_550e8400",
+  "bid_id": "bid_123"
 }
-
-# Contract awarded (from Contract Engine)
 {
-    "event_type": "contract.awarded",
-    "work_id": "work_550e8400",
-    "contract_id": "contract_789"
+  "event_type": "contract.awarded",
+  "work_id": "work_550e8400",
+  "contract_id": "contract_789"
 }
 ```
 
@@ -385,27 +411,29 @@ LOG_LEVEL=info
 
 ```
 aex-work-publisher/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   ├── models/
-│   │   ├── work.py
-│   │   └── opportunity.py
-│   ├── services/
-│   │   ├── publisher.py
-│   │   ├── broadcaster.py
-│   │   └── bid_window.py
+├── cmd/
+│   └── work-publisher/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── api/
+│   │   ├── http.go           # routes + handlers
+│   │   └── websocket.go      # WS endpoint (or SSE/polling)
+│   ├── model/
+│   │   ├── work.go
+│   │   └── opportunity.go
+│   ├── service/
+│   │   ├── publisher.go
+│   │   ├── broadcaster.go
+│   │   └── bidwindow.go
 │   ├── clients/
-│   │   └── provider_registry.py
-│   ├── store/
-│   │   └── firestore.py
-│   └── api/
-│       ├── work.py
-│       └── websocket.py
-├── tests/
-│   ├── test_publisher.py
-│   └── test_broadcaster.py
+│   │   └── providerregistry.go
+│   └── store/
+│       └── firestore.go
+├── hack/
+│   └── tests/
 ├── Dockerfile
-└── requirements.txt
+├── go.mod
+└── go.sum
 ```

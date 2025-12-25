@@ -4,8 +4,8 @@
 
 **Purpose:** Score and rank bids based on price, trust, confidence, and MVP sample quality. This is the "brain" of bid selection.
 
-**Language:** Python 3.11+
-**Framework:** FastAPI + Event-driven (Pub/Sub)
+**Language:** Go 1.22+
+**Framework:** Chi router + Event-driven (Pub/Sub)
 **Runtime:** Cloud Run
 **Port:** 8080
 
@@ -132,184 +132,177 @@ Evaluate bids for a work spec.
 
 ### Bid Evaluation
 
-```python
-async def evaluate_bids(work_id: str) -> BidEvaluation:
-    # 1. Fetch work spec
-    work = await work_publisher.get_work(work_id)
+```go
+func (s *Service) EvaluateBids(ctx context.Context, workID string) (BidEvaluation, error) {
+	// 1. Fetch work spec
+	work, err := s.workPublisher.GetWork(ctx, workID)
+	if err != nil {
+		return BidEvaluation{}, err
+	}
 
-    # 2. Fetch all bids
-    bids = await bid_gateway.get_bids(work_id)
+	// 2. Fetch all bids
+	bids, err := s.bidGateway.GetBids(ctx, workID)
+	if err != nil {
+		return BidEvaluation{}, err
+	}
 
-    # 3. Filter valid bids
-    valid_bids, disqualified = filter_valid_bids(bids, work)
+	// 3. Filter valid bids
+	valid, disqualified := filterValidBids(bids, work, time.Now().UTC())
 
-    # 4. Score each valid bid
-    scored_bids = []
-    for bid in valid_bids:
-        score = await score_bid(bid, work)
-        scored_bids.append(ScoredBid(bid=bid, score=score))
+	// 4. Score each valid bid
+	scored := make([]ScoredBid, 0, len(valid))
+	for _, bid := range valid {
+		score, err := s.scoreBid(ctx, bid, work)
+		if err != nil {
+			return BidEvaluation{}, err
+		}
+		scored = append(scored, ScoredBid{Bid: bid, Score: score})
+	}
 
-    # 5. Rank by strategy
-    ranked = rank_bids(scored_bids, work.budget.bid_strategy)
+	// 5. Rank by strategy
+	ranked := rankBids(scored, work.Budget.BidStrategy)
 
-    # 6. Store evaluation
-    evaluation = BidEvaluation(
-        work_id=work_id,
-        ranked_bids=ranked,
-        disqualified_bids=disqualified,
-        evaluated_at=datetime.utcnow()
-    )
-    await firestore.save_evaluation(evaluation)
+	// 6. Store evaluation
+	eval := BidEvaluation{
+		ID:               generateEvaluationID(),
+		WorkID:           workID,
+		RankedBids:       ranked,
+		DisqualifiedBids: disqualified,
+		EvaluatedAt:      time.Now().UTC(),
+	}
+	if err := s.store.SaveEvaluation(ctx, eval); err != nil {
+		return BidEvaluation{}, err
+	}
 
-    # 7. Publish evaluation complete
-    await pubsub.publish("bids.evaluated", {
-        "work_id": work_id,
-        "evaluation_id": evaluation.id,
-        "winner_bid_id": ranked[0].bid.bid_id if ranked else None
-    })
+	// 7. Publish evaluation complete
+	var winner *string
+	if len(ranked) > 0 {
+		winner = &ranked[0].BidID
+	}
+	_ = s.events.Publish(ctx, "bids.evaluated", map[string]any{
+		"work_id":        workID,
+		"evaluation_id":  eval.ID,
+		"winner_bid_id":  winner,
+		"total_bids":     len(bids),
+		"valid_bids":     len(valid),
+		"evaluated_at":   eval.EvaluatedAt.Format(time.RFC3339Nano),
+	})
 
-    return evaluation
+	return eval, nil
+}
 
-def filter_valid_bids(bids: list[BidPacket], work: WorkSpec) -> tuple[list, list]:
-    valid = []
-    disqualified = []
-
-    for bid in bids:
-        # Check price within budget
-        if bid.price > work.budget.max_price:
-            disqualified.append(DisqualifiedBid(
-                bid_id=bid.bid_id,
-                reason="Price exceeds budget"
-            ))
-            continue
-
-        # Check not expired
-        if bid.expires_at < datetime.utcnow():
-            disqualified.append(DisqualifiedBid(
-                bid_id=bid.bid_id,
-                reason="Bid expired"
-            ))
-            continue
-
-        # Check SLA meets requirements
-        if work.constraints.max_latency_ms:
-            if bid.sla.max_latency_ms > work.constraints.max_latency_ms:
-                disqualified.append(DisqualifiedBid(
-                    bid_id=bid.bid_id,
-                    reason="SLA does not meet latency requirements"
-                ))
-                continue
-
-        valid.append(bid)
-
-    return valid, disqualified
+func filterValidBids(bids []BidPacket, work WorkSpec, now time.Time) (valid []BidPacket, disqualified []DisqualifiedBid) {
+	for _, bid := range bids {
+		if bid.Price > work.Budget.MaxPrice {
+			disqualified = append(disqualified, DisqualifiedBid{BidID: bid.BidID, Reason: "Price exceeds budget"})
+			continue
+		}
+		if bid.ExpiresAt.Before(now) {
+			disqualified = append(disqualified, DisqualifiedBid{BidID: bid.BidID, Reason: "Bid expired"})
+			continue
+		}
+		if work.Constraints.MaxLatencyMs != nil && bid.SLA.MaxLatencyMs > *work.Constraints.MaxLatencyMs {
+			disqualified = append(disqualified, DisqualifiedBid{BidID: bid.BidID, Reason: "SLA does not meet latency requirements"})
+			continue
+		}
+		valid = append(valid, bid)
+	}
+	return valid, disqualified
+}
 ```
 
 ### Bid Scoring
 
-```python
-async def score_bid(bid: BidPacket, work: WorkSpec) -> BidScore:
-    # 1. Price score (inverse - lower price = higher score)
-    price_score = 1 - (bid.price / work.budget.max_price)
+```go
+func (s *Service) scoreBid(ctx context.Context, bid BidPacket, work WorkSpec) (BidScore, error) {
+	// 1. Price score (inverse - lower price = higher score)
+	priceScore := 1 - (bid.Price / work.Budget.MaxPrice)
 
-    # 2. Trust score from Trust Broker
-    trust_score = await trust_broker.get_score(bid.provider_id)
+	// 2. Trust score from Trust Broker
+	trustScore, err := s.trustBroker.GetScore(ctx, bid.ProviderID)
+	if err != nil {
+		return BidScore{}, err
+	}
 
-    # 3. Confidence score (direct)
-    confidence_score = bid.confidence
+	// 3. Confidence score (direct)
+	confidenceScore := bid.Confidence
 
-    # 4. MVP sample score (LLM evaluation)
-    mvp_score = 0.5  # Default if no sample
-    if bid.mvp_sample:
-        mvp_score = await evaluate_mvp_sample(bid.mvp_sample, work)
+	// 4. MVP sample score (LLM evaluation)
+	mvpScore := 0.5
+	if bid.MVPSample != nil && s.llm.Enabled() {
+		if v, err := s.evaluateMVPSample(ctx, *bid.MVPSample, work); err == nil {
+			mvpScore = v
+		}
+	}
 
-    # 5. SLA score
-    sla_score = calculate_sla_score(bid.sla, work.constraints)
+	// 5. SLA score
+	slaScore := calculateSLAScore(bid.SLA, work.Constraints)
 
-    return BidScore(
-        price=price_score,
-        trust=trust_score,
-        confidence=confidence_score,
-        mvp_sample=mvp_score,
-        sla=sla_score
-    )
+	return BidScore{
+		Price:      clamp01(priceScore),
+		Trust:      clamp01(trustScore),
+		Confidence: clamp01(confidenceScore),
+		MVPSample:  clamp01(mvpScore),
+		SLA:        clamp01(slaScore),
+	}, nil
+}
 
-async def evaluate_mvp_sample(sample: MVPSample, work: WorkSpec) -> float:
-    """Use LLM to evaluate MVP sample quality."""
-    prompt = f"""
-    Evaluate this provider's sample work for the following task:
-
-    TASK: {work.description}
-
-    SAMPLE INPUT: {sample.sample_input}
-    SAMPLE OUTPUT: {sample.sample_output}
-    LATENCY: {sample.sample_latency_ms}ms
-
-    SUCCESS CRITERIA: {work.success_criteria}
-
-    Score from 0.0 to 1.0 how well this sample demonstrates:
-    1. Understanding of the task
-    2. Quality of the output
-    3. Relevance to the actual work
-    4. Completeness
-
-    Return only a number between 0.0 and 1.0.
-    """
-
-    response = await llm_client.complete(prompt)
-    try:
-        score = float(response.strip())
-        return max(0.0, min(1.0, score))
-    except:
-        return 0.5  # Default on parse error
+func (s *Service) evaluateMVPSample(ctx context.Context, sample MVPSample, work WorkSpec) (float64, error) {
+	prompt := buildMVPPrompt(work.Description, sample, work.SuccessCriteria)
+	raw, err := s.llm.Complete(ctx, prompt)
+	if err != nil {
+		return 0.5, err
+	}
+	score, err := parseScore01(raw)
+	if err != nil {
+		return 0.5, err
+	}
+	return score, nil
+}
 ```
 
 ### Ranking by Strategy
 
-```python
-def rank_bids(scored_bids: list[ScoredBid], strategy: str) -> list[RankedBid]:
-    # Define weights by strategy
-    weights = {
-        "lowest_price": {
-            "price": 0.5, "trust": 0.2, "confidence": 0.1,
-            "mvp_sample": 0.1, "sla": 0.1
-        },
-        "best_quality": {
-            "price": 0.1, "trust": 0.4, "confidence": 0.2,
-            "mvp_sample": 0.2, "sla": 0.1
-        },
-        "balanced": {
-            "price": 0.3, "trust": 0.3, "confidence": 0.15,
-            "mvp_sample": 0.15, "sla": 0.1
-        }
-    }
+```go
+func rankBids(scored []ScoredBid, strategy string) []RankedBid {
+	weights := map[string]map[string]float64{
+		"lowest_price": {"price": 0.5, "trust": 0.2, "confidence": 0.1, "mvp_sample": 0.1, "sla": 0.1},
+		"best_quality": {"price": 0.1, "trust": 0.4, "confidence": 0.2, "mvp_sample": 0.2, "sla": 0.1},
+		"balanced":     {"price": 0.3, "trust": 0.3, "confidence": 0.15, "mvp_sample": 0.15, "sla": 0.1},
+	}
+	w, ok := weights[strategy]
+	if !ok {
+		w = weights["balanced"]
+	}
 
-    w = weights.get(strategy, weights["balanced"])
+	type scoredTotal struct {
+		sb    ScoredBid
+		total float64
+	}
+	tmp := make([]scoredTotal, 0, len(scored))
+	for _, sb := range scored {
+		total := w["price"]*sb.Score.Price +
+			w["trust"]*sb.Score.Trust +
+			w["confidence"]*sb.Score.Confidence +
+			w["mvp_sample"]*sb.Score.MVPSample +
+			w["sla"]*sb.Score.SLA
+		tmp = append(tmp, scoredTotal{sb: sb, total: total})
+	}
 
-    # Calculate total score for each bid
-    for sb in scored_bids:
-        sb.total_score = (
-            w["price"] * sb.score.price +
-            w["trust"] * sb.score.trust +
-            w["confidence"] * sb.score.confidence +
-            w["mvp_sample"] * sb.score.mvp_sample +
-            w["sla"] * sb.score.sla
-        )
+	sort.Slice(tmp, func(i, j int) bool { return tmp[i].total > tmp[j].total })
 
-    # Sort by total score descending
-    scored_bids.sort(key=lambda x: x.total_score, reverse=True)
-
-    # Create ranked list
-    return [
-        RankedBid(
-            rank=i + 1,
-            bid_id=sb.bid.bid_id,
-            provider_id=sb.bid.provider_id,
-            total_score=sb.total_score,
-            scores=sb.score
-        )
-        for i, sb in enumerate(scored_bids)
-    ]
+	ranked := make([]RankedBid, 0, len(tmp))
+	for i, it := range tmp {
+		ranked = append(ranked, RankedBid{
+			Rank:       i + 1,
+			BidID:      it.sb.Bid.BidID,
+			ProviderID: it.sb.Bid.ProviderID,
+			TotalScore: it.total,
+			Scores:     it.sb.Score,
+		})
+	}
+	return ranked
+}
 ```
 
 ## Events
@@ -376,30 +369,33 @@ LOG_LEVEL=info
 
 ```
 aex-bid-evaluator/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   ├── models/
-│   │   ├── bid.py
-│   │   ├── score.py
-│   │   └── evaluation.py
-│   ├── services/
-│   │   ├── evaluator.py
-│   │   ├── scorer.py
-│   │   ├── ranker.py
-│   │   └── mvp_evaluator.py
+├── cmd/
+│   └── bid-evaluator/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── model/
+│   │   ├── bid.go
+│   │   ├── score.go
+│   │   └── evaluation.go
+│   ├── service/
+│   │   ├── evaluator.go
+│   │   ├── scorer.go
+│   │   ├── ranker.go
+│   │   └── mvp.go
 │   ├── clients/
-│   │   ├── bid_gateway.py
-│   │   ├── work_publisher.py
-│   │   ├── trust_broker.py
-│   │   └── llm.py
-│   └── events/
-│       └── handlers.py
-├── tests/
-│   ├── test_scorer.py
-│   ├── test_ranker.py
-│   └── test_mvp_evaluator.py
+│   │   ├── bidgateway.go
+│   │   ├── workpublisher.go
+│   │   ├── trustbroker.go
+│   │   └── llm.go
+│   ├── events/
+│   │   └── handler.go          # Pub/Sub push handlers
+│   └── store/
+│       └── firestore.go
+├── hack/
+│   └── tests/
 ├── Dockerfile
-└── requirements.txt
+├── go.mod
+└── go.sum
 ```

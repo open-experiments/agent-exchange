@@ -4,8 +4,8 @@
 
 **Purpose:** Award contracts to winning bidders, track execution status, and handle completion verification. This is the contract lifecycle manager.
 
-**Language:** Python 3.11+
-**Framework:** FastAPI
+**Language:** Go 1.22+
+**Framework:** Chi router (net/http)
 **Runtime:** Cloud Run
 **Port:** 8080
 
@@ -180,177 +180,185 @@ Report contract failure.
 
 ### Contract
 
-```python
-class Contract(BaseModel):
-    id: str
-    work_id: str
-    consumer_id: str
-    provider_id: str
-    bid_id: str
+```go
+type ContractStatus string
 
-    # Agreement
-    agreed_price: float
-    sla: SLACommitment
-    provider_endpoint: str
+const (
+	ContractStatusAwarded   ContractStatus = "AWARDED"
+	ContractStatusExecuting ContractStatus = "EXECUTING"
+	ContractStatusCompleted ContractStatus = "COMPLETED"
+	ContractStatusFailed    ContractStatus = "FAILED"
+	ContractStatusExpired   ContractStatus = "EXPIRED"
+	ContractStatusDisputed  ContractStatus = "DISPUTED"
+)
 
-    # Security
-    execution_token: str       # Provider uses to authenticate callbacks
-    consumer_token: str        # Consumer can use to report issues
+type ExecutionUpdate struct {
+	Status    string    `json:"status"`
+	Percent   *int      `json:"percent,omitempty"`
+	Message   *string   `json:"message,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
 
-    # Status
-    status: ContractStatus
-    expires_at: datetime
+type OutcomeReport struct {
+	Success           bool           `json:"success"`
+	ResultSummary     string         `json:"result_summary"`
+	Metrics           map[string]any `json:"metrics"`
+	ResultLocation    *string        `json:"result_location,omitempty"`
+	ReportedAt        time.Time      `json:"reported_at"`
+	ProviderSignature *string        `json:"provider_signature,omitempty"`
+}
 
-    # Timestamps
-    awarded_at: datetime
-    started_at: datetime | None
-    completed_at: datetime | None
-    failed_at: datetime | None
+type Contract struct {
+	ID         string `json:"contract_id"`
+	WorkID     string `json:"work_id"`
+	ConsumerID string `json:"consumer_id"`
+	ProviderID string `json:"provider_id"`
+	BidID      string `json:"bid_id"`
 
-    # Tracking
-    execution_updates: list[ExecutionUpdate]
-    outcome: OutcomeReport | None
+	AgreedPrice      float64       `json:"agreed_price"`
+	SLA              SLACommitment `json:"sla"`
+	ProviderEndpoint string        `json:"provider_endpoint"`
 
-class ContractStatus(str, Enum):
-    AWARDED = "AWARDED"          # Contract created, pending start
-    EXECUTING = "EXECUTING"      # Provider is working
-    COMPLETED = "COMPLETED"      # Successfully finished
-    FAILED = "FAILED"            # Failed
-    EXPIRED = "EXPIRED"          # Timed out
-    DISPUTED = "DISPUTED"        # Under dispute
+	ExecutionToken string `json:"execution_token"`
+	ConsumerToken  string `json:"consumer_token"`
 
-class ExecutionUpdate(BaseModel):
-    status: str
-    percent: int | None
-    message: str | None
-    timestamp: datetime
+	Status    ContractStatus `json:"status"`
+	ExpiresAt time.Time      `json:"expires_at"`
 
-class OutcomeReport(BaseModel):
-    success: bool
-    result_summary: str
-    metrics: dict[str, Any]
-    result_location: str | None
-    reported_at: datetime
-    provider_signature: str | None
+	AwardedAt   time.Time  `json:"awarded_at"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	FailedAt    *time.Time `json:"failed_at,omitempty"`
+
+	ExecutionUpdates []ExecutionUpdate `json:"execution_updates,omitempty"`
+	Outcome          *OutcomeReport    `json:"outcome,omitempty"`
+}
 ```
 
 ## Core Functions
 
 ### Award Contract
 
-```python
-async def award_contract(work_id: str, bid_id: str, auto: bool = False) -> Contract:
-    # 1. Get work and evaluation
-    work = await work_publisher.get_work(work_id)
-    evaluation = await bid_evaluator.get_evaluation(work_id)
+```go
+func (s *Service) AwardContract(ctx context.Context, workID string, bidID string, auto bool) (Contract, error) {
+	// 1. Get work and evaluation
+	work, err := s.workPublisher.GetWork(ctx, workID)
+	if err != nil {
+		return Contract{}, err
+	}
+	eval, err := s.bidEvaluator.GetEvaluation(ctx, workID)
+	if err != nil {
+		return Contract{}, err
+	}
 
-    # 2. Determine winning bid
-    if auto:
-        if not evaluation.ranked_bids:
-            raise HTTPException(400, "No valid bids to award")
-        winning_bid = evaluation.ranked_bids[0]
-        bid_id = winning_bid.bid_id
-    else:
-        winning_bid = next(
-            (b for b in evaluation.ranked_bids if b.bid_id == bid_id),
-            None
-        )
-        if not winning_bid:
-            raise HTTPException(400, "Invalid bid ID")
+	// 2. Determine winning bid
+	if auto {
+		if len(eval.RankedBids) == 0 {
+			return Contract{}, ErrNoValidBids
+		}
+		bidID = eval.RankedBids[0].BidID
+	} else {
+		if !eval.HasBid(bidID) {
+			return Contract{}, ErrInvalidBidID
+		}
+	}
 
-    # 3. Get full bid details
-    bid = await bid_gateway.get_bid(bid_id)
+	// 3. Get full bid details
+	bid, err := s.bidGateway.GetBid(ctx, bidID)
+	if err != nil {
+		return Contract{}, err
+	}
 
-    # 4. Create contract
-    contract = Contract(
-        id=generate_contract_id(),
-        work_id=work_id,
-        consumer_id=work.consumer_id,
-        provider_id=bid.provider_id,
-        bid_id=bid_id,
-        agreed_price=bid.price,
-        sla=bid.sla,
-        provider_endpoint=bid.a2a_endpoint,
-        execution_token=generate_execution_token(),
-        consumer_token=generate_consumer_token(),
-        status=ContractStatus.AWARDED,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
-        awarded_at=datetime.utcnow()
-    )
+	// 4. Create contract
+	now := time.Now().UTC()
+	expires := now.Add(time.Hour)
+	contract := Contract{
+		ID:              generateContractID(),
+		WorkID:          workID,
+		ConsumerID:      work.ConsumerID,
+		ProviderID:      bid.ProviderID,
+		BidID:           bidID,
+		AgreedPrice:     bid.Price,
+		SLA:             bid.SLA,
+		ProviderEndpoint: bid.A2AEndpoint,
+		ExecutionToken:  generateExecutionToken(),
+		ConsumerToken:   generateConsumerToken(),
+		Status:          ContractStatusAwarded,
+		ExpiresAt:       expires,
+		AwardedAt:       now,
+	}
 
-    # 5. Persist contract
-    await firestore.save_contract(contract)
+	// 5. Persist contract
+	if err := s.store.SaveContract(ctx, contract); err != nil {
+		return Contract{}, err
+	}
 
-    # 6. Update work status
-    await work_publisher.update_work_status(work_id, "AWARDED", contract.id)
+	// 6. Update work status
+	_ = s.workPublisher.UpdateWorkStatus(ctx, workID, "AWARDED", &contract.ID)
 
-    # 7. Notify provider
-    await notify_provider_awarded(contract, bid)
+	// 7. Notify provider
+	_ = s.webhooks.Send(ctx, bid.A2AEndpoint+"/contract-awarded", ContractAwardNotification{
+		ContractID:     contract.ID,
+		WorkID:         contract.WorkID,
+		ExecutionToken: contract.ExecutionToken,
+		ExpiresAt:      contract.ExpiresAt,
+	}, "")
 
-    # 8. Publish event
-    await pubsub.publish("contract.awarded", {
-        "contract_id": contract.id,
-        "work_id": work_id,
-        "provider_id": contract.provider_id,
-        "consumer_id": contract.consumer_id,
-        "agreed_price": contract.agreed_price
-    })
+	// 8. Publish event
+	_ = s.events.Publish(ctx, "contract.awarded", map[string]any{
+		"contract_id":   contract.ID,
+		"work_id":       contract.WorkID,
+		"provider_id":   contract.ProviderID,
+		"consumer_id":   contract.ConsumerID,
+		"agreed_price":  contract.AgreedPrice,
+		"provider_endpoint": contract.ProviderEndpoint,
+	})
 
-    return contract
-
-async def notify_provider_awarded(contract: Contract, bid: BidPacket):
-    """Notify provider that their bid won."""
-    notification = ContractAwardNotification(
-        contract_id=contract.id,
-        work_id=contract.work_id,
-        execution_token=contract.execution_token,
-        consumer_endpoint=None,  # Consumer initiates contact
-        expires_at=contract.expires_at
-    )
-
-    # Send to provider webhook
-    await send_webhook(
-        url=f"{bid.a2a_endpoint}/contract-awarded",
-        payload=notification.dict()
-    )
+	return contract, nil
+}
 ```
 
 ### Handle Completion
 
-```python
-async def complete_contract(
-    contract_id: str,
-    outcome: OutcomeReport,
-    execution_token: str
-) -> Contract:
-    # 1. Validate execution token
-    contract = await firestore.get_contract(contract_id)
-    if contract.execution_token != execution_token:
-        raise HTTPException(401, "Invalid execution token")
+```go
+func (s *Service) CompleteContract(ctx context.Context, contractID string, executionToken string, outcome OutcomeReport) (Contract, error) {
+	// 1. Validate execution token
+	contract, err := s.store.GetContract(ctx, contractID)
+	if err != nil {
+		return Contract{}, err
+	}
+	if contract.ExecutionToken != executionToken {
+		return Contract{}, ErrInvalidExecutionToken
+	}
+	if contract.Status != ContractStatusExecuting {
+		return Contract{}, ErrInvalidContractState
+	}
 
-    if contract.status != ContractStatus.EXECUTING:
-        raise HTTPException(400, f"Cannot complete contract in {contract.status} status")
+	// 2. Update contract
+	now := time.Now().UTC()
+	contract.Status = ContractStatusCompleted
+	contract.CompletedAt = &now
+	outcome.ReportedAt = now
+	contract.Outcome = &outcome
+	if err := s.store.UpdateContract(ctx, contract); err != nil {
+		return Contract{}, err
+	}
 
-    # 2. Update contract
-    contract.status = ContractStatus.COMPLETED
-    contract.completed_at = datetime.utcnow()
-    contract.outcome = outcome
-    await firestore.update_contract(contract)
+	// 3. Trigger settlement
+	_ = s.events.Publish(ctx, "contract.completed", map[string]any{
+		"contract_id":  contract.ID,
+		"work_id":      contract.WorkID,
+		"consumer_id":  contract.ConsumerID,
+		"provider_id":  contract.ProviderID,
+		"agreed_price": contract.AgreedPrice,
+		"outcome":      contract.Outcome,
+	})
 
-    # 3. Trigger settlement
-    await pubsub.publish("contract.completed", {
-        "contract_id": contract.id,
-        "work_id": contract.work_id,
-        "consumer_id": contract.consumer_id,
-        "provider_id": contract.provider_id,
-        "agreed_price": contract.agreed_price,
-        "outcome": outcome.dict()
-    })
+	// 4. Update work status
+	_ = s.workPublisher.UpdateWorkStatus(ctx, contract.WorkID, "COMPLETED", nil)
 
-    # 4. Update work status
-    await work_publisher.update_work_status(contract.work_id, "COMPLETED")
-
-    return contract
+	return contract, nil
+}
 ```
 
 ## Events
@@ -431,28 +439,31 @@ LOG_LEVEL=info
 
 ```
 aex-contract-engine/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   ├── models/
-│   │   ├── contract.py
-│   │   └── outcome.py
-│   ├── services/
-│   │   ├── award.py
-│   │   ├── tracking.py
-│   │   └── completion.py
+├── cmd/
+│   └── contract-engine/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── api/
+│   │   ├── http.go
+│   │   └── callbacks.go
+│   ├── model/
+│   │   ├── contract.go
+│   │   └── outcome.go
+│   ├── service/
+│   │   ├── award.go
+│   │   └── completion.go
 │   ├── clients/
-│   │   ├── work_publisher.py
-│   │   └── bid_gateway.py
+│   │   ├── workpublisher.go
+│   │   └── bidgateway.go
 │   ├── store/
-│   │   └── firestore.py
-│   └── api/
-│       ├── contracts.py
-│       └── callbacks.py
-├── tests/
-│   ├── test_award.py
-│   └── test_completion.py
+│   │   └── firestore.go
+│   └── events/
+│       └── publisher.go
+├── hack/
+│   └── tests/
 ├── Dockerfile
-└── requirements.txt
+├── go.mod
+└── go.sum
 ```

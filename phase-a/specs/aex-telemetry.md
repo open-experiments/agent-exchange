@@ -486,35 +486,22 @@ func Init(ctx context.Context, serviceName string, otlpEndpoint string) (func(),
 }
 ```
 
-### Python SDK
+### Go SDK (example usage)
 
-```python
-# aex_telemetry/sdk.py
-from opentelemetry import trace, metrics
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.resources import Resource
+```go
+func main() {
+	ctx := context.Background()
 
-def init_telemetry(service_name: str, otlp_endpoint: str):
-    resource = Resource.create({"service.name": service_name})
+	cleanup, err := InitTelemetry(ctx, "aex-svc", "otel-collector:4317")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cleanup()
 
-    # Traces
-    trace_provider = TracerProvider(resource=resource)
-    trace_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-    trace_provider.add_span_processor(BatchSpanProcessor(trace_exporter))
-    trace.set_tracer_provider(trace_provider)
-
-    # Metrics
-    metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True)
-    meter_provider = MeterProvider(
-        resource=resource,
-        metric_readers=[PeriodicExportingMetricReader(metric_exporter)]
-    )
-    metrics.set_meter_provider(meter_provider)
-
-    return trace.get_tracer(service_name), metrics.get_meter(service_name)
+	tracer := otel.Tracer("aex-svc")
+	_, span := tracer.Start(ctx, "startup")
+	span.End()
+}
 ```
 
 ## Configuration
