@@ -4,8 +4,8 @@
 
 **Purpose:** Register external provider agents, manage their endpoints, and handle work category subscriptions. This is the entry point for providers joining the AEX marketplace.
 
-**Language:** Python 3.11+
-**Framework:** FastAPI
+**Language:** Go 1.22+
+**Framework:** Chi router (net/http)
 **Runtime:** Cloud Run
 **Port:** 8080
 
@@ -172,189 +172,229 @@ Get providers subscribed to a work category.
 
 ### Provider
 
-```python
-class Provider(BaseModel):
-    id: str
-    name: str
-    description: str
-    endpoint: str                    # A2A endpoint for execution
-    bid_webhook: str | None          # Where to send work opportunities
-    capabilities: list[str]          # Claimed capability categories
-    contact_email: str
-    metadata: dict
+```go
+type ProviderStatus string
 
-    # Credentials (hashed)
-    api_key_hash: str
-    api_secret_hash: str
+const (
+	ProviderStatusPendingVerification ProviderStatus = "PENDING_VERIFICATION"
+	ProviderStatusActive              ProviderStatus = "ACTIVE"
+	ProviderStatusSuspended           ProviderStatus = "SUSPENDED"
+	ProviderStatusInactive            ProviderStatus = "INACTIVE"
+)
 
-    # Status
-    status: ProviderStatus           # PENDING|ACTIVE|SUSPENDED|INACTIVE
-    trust_score: float               # From Trust Broker
-    trust_tier: TrustTier            # UNVERIFIED|VERIFIED|TRUSTED|PREFERRED
+type TrustTier string
 
-    # Timestamps
-    created_at: datetime
-    updated_at: datetime
-    verified_at: datetime | None
+const (
+	TrustTierUnverified TrustTier = "UNVERIFIED"
+	TrustTierVerified   TrustTier = "VERIFIED"
+	TrustTierTrusted    TrustTier = "TRUSTED"
+	TrustTierPreferred  TrustTier = "PREFERRED"
+)
 
-class ProviderStatus(str, Enum):
-    PENDING_VERIFICATION = "PENDING_VERIFICATION"
-    ACTIVE = "ACTIVE"
-    SUSPENDED = "SUSPENDED"
-    INACTIVE = "INACTIVE"
+type Provider struct {
+	ID          string         `json:"provider_id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Endpoint    string         `json:"endpoint"`      // A2A endpoint for execution
+	BidWebhook  string         `json:"bid_webhook"`   // delivery target (optional)
+	Capabilities []string      `json:"capabilities"`
+	ContactEmail string        `json:"contact_email"`
+	Metadata    map[string]any `json:"metadata"`
 
-class TrustTier(str, Enum):
-    UNVERIFIED = "UNVERIFIED"
-    VERIFIED = "VERIFIED"
-    TRUSTED = "TRUSTED"
-    PREFERRED = "PREFERRED"
+	APIKeyHash    string `json:"-"`
+	APISecretHash string `json:"-"`
+
+	Status     ProviderStatus `json:"status"`
+	TrustScore float64        `json:"trust_score"`
+	TrustTier  TrustTier      `json:"trust_tier"`
+
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	VerifiedAt *time.Time `json:"verified_at,omitempty"`
+}
 ```
 
 ### Subscription
 
-```python
-class Subscription(BaseModel):
-    id: str
-    provider_id: str
-    categories: list[str]            # Glob patterns like "travel.*"
-    filters: SubscriptionFilter
-    delivery: DeliveryConfig
-    status: SubscriptionStatus
-    created_at: datetime
+```go
+type SubscriptionFilter struct {
+	MinBudget     *float64  `json:"min_budget,omitempty"`
+	MaxLatencyMs  *int64    `json:"max_latency_ms,omitempty"`
+	Regions       []string  `json:"regions,omitempty"`
+}
 
-class SubscriptionFilter(BaseModel):
-    min_budget: float | None
-    max_latency_ms: int | None
-    regions: list[str] | None
+type DeliveryConfig struct {
+	Method        string `json:"method"` // "webhook" or "polling"
+	WebhookURL    string `json:"webhook_url,omitempty"`
+	WebhookSecret string `json:"webhook_secret,omitempty"`
+}
 
-class DeliveryConfig(BaseModel):
-    method: str                      # "webhook" or "polling"
-    webhook_url: str | None
-    webhook_secret: str | None
+type Subscription struct {
+	ID         string `json:"subscription_id"`
+	ProviderID string `json:"provider_id"`
+	Categories []string `json:"categories"` // glob patterns, e.g. "travel.*"
+	Filters    SubscriptionFilter `json:"filters"`
+	Delivery   DeliveryConfig     `json:"delivery"`
+	Status     string             `json:"status"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
 ```
 
 ## Core Functions
 
 ### Provider Registration
 
-```python
-async def register_provider(req: ProviderRegistration) -> Provider:
-    # 1. Validate endpoint is accessible
-    endpoint_valid = await validate_endpoint(req.endpoint)
-    if not endpoint_valid:
-        raise HTTPException(400, "Endpoint not accessible")
+```go
+func (s *Service) RegisterProvider(ctx context.Context, req ProviderRegistration) (ProviderResponse, error) {
+	// 1. Validate endpoint is accessible
+	if err := s.validateEndpoint(ctx, req.Endpoint); err != nil {
+		return ProviderResponse{}, ErrEndpointNotAccessible
+	}
 
-    # 2. Generate API credentials
-    api_key = generate_api_key()
-    api_secret = generate_api_secret()
+	// 2. Generate API credentials
+	apiKey := generateAPIKey()
+	apiSecret := generateAPISecret()
 
-    # 3. Get initial trust score from Trust Broker
-    trust_score = await trust_broker.get_initial_score()
+	// 3. Get initial trust score from Trust Broker
+	trustScore, err := s.trustBroker.GetInitialScore(ctx, "external")
+	if err != nil {
+		return ProviderResponse{}, err
+	}
 
-    # 4. Create provider record
-    provider = Provider(
-        id=generate_provider_id(),
-        name=req.name,
-        endpoint=req.endpoint,
-        api_key_hash=hash_key(api_key),
-        api_secret_hash=hash_key(api_secret),
-        status=ProviderStatus.PENDING_VERIFICATION,
-        trust_score=trust_score,
-        trust_tier=TrustTier.UNVERIFIED,
-        created_at=datetime.utcnow()
-    )
+	// 4. Create provider record
+	now := time.Now().UTC()
+	provider := Provider{
+		ID:           generateProviderID(),
+		Name:         req.Name,
+		Description:  req.Description,
+		Endpoint:     req.Endpoint,
+		BidWebhook:   req.BidWebhook,
+		Capabilities: req.Capabilities,
+		ContactEmail: req.ContactEmail,
+		Metadata:     req.Metadata,
+		APIKeyHash:   hashKey(apiKey),
+		APISecretHash: hashKey(apiSecret),
+		Status:       ProviderStatusPendingVerification,
+		TrustScore:   trustScore,
+		TrustTier:    TrustTierUnverified,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
 
-    # 5. Persist to Firestore
-    await firestore.save_provider(provider)
+	// 5. Persist to Firestore
+	if err := s.store.SaveProvider(ctx, provider); err != nil {
+		return ProviderResponse{}, err
+	}
 
-    # 6. Publish event
-    await pubsub.publish("provider.registered", provider)
+	// 6. Publish event
+	_ = s.events.Publish(ctx, "provider.registered", map[string]any{
+		"provider_id": provider.ID,
+		"name":        provider.Name,
+		"timestamp":   now.Format(time.RFC3339Nano),
+	})
 
-    # 7. Return with credentials (only time they're shown)
-    return ProviderResponse(
-        provider_id=provider.id,
-        api_key=api_key,
-        api_secret=api_secret,
-        status=provider.status
-    )
+	// 7. Return with credentials (only time they're shown)
+	return ProviderResponse{
+		ProviderID: provider.ID,
+		APIKey:     apiKey,
+		APISecret:  apiSecret,
+		Status:     string(provider.Status),
+	}, nil
+}
 ```
 
 ### Endpoint Validation
 
-```python
-async def validate_endpoint(endpoint: str) -> bool:
-    """Verify provider endpoint is accessible and responds correctly."""
-    try:
-        # Send A2A discovery request
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{endpoint}/.well-known/a2a")
-            if resp.status_code == 200:
-                data = resp.json()
-                # Verify required A2A fields
-                return "capabilities" in data and "version" in data
-    except Exception:
-        pass
-    return False
+```go
+func (s *Service) validateEndpoint(ctx context.Context, endpoint string) error {
+	// Send A2A discovery request
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/.well-known/a2a", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	}
+	var data map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return err
+	}
+	if _, ok := data["capabilities"]; !ok {
+		return errors.New("missing capabilities")
+	}
+	if _, ok := data["version"]; !ok {
+		return errors.New("missing version")
+	}
+	return nil
+}
 ```
 
 ### Subscription Matching
 
-```python
-async def get_subscribed_providers(category: str) -> list[Provider]:
-    """Get all providers subscribed to a work category."""
-    # Query subscriptions that match this category
-    subscriptions = await firestore.query_subscriptions(category)
+```go
+func (s *Service) GetSubscribedProviders(ctx context.Context, category string) ([]Provider, error) {
+	subs, err := s.store.QuerySubscriptions(ctx, category)
+	if err != nil {
+		return nil, err
+	}
 
-    # Get provider details
-    provider_ids = [s.provider_id for s in subscriptions]
-    providers = await firestore.get_providers(provider_ids)
+	ids := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		ids = append(ids, sub.ProviderID)
+	}
+	providers, err := s.store.GetProviders(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 
-    # Filter to active only
-    active = [p for p in providers if p.status == ProviderStatus.ACTIVE]
+	out := make([]Provider, 0, len(providers))
+	for _, p := range providers {
+		if p.Status == ProviderStatusActive {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
 
-    return active
-
-def category_matches(subscription_pattern: str, work_category: str) -> bool:
-    """Check if subscription pattern matches work category.
-
-    Examples:
-    - "travel.*" matches "travel.booking", "travel.search"
-    - "travel.booking" matches only "travel.booking"
-    - "*" matches everything
-    """
-    import fnmatch
-    return fnmatch.fnmatch(work_category, subscription_pattern)
+func categoryMatches(subscriptionPattern, workCategory string) bool {
+	// Examples:
+	// - "travel.*" matches "travel.booking", "travel.search"
+	// - "travel.booking" matches only "travel.booking"
+	// - "*" matches everything
+	ok, err := path.Match(subscriptionPattern, workCategory)
+	return err == nil && ok
+}
 ```
 
 ## Events
 
 ### Published Events
 
-```python
-# Provider registered
+```json
 {
-    "event_type": "provider.registered",
-    "provider_id": "prov_abc123",
-    "name": "Expedia Travel Agent",
-    "timestamp": "2025-01-15T10:00:00Z"
+  "event_type": "provider.registered",
+  "provider_id": "prov_abc123",
+  "name": "Expedia Travel Agent",
+  "timestamp": "2025-01-15T10:00:00Z"
 }
-
-# Provider status changed
 {
-    "event_type": "provider.status_changed",
-    "provider_id": "prov_abc123",
-    "old_status": "PENDING_VERIFICATION",
-    "new_status": "ACTIVE",
-    "timestamp": "2025-01-15T10:30:00Z"
+  "event_type": "provider.status_changed",
+  "provider_id": "prov_abc123",
+  "old_status": "PENDING_VERIFICATION",
+  "new_status": "ACTIVE",
+  "timestamp": "2025-01-15T10:30:00Z"
 }
-
-# Subscription created
 {
-    "event_type": "subscription.created",
-    "subscription_id": "sub_xyz789",
-    "provider_id": "prov_abc123",
-    "categories": ["travel.*"],
-    "timestamp": "2025-01-15T10:05:00Z"
+  "event_type": "subscription.created",
+  "subscription_id": "sub_xyz789",
+  "provider_id": "prov_abc123",
+  "categories": ["travel.*"],
+  "timestamp": "2025-01-15T10:05:00Z"
 }
 ```
 
@@ -388,28 +428,30 @@ LOG_LEVEL=info
 
 ```
 aex-provider-registry/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                 # FastAPI app
-│   ├── config.py
-│   ├── models/
-│   │   ├── provider.py
-│   │   └── subscription.py
-│   ├── services/
-│   │   ├── registration.py
-│   │   ├── subscription.py
-│   │   └── validation.py
+├── cmd/
+│   └── provider-registry/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── api/
+│   │   ├── providers.go
+│   │   ├── subscriptions.go
+│   │   └── internal.go
+│   ├── model/
+│   │   ├── provider.go
+│   │   └── subscription.go
+│   ├── service/
+│   │   ├── registration.go
+│   │   ├── subscription.go
+│   │   └── validation.go
 │   ├── clients/
-│   │   └── trust_broker.py
-│   ├── store/
-│   │   └── firestore.py
-│   └── api/
-│       ├── providers.py
-│       ├── subscriptions.py
-│       └── internal.py
-├── tests/
-│   ├── test_registration.py
-│   └── test_subscription.py
+│   │   └── trustbroker.go
+│   └── store/
+│       └── firestore.go
+├── hack/
+│   └── tests/
 ├── Dockerfile
-└── requirements.txt
+├── go.mod
+└── go.sum
 ```

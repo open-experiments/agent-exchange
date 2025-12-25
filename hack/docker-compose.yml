@@ -1,0 +1,200 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: aex-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    ports:
+      - "27017:27017"
+    volumes:
+      - aex_mongo_data:/data/db
+    networks:
+      - aex
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  aex-gateway:
+    image: agent-exchange/aex-gateway:local
+    container_name: aex-gateway
+    environment:
+      PORT: "8080"
+      IDENTITY_URL: "http://aex-identity:8080"
+      BID_GATEWAY_URL: "http://aex-bid-gateway:8080"
+      PROVIDER_REGISTRY_URL: "http://aex-provider-registry:8080"
+      CONTRACT_ENGINE_URL: "http://aex-contract-engine:8080"
+      TRUST_BROKER_URL: "http://aex-trust-broker:8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - aex-identity
+      - aex-bid-gateway
+      - aex-provider-registry
+      - aex-contract-engine
+      - aex-trust-broker
+    networks:
+      - aex
+
+  aex-work-publisher:
+    image: agent-exchange/aex-work-publisher:local
+    container_name: aex-work-publisher
+    environment:
+      PORT: "8080"
+      STORE_TYPE: "mongo"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+      MONGO_COLLECTION_WORK: "work_specs"
+      PROVIDER_REGISTRY_URL: "http://aex-provider-registry:8080"
+      ENVIRONMENT: "development"
+    ports:
+      - "8081:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      aex-provider-registry:
+        condition: service_started
+    networks:
+      - aex
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  aex-bid-gateway:
+    image: agent-exchange/aex-bid-gateway:local
+    container_name: aex-bid-gateway
+    environment:
+      PORT: "8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8082:8080"
+    depends_on:
+      - mongo
+    networks:
+      - aex
+
+  aex-bid-evaluator:
+    image: agent-exchange/aex-bid-evaluator:local
+    container_name: aex-bid-evaluator
+    environment:
+      PORT: "8080"
+      BID_GATEWAY_URL: "http://aex-bid-gateway:8080"
+      TRUST_BROKER_URL: "http://aex-trust-broker:8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8083:8080"
+    depends_on:
+      - mongo
+      - aex-bid-gateway
+      - aex-trust-broker
+    networks:
+      - aex
+
+  aex-contract-engine:
+    image: agent-exchange/aex-contract-engine:local
+    container_name: aex-contract-engine
+    environment:
+      PORT: "8080"
+      BID_GATEWAY_URL: "http://aex-bid-gateway:8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8084:8080"
+    depends_on:
+      - mongo
+      - aex-bid-gateway
+    networks:
+      - aex
+
+  aex-provider-registry:
+    image: agent-exchange/aex-provider-registry:local
+    container_name: aex-provider-registry
+    environment:
+      PORT: "8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8085:8080"
+    depends_on:
+      - mongo
+    networks:
+      - aex
+
+  aex-trust-broker:
+    image: agent-exchange/aex-trust-broker:local
+    container_name: aex-trust-broker
+    environment:
+      PORT: "8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8086:8080"
+    depends_on:
+      - mongo
+    networks:
+      - aex
+
+  aex-identity:
+    image: agent-exchange/aex-identity:local
+    container_name: aex-identity
+    environment:
+      PORT: "8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8087:8080"
+    depends_on:
+      - mongo
+    networks:
+      - aex
+
+  aex-settlement:
+    image: agent-exchange/aex-settlement:local
+    container_name: aex-settlement
+    environment:
+      PORT: "8080"
+      ENVIRONMENT: "development"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8088:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - aex
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  aex-telemetry:
+    image: agent-exchange/aex-telemetry:local
+    container_name: aex-telemetry
+    environment:
+      PORT: "8080"
+    ports:
+      - "8089:8080"
+    networks:
+      - aex
+
+volumes:
+  aex_mongo_data:
+
+networks:
+  aex:
+    name: aex
+
+

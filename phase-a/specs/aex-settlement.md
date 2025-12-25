@@ -4,8 +4,8 @@
 
 **Purpose:** Usage metering, cost calculation, ledger management, and billing. This is the financial backbone of the exchange.
 
-**Language:** Python 3.11+
-**Framework:** FastAPI + SQLAlchemy
+**Language:** Go 1.22+
+**Framework:** Chi router + pgxpool (PostgreSQL)
 **Runtime:** Cloud Run
 **Port:** 8080
 **Database:** Cloud SQL (PostgreSQL)
@@ -127,218 +127,181 @@ CREATE TABLE transactions (
 );
 ```
 
-### SQLAlchemy Models
+### Go Models
 
-```python
-from sqlalchemy import Column, String, Numeric, DateTime, Boolean, ForeignKey, Enum, JSON
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
-import uuid
+```go
+type Tenant struct {
+	ID         uuid.UUID `json:"id"`
+	ExternalID string    `json:"external_id"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"` // REQUESTOR|PROVIDER|BOTH
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
 
-class Tenant(Base):
-    __tablename__ = "tenants"
+type TenantBalance struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	Balance     string    `json:"balance"` // store/load as DECIMAL string
+	Currency    string    `json:"currency"`
+	LastUpdated time.Time `json:"last_updated"`
+}
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    external_id = Column(String(255), unique=True, nullable=False)
-    name = Column(String(255), nullable=False)
-    type = Column(String(20), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+type Execution struct {
+	ID               uuid.UUID `json:"execution_id"`
+	TaskID           string    `json:"task_id"`
+	AgentID          string    `json:"agent_id"`
+	RequestorTenantID uuid.UUID `json:"requestor_tenant_id"`
+	ProviderTenantID  uuid.UUID `json:"provider_tenant_id"`
+	Domain           string    `json:"domain"`
+	StartedAt        time.Time `json:"started_at"`
+	CompletedAt      time.Time `json:"completed_at"`
+	DurationMs       int64     `json:"duration_ms"`
+	Status           string    `json:"status"`
+	Success          bool      `json:"success"`
+	AgreedPrice      string    `json:"agreed_price"`
+	PlatformFee      string    `json:"platform_fee"`
+	ProviderPayout   string    `json:"provider_payout"`
+	Metadata         map[string]any `json:"metadata"`
+	CreatedAt        time.Time `json:"created_at"`
+}
 
-    balance = relationship("TenantBalance", back_populates="tenant", uselist=False)
-
-class TenantBalance(Base):
-    __tablename__ = "tenant_balances"
-
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
-    balance = Column(Numeric(15, 6), nullable=False, default=0)
-    currency = Column(String(3), nullable=False, default="USD")
-    last_updated = Column(DateTime(timezone=True), server_default=func.now())
-
-    tenant = relationship("Tenant", back_populates="balance")
-
-class Execution(Base):
-    __tablename__ = "executions"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    work_id = Column(String(255), nullable=False)
-    contract_id = Column(String(255), unique=True, nullable=False)
-    agent_id = Column(String(255), nullable=False)
-    consumer_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
-    provider_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
-    domain = Column(String(255), nullable=False)
-
-    started_at = Column(DateTime(timezone=True), nullable=False)
-    completed_at = Column(DateTime(timezone=True), nullable=False)
-    duration_ms = Column(Integer, nullable=False)
-
-    status = Column(String(20), nullable=False)
-    success = Column(Boolean, nullable=False)
-
-    agreed_price = Column(Numeric(10, 6), nullable=False)
-    platform_fee = Column(Numeric(10, 6), nullable=False)
-    provider_payout = Column(Numeric(10, 6), nullable=False)
-
-    metadata = Column(JSON)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-class LedgerEntry(Base):
-    __tablename__ = "ledger_entries"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
-    entry_type = Column(String(20), nullable=False)
-    amount = Column(Numeric(15, 6), nullable=False)
-    balance_after = Column(Numeric(15, 6), nullable=False)
-    reference_type = Column(String(50), nullable=False)
-    reference_id = Column(UUID(as_uuid=True))
-    description = Column(String(500))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+type LedgerEntry struct {
+	ID           uuid.UUID `json:"id"`
+	TenantID     uuid.UUID `json:"tenant_id"`
+	EntryType    string    `json:"entry_type"` // DEBIT|CREDIT|DEPOSIT|WITHDRAWAL
+	Amount       string    `json:"amount"`
+	BalanceAfter string    `json:"balance_after"`
+	ReferenceType string   `json:"reference_type"`
+	ReferenceID  *uuid.UUID `json:"reference_id,omitempty"`
+	Description  string    `json:"description"`
+	CreatedAt    time.Time `json:"created_at"`
+}
 ```
 
 ## Settlement Logic
 
 ### CPC Cost Calculation (Phase A)
 
-```python
-from decimal import Decimal
+```go
+var platformFeeRate = decimal.RequireFromString("0.15") // 15%
 
-PLATFORM_FEE_RATE = Decimal("0.15")  # 15%
+type CostBreakdown struct {
+	AgreedPrice    decimal.Decimal
+	PlatformFee    decimal.Decimal
+	ProviderPayout decimal.Decimal
+}
 
-@dataclass
-class CostBreakdown:
-    agreed_price: Decimal      # What requestor pays
-    platform_fee: Decimal      # AEX takes
-    provider_payout: Decimal   # Provider receives
-
-def calculate_cpc_cost(agreed_price: Decimal) -> CostBreakdown:
-    """
-    Calculate cost breakdown for CPC pricing.
-
-    Example:
-        agreed_price = $0.10
-        platform_fee = $0.10 * 0.15 = $0.015
-        provider_payout = $0.10 - $0.015 = $0.085
-    """
-    platform_fee = agreed_price * PLATFORM_FEE_RATE
-    provider_payout = agreed_price - platform_fee
-
-    return CostBreakdown(
-        agreed_price=agreed_price,
-        platform_fee=platform_fee.quantize(Decimal("0.000001")),
-        provider_payout=provider_payout.quantize(Decimal("0.000001"))
-    )
+func calculateCPCCost(agreedPrice decimal.Decimal) CostBreakdown {
+	platformFee := agreedPrice.Mul(platformFeeRate).Round(6)
+	providerPayout := agreedPrice.Sub(platformFee).Round(6)
+	return CostBreakdown{
+		AgreedPrice:    agreedPrice.Round(6),
+		PlatformFee:    platformFee,
+		ProviderPayout: providerPayout,
+	}
+}
 ```
 
 ### Settlement Transaction
 
-```python
-from sqlalchemy.orm import Session
-from decimal import Decimal
+```go
+func (s *Service) SettleExecution(ctx context.Context, event TaskCompletedEvent) (Execution, error) {
+	agreedPrice := decimal.RequireFromString(fmt.Sprint(event.Data.Billing.Cost))
+	cost := calculateCPCCost(agreedPrice)
 
-async def settle_execution(
-    db: Session,
-    event: ContractCompletedEvent
-) -> Execution:
-    """
-    Settle a completed contract execution with ACID guarantees.
-    """
-    # Calculate costs
-    agreed_price = Decimal(str(event.data.billing.cost))
-    cost = calculate_cpc_cost(agreed_price)
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return Execution{}, err
+	}
+	defer tx.Rollback(ctx)
 
-    # Get tenant IDs
-    requestor = await get_tenant_by_external_id(db, event.tenant_id)
-    provider = await get_provider_by_agent_id(db, event.data.agent_id)
+	// Lookup requestor/provider (external IDs -> UUIDs) as needed
+	requestorID, err := s.lookupTenantID(ctx, tx, event.TenantID)
+	if err != nil {
+		return Execution{}, err
+	}
+	providerID, err := s.lookupProviderTenantID(ctx, tx, event.Data.AgentID)
+	if err != nil {
+		return Execution{}, err
+	}
 
-    # Start transaction
-    try:
-        # 1. Create execution record
-        execution = Execution(
-            work_id=event.work_id,
-            contract_id=event.contract_id,
-            agent_id=event.data.agent_id,
-            consumer_id=consumer.id,
-            provider_id=provider.id,
-            domain=event.data.domain,
-            started_at=event.data.started_at,
-            completed_at=event.timestamp,
-            duration_ms=event.data.duration_ms,
-            status="COMPLETED",
-            success=True,
-            agreed_price=cost.agreed_price,
-            platform_fee=cost.platform_fee,
-            provider_payout=cost.provider_payout,
-            metadata=event.data.metadata
-        )
-        db.add(execution)
+	// Lock balances
+	reqBal, err := s.getBalanceForUpdate(ctx, tx, requestorID)
+	if err != nil {
+		return Execution{}, err
+	}
+	provBal, err := s.getBalanceForUpdate(ctx, tx, providerID)
+	if err != nil {
+		return Execution{}, err
+	}
 
-        # 2. Debit requestor
-        requestor_balance = await get_balance_for_update(db, requestor.id)
-        new_requestor_balance = requestor_balance.balance - cost.agreed_price
+	newReqBal := reqBal.Sub(cost.AgreedPrice)
+	if newReqBal.IsNegative() {
+		return Execution{}, ErrInsufficientFunds
+	}
+	newProvBal := provBal.Add(cost.ProviderPayout)
 
-        if new_requestor_balance < 0:
-            raise InsufficientFundsError(
-                f"Insufficient balance: {requestor_balance.balance} < {cost.agreed_price}"
-            )
+	execID := uuid.New()
+	now := time.Now().UTC()
 
-        requestor_balance.balance = new_requestor_balance
-        requestor_balance.last_updated = datetime.utcnow()
+	// 1. Create execution record
+	if _, err := tx.Exec(ctx, `
+INSERT INTO executions (id, task_id, agent_id, requestor_tenant_id, provider_tenant_id, domain, started_at, completed_at, duration_ms, status, success, agreed_price, platform_fee, provider_payout, metadata)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'COMPLETED',true,$10,$11,$12,$13)
+`, execID, event.TaskID, event.Data.AgentID, requestorID, providerID, event.Data.Domain, event.Data.StartedAt, event.Timestamp, event.Data.DurationMs, cost.AgreedPrice.StringFixed(6), cost.PlatformFee.StringFixed(6), cost.ProviderPayout.StringFixed(6), event.Data.Metadata); err != nil {
+		return Execution{}, err
+	}
 
-        db.add(LedgerEntry(
-            tenant_id=requestor.id,
-            entry_type="DEBIT",
-            amount=cost.agreed_price,
-            balance_after=new_requestor_balance,
-            reference_type="execution",
-            reference_id=execution.id,
-            description=f"Contract execution: {event.contract_id}"
-        ))
+	// 2. Update balances + ledger entries
+	if err := s.updateBalanceAndLedger(ctx, tx, requestorID, newReqBal, "DEBIT", cost.AgreedPrice, execID, "execution", "Task execution: "+event.TaskID); err != nil {
+		return Execution{}, err
+	}
+	if err := s.updateBalanceAndLedger(ctx, tx, providerID, newProvBal, "CREDIT", cost.ProviderPayout, execID, "execution", "Agent payout: "+event.Data.AgentID); err != nil {
+		return Execution{}, err
+	}
 
-        # 3. Credit provider
-        provider_balance = await get_balance_for_update(db, provider.id)
-        new_provider_balance = provider_balance.balance + cost.provider_payout
+	if err := tx.Commit(ctx); err != nil {
+		return Execution{}, err
+	}
 
-        provider_balance.balance = new_provider_balance
-        provider_balance.last_updated = datetime.utcnow()
+	execution := Execution{
+		ID: execID,
+		TaskID: event.TaskID,
+		AgentID: event.Data.AgentID,
+		RequestorTenantID: requestorID,
+		ProviderTenantID: providerID,
+		Domain: event.Data.Domain,
+		StartedAt: event.Data.StartedAt,
+		CompletedAt: event.Timestamp,
+		DurationMs: event.Data.DurationMs,
+		Status: "COMPLETED",
+		Success: true,
+		AgreedPrice: cost.AgreedPrice.StringFixed(6),
+		PlatformFee: cost.PlatformFee.StringFixed(6),
+		ProviderPayout: cost.ProviderPayout.StringFixed(6),
+		Metadata: event.Data.Metadata,
+		CreatedAt: now,
+	}
 
-        db.add(LedgerEntry(
-            tenant_id=provider.id,
-            entry_type="CREDIT",
-            amount=cost.provider_payout,
-            balance_after=new_provider_balance,
-            reference_type="execution",
-            reference_id=execution.id,
-            description=f"Agent payout: {event.data.agent_id}"
-        ))
+	// Export to BigQuery (best-effort async)
+	go func() { _ = s.exportToBigQuery(context.Background(), execution) }()
 
-        # 4. Commit transaction
-        db.commit()
-
-        # 5. Export to BigQuery (async)
-        await export_to_bigquery(execution)
-
-        return execution
-
-    except Exception as e:
-        db.rollback()
-        logger.error("settlement_failed", contract_id=event.contract_id, error=str(e))
-        raise
+	return execution, nil
+}
 ```
 
 ### Balance Locking
 
-```python
-from sqlalchemy import select, text
-
-async def get_balance_for_update(db: Session, tenant_id: UUID) -> TenantBalance:
-    """Get balance with row-level lock for update."""
-    result = db.execute(
-        select(TenantBalance)
-        .where(TenantBalance.tenant_id == tenant_id)
-        .with_for_update()
-    )
-    return result.scalar_one()
+```go
+func (s *Service) getBalanceForUpdate(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID) (decimal.Decimal, error) {
+	var balanceStr string
+	if err := tx.QueryRow(ctx, `
+SELECT balance FROM tenant_balances WHERE tenant_id = $1 FOR UPDATE
+`, tenantID).Scan(&balanceStr); err != nil {
+		return decimal.Zero, err
+	}
+	return decimal.RequireFromString(balanceStr), nil
+}
 ```
 
 ## Event Handling
@@ -349,55 +312,48 @@ async def get_balance_for_update(db: Session, tenant_id: UUID) -> TenantBalance:
 
 Published by `aex-contract-engine` when a provider completes work.
 
-```python
-@app.post("/events/contract.completed")
-async def handle_contract_completed(request: Request, db: Session = Depends(get_db)):
-    envelope = await request.json()
-    event = ContractCompletedEvent.parse_obj(decode_pubsub_message(envelope))
+```go
+func (h *Handlers) HandleTaskCompleted(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	envelope, err := decodePubSubPush(r.Body)
+	if err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var event TaskCompletedEvent
+	if err := json.Unmarshal(envelope.Data, &event); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
 
-    try:
-        execution = await settle_execution(db, event)
-        logger.info("settlement_completed",
-            contract_id=event.contract_id,
-            execution_id=str(execution.id),
-            cost=float(execution.agreed_price)
-        )
-    except InsufficientFundsError as e:
-        logger.error("insufficient_funds", contract_id=event.contract_id, error=str(e))
-        # Could trigger alert or flag the contract
-    except Exception as e:
-        logger.error("settlement_error", contract_id=event.contract_id, error=str(e))
-        raise
+	exec, err := h.svc.SettleExecution(ctx, event)
+	if err != nil {
+		if errors.Is(err, ErrInsufficientFunds) {
+			// Optionally flag tenant, alert, etc.
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 
-    return {"status": "ok"}
+	slog.Info("settlement_completed", "task_id", event.TaskID, "execution_id", exec.ID.String(), "cost", exec.AgreedPrice)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
 ```
 
 #### contract.failed
 
 Published by `aex-contract-engine` when execution fails.
 
-```python
-@app.post("/events/contract.failed")
-async def handle_contract_failed(request: Request, db: Session = Depends(get_db)):
-    """Record failed executions (no billing, but track for analytics)."""
-    envelope = await request.json()
-    event = ContractFailedEvent.parse_obj(decode_pubsub_message(envelope))
-
-    execution = Execution(
-        work_id=event.work_id,
-        contract_id=event.contract_id,
-        agent_id=event.data.agent_id,
-        status="FAILED",
-        success=False,
-        agreed_price=Decimal("0"),
-        platform_fee=Decimal("0"),
-        provider_payout=Decimal("0"),
-        # ... other fields
-    )
-    db.add(execution)
-    db.commit()
-
-    return {"status": "ok"}
+```go
+func (h *Handlers) HandleTaskFailed(w http.ResponseWriter, r *http.Request) {
+	// Record failed executions (no billing, but track for analytics)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
 ```
 
 ## API Endpoints
@@ -519,39 +475,33 @@ PARTITION BY DATE(created_at);
 
 ### Export Implementation
 
-```python
-from google.cloud import bigquery
-
-bq_client = bigquery.Client()
-
-async def export_to_bigquery(execution: Execution):
-    """Async export to BigQuery for analytics."""
-    row = {
-        "execution_id": str(execution.id),
-        "work_id": execution.work_id,
-        "contract_id": execution.contract_id,
-        "agent_id": execution.agent_id,
-        "consumer_id": str(execution.consumer_id),
-        "provider_id": str(execution.provider_id),
-        "domain": execution.domain,
-        "started_at": execution.started_at.isoformat(),
-        "completed_at": execution.completed_at.isoformat(),
-        "duration_ms": execution.duration_ms,
-        "status": execution.status,
-        "success": execution.success,
-        "agreed_price": float(execution.agreed_price),
-        "platform_fee": float(execution.platform_fee),
-        "provider_payout": float(execution.provider_payout),
-        "created_at": execution.created_at.isoformat()
-    }
-
-    errors = bq_client.insert_rows_json(
-        "aex_analytics.executions",
-        [row]
-    )
-
-    if errors:
-        logger.error("bigquery_export_failed", errors=errors)
+```go
+func (s *Service) exportToBigQuery(ctx context.Context, execution Execution) error {
+	// Best-effort: do not block settlement commit on BQ.
+	ins := s.bigquery.Dataset(s.cfg.BigQueryDataset).Table("executions").Inserter()
+	row := map[string]any{
+		"execution_id":         execution.ID.String(),
+		"task_id":              execution.TaskID,
+		"agent_id":             execution.AgentID,
+		"requestor_tenant_id":  execution.RequestorTenantID.String(),
+		"provider_tenant_id":   execution.ProviderTenantID.String(),
+		"domain":               execution.Domain,
+		"started_at":           execution.StartedAt,
+		"completed_at":         execution.CompletedAt,
+		"duration_ms":          execution.DurationMs,
+		"status":               execution.Status,
+		"success":              execution.Success,
+		"agreed_price":         execution.AgreedPrice,
+		"platform_fee":         execution.PlatformFee,
+		"provider_payout":      execution.ProviderPayout,
+		"created_at":           execution.CreatedAt,
+	}
+	if err := ins.Put(ctx, []*bigquery.ValuesSaver{{Schema: nil, Row: row}}); err != nil {
+		slog.Warn("bigquery_export_failed", "error", err)
+		return err
+	}
+	return nil
+}
 ```
 
 ## Configuration
@@ -607,30 +557,31 @@ aex_settlement_insufficient_funds_total
 
 ```
 aex-settlement/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   ├── database.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── tenant.py
-│   │   ├── execution.py
-│   │   └── ledger.py
-│   ├── services/
-│   │   ├── settlement.py
-│   │   ├── billing.py
-│   │   └── export.py
+├── cmd/
+│   └── settlement/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
+│   ├── db/
+│   │   └── postgres.go       # pgxpool init
+│   ├── model/
+│   │   ├── tenant.go
+│   │   ├── execution.go
+│   │   └── ledger.go
+│   ├── service/
+│   │   ├── settlement.go
+│   │   └── export.go
 │   ├── api/
-│   │   ├── usage.py
-│   │   └── balance.py
+│   │   ├── usage.go
+│   │   └── balance.go
 │   └── events/
-│       └── handlers.py
-├── migrations/
-│   └── versions/
-├── tests/
+│       └── handlers.go
+├── hack/
+│   └── tests/
 ├── Dockerfile
-└── requirements.txt
+├── go.mod
+└── go.sum
 ```
 
 ## Deployment

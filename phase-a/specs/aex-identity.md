@@ -4,8 +4,8 @@
 
 **Purpose:** Identity and access management for the AEX platform. Manages tenants, API keys, users, roles, and authentication coordination with Firebase Auth.
 
-**Language:** Python 3.11+
-**Framework:** FastAPI + Pydantic
+**Language:** Go 1.22+
+**Framework:** Chi router (net/http)
 **Runtime:** Cloud Run
 **Port:** 8080
 
@@ -317,78 +317,89 @@ Record usage for quota tracking.
 
 ### Firestore Collections
 
-```python
-from pydantic import BaseModel, Field, EmailStr
-from datetime import datetime
-from enum import Enum
-from typing import Optional, List, Dict, Any
+```go
+type TenantType string
 
-class TenantType(str, Enum):
-    REQUESTOR = "REQUESTOR"   # Can only submit tasks
-    PROVIDER = "PROVIDER"     # Can only register agents
-    BOTH = "BOTH"             # Can do both
+const (
+	TenantTypeRequestor TenantType = "REQUESTOR"
+	TenantTypeProvider  TenantType = "PROVIDER"
+	TenantTypeBoth      TenantType = "BOTH"
+)
 
-class TenantStatus(str, Enum):
-    PENDING = "PENDING"       # Awaiting verification
-    ACTIVE = "ACTIVE"
-    SUSPENDED = "SUSPENDED"
-    TERMINATED = "TERMINATED"
+type TenantStatus string
 
-class Quotas(BaseModel):
-    requests_per_minute: int = 1000
-    requests_per_day: int = 100000
-    max_agents: int = 100
-    max_concurrent_tasks: int = 50
-    max_task_payload_bytes: int = 1048576  # 1MB
+const (
+	TenantStatusPending    TenantStatus = "PENDING"
+	TenantStatusActive     TenantStatus = "ACTIVE"
+	TenantStatusSuspended  TenantStatus = "SUSPENDED"
+	TenantStatusTerminated TenantStatus = "TERMINATED"
+)
 
-class Tenant(BaseModel):
-    id: str
-    external_id: str          # URL-safe identifier
-    name: str
-    type: TenantType
-    status: TenantStatus = TenantStatus.ACTIVE
-    contact_email: EmailStr
-    billing_email: EmailStr
-    quotas: Quotas = Field(default_factory=Quotas)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime
-    updated_at: datetime
-    suspended_at: Optional[datetime] = None
-    suspension_reason: Optional[str] = None
+type Quotas struct {
+	RequestsPerMinute   int   `json:"requests_per_minute"`
+	RequestsPerDay      int   `json:"requests_per_day"`
+	MaxAgents           int   `json:"max_agents"`
+	MaxConcurrentTasks  int   `json:"max_concurrent_tasks"`
+	MaxTaskPayloadBytes int64 `json:"max_task_payload_bytes"`
+}
 
-class APIKeyStatus(str, Enum):
-    ACTIVE = "ACTIVE"
-    REVOKED = "REVOKED"
-    EXPIRED = "EXPIRED"
+type Tenant struct {
+	ID          string      `json:"id"`
+	ExternalID  string      `json:"external_id"`
+	Name        string      `json:"name"`
+	Type        TenantType  `json:"type"`
+	Status      TenantStatus `json:"status"`
+	ContactEmail string     `json:"contact_email"`
+	BillingEmail string     `json:"billing_email"`
+	Quotas      Quotas      `json:"quotas"`
+	Metadata    map[string]any `json:"metadata"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	SuspendedAt *time.Time  `json:"suspended_at,omitempty"`
+	SuspensionReason *string `json:"suspension_reason,omitempty"`
+}
 
-class APIKey(BaseModel):
-    id: str
-    tenant_id: str
-    name: str
-    key_hash: str             # SHA-256 hash of key
-    prefix: str               # First 12 chars for identification
-    scopes: List[str]
-    status: APIKeyStatus = APIKeyStatus.ACTIVE
-    created_at: datetime
-    expires_at: Optional[datetime] = None
-    last_used_at: Optional[datetime] = None
-    revoked_at: Optional[datetime] = None
+type APIKeyStatus string
 
-class UserRole(str, Enum):
-    OWNER = "OWNER"           # Full access
-    ADMIN = "ADMIN"           # Manage users, keys
-    DEVELOPER = "DEVELOPER"   # Use API, view stats
-    VIEWER = "VIEWER"         # Read-only
+const (
+	APIKeyStatusActive  APIKeyStatus = "ACTIVE"
+	APIKeyStatusRevoked APIKeyStatus = "REVOKED"
+	APIKeyStatusExpired APIKeyStatus = "EXPIRED"
+)
 
-class TenantUser(BaseModel):
-    id: str
-    tenant_id: str
-    firebase_uid: str
-    email: EmailStr
-    role: UserRole
-    status: str = "ACTIVE"
-    created_at: datetime
-    updated_at: datetime
+type APIKey struct {
+	ID        string      `json:"id"`
+	TenantID  string      `json:"tenant_id"`
+	Name      string      `json:"name"`
+	KeyHash   string      `json:"-"`
+	Prefix    string      `json:"prefix"`
+	Scopes    []string    `json:"scopes"`
+	Status    APIKeyStatus `json:"status"`
+	CreatedAt time.Time   `json:"created_at"`
+	ExpiresAt *time.Time  `json:"expires_at,omitempty"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt *time.Time  `json:"revoked_at,omitempty"`
+}
+
+type UserRole string
+
+const (
+	UserRoleOwner     UserRole = "OWNER"
+	UserRoleAdmin     UserRole = "ADMIN"
+	UserRoleDeveloper UserRole = "DEVELOPER"
+	UserRoleViewer    UserRole = "VIEWER"
+)
+
+type TenantUser struct {
+	ID         string   `json:"id"`
+	TenantID   string   `json:"tenant_id"`
+	FirebaseUID string  `json:"firebase_uid"`
+	Email      string   `json:"email"`
+	Role       UserRole `json:"role"`
+	Status     string   `json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
 ```
 
 ### Firestore Structure
@@ -465,129 +476,125 @@ usage:{tenant_id}:{date} -> count
 
 ## API Key Generation
 
-```python
-import secrets
-import hashlib
-from base64 import urlsafe_b64encode
+```go
+func generateAPIKey(environment string) (fullKey string, keyHash string, prefix string, err error) {
+	// Generate 32 random bytes
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", "", "", err
+	}
 
-def generate_api_key(environment: str = "live") -> tuple[str, str, str]:
-    """
-    Generate a new API key.
-    Returns: (full_key, key_hash, prefix)
-    """
-    # Generate 32 random bytes
-    random_bytes = secrets.token_bytes(32)
+	// Encode as URL-safe base64 without padding
+	keyBody := base64.RawURLEncoding.EncodeToString(b[:])
+	fullKey = "ak_" + environment + "_" + keyBody
 
-    # Encode as URL-safe base64
-    key_body = urlsafe_b64encode(random_bytes).decode('utf-8').rstrip('=')
+	// Create hash for storage (hex SHA-256)
+	sum := sha256.Sum256([]byte(fullKey))
+	keyHash = hex.EncodeToString(sum[:])
 
-    # Prefix with environment indicator
-    full_key = f"ak_{environment}_{key_body}"
+	// Extract prefix for display
+	if len(fullKey) > 12 {
+		prefix = fullKey[:12] + "..."
+	} else {
+		prefix = fullKey
+	}
+	return fullKey, keyHash, prefix, nil
+}
 
-    # Create hash for storage
-    key_hash = hashlib.sha256(full_key.encode()).hexdigest()
-
-    # Extract prefix for display
-    prefix = full_key[:12] + "..."
-
-    return full_key, key_hash, prefix
-
-
-def validate_api_key(provided_key: str, stored_hash: str) -> bool:
-    """Validate an API key against stored hash."""
-    provided_hash = hashlib.sha256(provided_key.encode()).hexdigest()
-    return secrets.compare_digest(provided_hash, stored_hash)
+func validateAPIKey(providedKey string, storedHash string) bool {
+	sum := sha256.Sum256([]byte(providedKey))
+	providedHash := hex.EncodeToString(sum[:])
+	return subtle.ConstantTimeCompare([]byte(providedHash), []byte(storedHash)) == 1
+}
 ```
 
 ## Quota Enforcement
 
-```python
-from datetime import datetime, date
+```go
+type QuotaService struct {
+	redis     RedisClient
+	firestore FirestoreClient
+}
 
-class QuotaService:
-    def __init__(self, redis_client, firestore_client):
-        self.redis = redis_client
-        self.firestore = firestore_client
+func (q *QuotaService) CheckQuota(ctx context.Context, tenantID string, quotaType string) (allowed bool, current int, limit int, err error) {
+	tenant, err := q.getTenant(ctx, tenantID)
+	if err != nil {
+		return false, 0, 0, err
+	}
 
-    async def check_quota(self, tenant_id: str, quota_type: str) -> tuple[bool, int, int]:
-        """
-        Check if tenant is within quota.
-        Returns: (allowed, current_usage, limit)
-        """
-        tenant = await self.get_tenant(tenant_id)
-        quotas = tenant.quotas
+	switch quotaType {
+	case "requests_per_minute":
+		bucket := time.Now().UTC().Format("200601021504")
+		key := "ratelimit:" + tenantID + ":" + bucket
+		current, err := q.redis.GetInt(ctx, key)
+		if err != nil {
+			return false, 0, 0, err
+		}
+		limit = tenant.Quotas.RequestsPerMinute
+		return current < limit, current, limit, nil
 
-        if quota_type == "requests_per_minute":
-            current_minute = datetime.utcnow().strftime("%Y%m%d%H%M")
-            key = f"ratelimit:{tenant_id}:{current_minute}"
-            current = await self.redis.get(key) or 0
-            limit = quotas.requests_per_minute
-            return int(current) < limit, int(current), limit
+	case "requests_per_day":
+		day := time.Now().UTC().Format("2006-01-02")
+		key := "usage:" + tenantID + ":" + day
+		current, err := q.redis.GetInt(ctx, key)
+		if err != nil {
+			return false, 0, 0, err
+		}
+		limit = tenant.Quotas.RequestsPerDay
+		return current < limit, current, limit, nil
 
-        elif quota_type == "requests_per_day":
-            today = date.today().isoformat()
-            key = f"usage:{tenant_id}:{today}"
-            current = await self.redis.get(key) or 0
-            limit = quotas.requests_per_day
-            return int(current) < limit, int(current), limit
+	default:
+		return true, 0, 0, nil
+	}
+}
 
-        return True, 0, 0
+func (q *QuotaService) RecordUsage(ctx context.Context, tenantID string) error {
+	bucket := time.Now().UTC().Format("200601021504")
+	day := time.Now().UTC().Format("2006-01-02")
 
-    async def record_usage(self, tenant_id: str):
-        """Record a request for quota tracking."""
-        current_minute = datetime.utcnow().strftime("%Y%m%d%H%M")
-        today = date.today().isoformat()
-
-        pipe = self.redis.pipeline()
-
-        # Minute counter
-        minute_key = f"ratelimit:{tenant_id}:{current_minute}"
-        pipe.incr(minute_key)
-        pipe.expire(minute_key, 120)  # 2 minute TTL
-
-        # Daily counter
-        day_key = f"usage:{tenant_id}:{today}"
-        pipe.incr(day_key)
-        pipe.expire(day_key, 90000)  # 25 hour TTL
-
-        await pipe.execute()
+	pipe := q.redis.Pipeline()
+	pipe.Incr(ctx, "ratelimit:"+tenantID+":"+bucket)
+	pipe.Expire(ctx, "ratelimit:"+tenantID+":"+bucket, 2*time.Minute)
+	pipe.Incr(ctx, "usage:"+tenantID+":"+day)
+	pipe.Expire(ctx, "usage:"+tenantID+":"+day, 25*time.Hour)
+	return pipe.Exec(ctx)
+}
 ```
 
 ## Scopes & Permissions
 
 ### Available Scopes
 
-```python
-SCOPES = {
-    # Task operations
-    "tasks:write": "Submit and cancel tasks",
-    "tasks:read": "View task status and results",
-
-    # Agent operations
-    "agents:write": "Register and manage agents",
-    "agents:read": "View agent details",
-
-    # Usage/billing
-    "usage:read": "View usage statistics",
-    "billing:read": "View billing information",
-
-    # Admin
-    "admin:users": "Manage tenant users",
-    "admin:keys": "Manage API keys",
-
-    # Wildcard
-    "*": "Full access"
+```go
+var Scopes = map[string]string{
+	"tasks:write":  "Submit and cancel tasks",
+	"tasks:read":   "View task status and results",
+	"agents:write": "Register and manage agents",
+	"agents:read":  "View agent details",
+	"usage:read":   "View usage statistics",
+	"billing:read": "View billing information",
+	"admin:users":  "Manage tenant users",
+	"admin:keys":   "Manage API keys",
+	"*":            "Full access",
 }
 
-def check_scope(required: str, granted: List[str]) -> bool:
-    """Check if required scope is in granted scopes."""
-    if "*" in granted:
-        return True
-    if required in granted:
-        return True
-    # Check parent scope (e.g., "tasks:*" covers "tasks:read")
-    parent = required.rsplit(":", 1)[0] + ":*"
-    return parent in granted
+func CheckScope(required string, granted []string) bool {
+	for _, g := range granted {
+		if g == "*" || g == required {
+			return true
+		}
+	}
+	// Parent scope: "tasks:*" covers "tasks:read"
+	if i := strings.LastIndexByte(required, ':'); i >= 0 {
+		parent := required[:i] + ":*"
+		for _, g := range granted {
+			if g == parent {
+				return true
+			}
+		}
+	}
+	return false
+}
 ```
 
 ## Event Publishing
@@ -690,24 +697,24 @@ aex_identity_quota_exceeded_total{tenant_id, quota_type}
 
 ### Logging
 
-```python
-logger.info("tenant_created",
-    tenant_id=tenant.id,
-    external_id=tenant.external_id,
-    type=tenant.type
+```go
+slog.Info("tenant_created",
+	"tenant_id", tenant.ID,
+	"external_id", tenant.ExternalID,
+	"type", tenant.Type,
 )
 
-logger.info("apikey_validated",
-    tenant_id=tenant_id,
-    key_prefix=prefix,
-    scopes=scopes
+slog.Info("apikey_validated",
+	"tenant_id", tenantID,
+	"key_prefix", prefix,
+	"scopes", scopes,
 )
 
-logger.warn("quota_exceeded",
-    tenant_id=tenant_id,
-    quota_type="requests_per_minute",
-    current=1001,
-    limit=1000
+slog.Warn("quota_exceeded",
+	"tenant_id", tenantID,
+	"quota_type", "requests_per_minute",
+	"current", 1001,
+	"limit", 1000,
 )
 ```
 
@@ -715,45 +722,47 @@ logger.warn("quota_exceeded",
 
 ```
 aex-identity/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── config.py
-│   ├── models/
-│   │   ├── tenant.py
-│   │   ├── apikey.py
-│   │   └── user.py
-│   ├── services/
-│   │   ├── tenant_service.py
-│   │   ├── apikey_service.py
-│   │   ├── user_service.py
-│   │   └── quota_service.py
-│   ├── repositories/
-│   │   ├── tenant_repository.py
-│   │   └── apikey_repository.py
+├── cmd/
+│   └── identity/
+│       └── main.go
+├── internal/
+│   ├── config/
+│   │   └── config.go
 │   ├── api/
-│   │   ├── tenants.py
-│   │   ├── apikeys.py
-│   │   ├── users.py
-│   │   └── internal.py
+│   │   ├── tenants.go
+│   │   ├── apikeys.go
+│   │   ├── users.go
+│   │   └── internal.go
+│   ├── model/
+│   │   ├── tenant.go
+│   │   ├── apikey.go
+│   │   └── user.go
+│   ├── service/
+│   │   ├── tenant.go
+│   │   ├── apikey.go
+│   │   ├── user.go
+│   │   └── quota.go
+│   ├── store/
+│   │   ├── firestore.go
+│   │   └── secretmanager.go
 │   └── events/
-│       └── publisher.py
-├── tests/
+│       └── publisher.go
+├── hack/
+│   └── tests/
 ├── Dockerfile
-└── requirements.txt
+├── go.mod
+└── go.sum
 ```
 
 ## Dependencies
 
 ```
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-pydantic>=2.5.0
-google-cloud-firestore>=2.14.0
-google-cloud-secret-manager>=2.18.0
-redis>=5.0.0
-firebase-admin>=6.4.0
-structlog>=24.1.0
+github.com/go-chi/chi/v5
+cloud.google.com/go/firestore
+cloud.google.com/go/secretmanager
+cloud.google.com/go/pubsub
+github.com/redis/go-redis/v9
+firebase.google.com/go/v4
 ```
 
 ## Deployment
