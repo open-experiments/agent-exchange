@@ -99,8 +99,6 @@ sequenceDiagram
     Note over E: Executes
 
 ```
-```
-```
 
 **Key insight:** After contract award, AEX steps aside. Consumer and provider communicate directly via A2A protocol. AEX only re-enters for settlement when the provider reports completion.
 
