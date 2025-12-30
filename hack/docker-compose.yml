@@ -74,10 +74,12 @@ services:
       PORT: "8080"
       MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
       MONGO_DB: "aex"
+      PROVIDER_REGISTRY_URL: "http://aex-provider-registry:8080"
     ports:
       - "8082:8080"
     depends_on:
       - mongo
+      - aex-provider-registry
     networks:
       - aex
 

@@ -16,7 +16,7 @@ import (
 func TestEvaluateOverHTTPUsingRealBidGatewayHTTP(t *testing.T) {
 	// Spin up a minimal bid-gateway stub with real HTTP server (loopback).
 	bg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/internal/bids" {
+		if r.Method != http.MethodGet || r.URL.Path != "/internal/v1/bids" {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -74,7 +74,7 @@ func TestEvaluateOverHTTPUsingRealBidGatewayHTTP(t *testing.T) {
 		},
 	}
 	b, _ := json.Marshal(reqBody)
-	resp, err := http.Post(ev.URL+"/internal/evaluate", "application/json", bytes.NewReader(b))
+	resp, err := http.Post(ev.URL+"/internal/v1/evaluate", "application/json", bytes.NewReader(b))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,4 +83,5 @@ func TestEvaluateOverHTTPUsingRealBidGatewayHTTP(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 }
+
 

@@ -29,7 +29,7 @@ func (c *ProviderRegistryClient) GetSubscribedProviders(ctx context.Context, cat
 	}
 
 	err := httpclient.NewRequest("GET", c.baseURL).
-		Path("/internal/providers/subscribed").
+		Path("/internal/v1/providers/subscribed").
 		Query("category", category).
 		Context(ctx).
 		ExecuteJSON(c.client, &result)

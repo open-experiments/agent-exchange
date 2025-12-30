@@ -31,6 +31,13 @@ func (s *MongoStore) EnsureIndexes(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	_, err = s.providers.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "api_key_hash", Value: 1}},
+		Options: options.Index().SetSparse(true),
+	})
+	if err != nil {
+		return err
+	}
 	_, err = s.subs.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "subscription_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
@@ -49,6 +56,23 @@ func (s *MongoStore) GetProvider(ctx context.Context, providerID string) (*model
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	res := s.providers.FindOne(ctx, bson.M{"provider_id": providerID})
+	if res.Err() == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
+	var p model.Provider
+	if err := res.Decode(&p); err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (s *MongoStore) GetProviderByAPIKeyHash(ctx context.Context, apiKeyHash string) (*model.Provider, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	res := s.providers.FindOne(ctx, bson.M{"api_key_hash": apiKeyHash})
 	if res.Err() == mongo.ErrNoDocuments {
 		return nil, nil
 	}
@@ -112,4 +136,5 @@ func (s *MongoStore) ListSubscriptions(ctx context.Context) ([]model.Subscriptio
 	}
 	return out, nil
 }
+
 

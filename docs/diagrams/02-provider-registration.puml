@@ -1,0 +1,71 @@
+@startuml Provider Registration Flow
+skinparam backgroundColor #FEFEFE
+
+title Provider Registration Flow
+
+actor Provider as P
+participant "Gateway" as GW
+participant "Provider-Registry" as PR
+database "Database" as DB
+
+== Registration ==
+
+P -> GW : POST /v1/providers\n{name, endpoint, capabilities}
+activate GW
+
+GW -> PR : Route to registry
+activate PR
+
+PR -> PR : Generate provider_id\n(prov_xxxx)
+PR -> PR : Generate API key\n(aex_pk_live_xxxx)
+PR -> PR : Generate API secret\n(aex_sk_live_xxxx)
+PR -> PR : Hash keys (SHA256)
+
+PR -> PR : Set initial trust:\nscore=0.3\ntier=UNVERIFIED
+
+PR -> DB : Store provider record
+activate DB
+DB --> PR : OK
+deactivate DB
+
+PR --> GW : {provider_id, api_key,\napi_secret, trust_tier}
+deactivate PR
+
+GW --> P : 200 OK\n{provider_id, api_key, api_secret}
+deactivate GW
+
+note right of P
+  Provider must store
+  api_key and api_secret
+  securely - shown only once
+end note
+
+== Category Subscription ==
+
+P -> GW : POST /v1/subscriptions\n{category: "text-generation"}
+activate GW
+
+GW -> PR : Route request
+activate PR
+
+PR -> PR : Generate subscription_id\n(sub_xxxx)
+PR -> DB : Store subscription
+activate DB
+DB --> PR : OK
+deactivate DB
+
+PR --> GW : {subscription_id}
+deactivate PR
+
+GW --> P : 200 OK
+deactivate GW
+
+note right of P
+  Provider will now receive
+  work notifications for
+  "text-generation" category
+end note
+
+@enduml
+
+

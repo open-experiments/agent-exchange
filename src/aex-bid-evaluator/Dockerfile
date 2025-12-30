@@ -40,3 +40,4 @@ EXPOSE 8080
 
 CMD ["./aex-bid-evaluator"]
 
+

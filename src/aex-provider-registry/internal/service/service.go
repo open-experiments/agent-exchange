@@ -147,6 +147,65 @@ func (s *Service) HandleCreateSubscription(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (s *Service) HandleGetProvider(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract provider_id from path: /v1/providers/{provider_id}
+	providerID := strings.TrimPrefix(r.URL.Path, "/v1/providers/")
+	providerID = strings.TrimSpace(providerID)
+	if providerID == "" {
+		http.Error(w, "provider_id is required", http.StatusBadRequest)
+		return
+	}
+
+	p, err := s.store.GetProvider(ctx, providerID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if p == nil {
+		http.Error(w, "provider not found", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"provider_id":  p.ProviderID,
+		"name":         p.Name,
+		"endpoint":     p.Endpoint,
+		"status":       p.Status,
+		"trust_score":  p.TrustScore,
+		"trust_tier":   p.TrustTier,
+		"capabilities": p.Capabilities,
+		"created_at":   p.CreatedAt,
+		"updated_at":   p.UpdatedAt,
+	})
+}
+
+func (s *Service) HandleListSubscriptions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	providerID := strings.TrimSpace(r.URL.Query().Get("provider_id"))
+
+	subs, err := s.store.ListSubscriptions(ctx)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	result := make([]model.Subscription, 0)
+	for _, sub := range subs {
+		if providerID != "" && sub.ProviderID != providerID {
+			continue
+		}
+		result = append(result, sub)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"subscriptions": result,
+		"total":         len(result),
+	})
+}
+
 func (s *Service) HandleInternalSubscribed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	category := strings.TrimSpace(r.URL.Query().Get("category"))
@@ -272,4 +331,38 @@ func sha256Hex(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
 }
+
+func (s *Service) HandleValidateAPIKey(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	apiKey := strings.TrimSpace(r.URL.Query().Get("api_key"))
+	if apiKey == "" {
+		http.Error(w, "api_key is required", http.StatusBadRequest)
+		return
+	}
+
+	keyHash := sha256Hex(apiKey)
+
+	provider, err := s.store.GetProviderByAPIKeyHash(ctx, keyHash)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if provider == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid":       false,
+			"provider_id": "",
+			"status":      "",
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"valid":       provider.Status == model.ProviderStatusActive,
+		"provider_id": provider.ProviderID,
+		"status":      provider.Status,
+	})
+}
+
 
