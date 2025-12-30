@@ -11,3 +11,5 @@ type EvaluationStore interface {
 	GetLatest(ctx context.Context, workID string) (*model.BidEvaluation, error)
 }
 
+
+

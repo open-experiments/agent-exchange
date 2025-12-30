@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/parlakisik/agent-exchange/aex-bid-gateway/internal/clients"
 	"github.com/parlakisik/agent-exchange/aex-bid-gateway/internal/model"
 	"github.com/parlakisik/agent-exchange/aex-bid-gateway/internal/store"
 )
@@ -20,17 +22,34 @@ var (
 	ErrInvalidBid   = errors.New("invalid_bid")
 )
 
+// ProviderKeyValidator validates provider API keys
+type ProviderKeyValidator interface {
+	ValidateAPIKey(ctx context.Context, apiKey string) (string, error)
+}
+
 type Service struct {
 	store store.BidStore
 
-	// apiKey -> providerID
+	// Static fallback: apiKey -> providerID
 	providerKeys map[string]string
+
+	// Dynamic validation via provider registry
+	providerRegistry ProviderKeyValidator
 }
 
 func New(store store.BidStore, providerKeys map[string]string) *Service {
 	return &Service{
 		store:        store,
 		providerKeys: providerKeys,
+	}
+}
+
+// NewWithProviderRegistry creates a service that validates API keys against the provider registry
+func NewWithProviderRegistry(store store.BidStore, providerRegistryURL string) *Service {
+	return &Service{
+		store:            store,
+		providerKeys:     map[string]string{},
+		providerRegistry: clients.NewProviderRegistryClient(providerRegistryURL),
 	}
 }
 
@@ -123,9 +142,20 @@ func (s *Service) validateProviderAuth(r *http.Request) (string, error) {
 	if apiKey == "" {
 		return "", ErrUnauthorized
 	}
+
+	// First, try static keys (for backwards compatibility/testing)
 	if providerID, ok := s.providerKeys[apiKey]; ok && providerID != "" {
 		return providerID, nil
 	}
+
+	// If provider registry client is configured, validate dynamically
+	if s.providerRegistry != nil {
+		providerID, err := s.providerRegistry.ValidateAPIKey(r.Context(), apiKey)
+		if err == nil && providerID != "" {
+			return providerID, nil
+		}
+	}
+
 	return "", ErrUnauthorized
 }
 

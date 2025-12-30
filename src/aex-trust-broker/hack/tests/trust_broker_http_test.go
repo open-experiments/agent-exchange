@@ -29,7 +29,7 @@ func TestRecordOutcomeAndGetTrustAndBatch(t *testing.T) {
 		"completed_at": time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	b, _ := json.Marshal(outcome)
-	resp, err := http.Post(ts.URL+"/internal/outcomes", "application/json", bytes.NewReader(b))
+	resp, err := http.Post(ts.URL+"/internal/v1/outcomes", "application/json", bytes.NewReader(b))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestRecordOutcomeAndGetTrustAndBatch(t *testing.T) {
 	// Batch trust
 	batchReq := map[string]any{"provider_ids": []string{"prov_a", "prov_b"}}
 	b2, _ := json.Marshal(batchReq)
-	resp3, err := http.Post(ts.URL+"/internal/trust/batch", "application/json", bytes.NewReader(b2))
+	resp3, err := http.Post(ts.URL+"/internal/v1/trust/batch", "application/json", bytes.NewReader(b2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,4 +60,5 @@ func TestRecordOutcomeAndGetTrustAndBatch(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp3.StatusCode)
 	}
 }
+
 

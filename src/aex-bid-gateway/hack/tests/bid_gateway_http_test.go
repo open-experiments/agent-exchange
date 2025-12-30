@@ -53,7 +53,7 @@ func TestSubmitBidAndListInternal(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 
-	listResp, err := http.Get(ts.URL + "/internal/bids?work_id=work_1")
+	listResp, err := http.Get(ts.URL + "/internal/v1/bids?work_id=work_1")
 	if err != nil {
 		t.Fatal(err)
 	}

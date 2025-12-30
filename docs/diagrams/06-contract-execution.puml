@@ -1,0 +1,65 @@
+@startuml Contract Execution Flow
+skinparam backgroundColor #FEFEFE
+
+title Contract Execution Flow
+
+actor Consumer as C
+actor Provider as P
+participant "Contract-Engine" as CE
+database "Database" as DB
+
+note over C, P
+  **A2A Direct Communication**
+  Consumer and Provider communicate directly
+  using the a2a_endpoint from contract
+end note
+
+C -> P : Send work request\n(via a2a_endpoint)
+P --> C : Acknowledge receipt
+
+== Progress Updates ==
+
+P -> CE : POST /v1/contracts/{id}/progress\nAuthorization: Bearer {exec_token}\n{progress: 25, message: "Starting"}
+activate CE
+CE -> CE : Validate execution_token
+CE -> CE : Update contract:\nstatus = EXECUTING\nprogress = 25%
+CE -> DB : Save
+CE --> P : {status: ok}
+deactivate CE
+
+P -> C : Stream partial results
+
+P -> CE : POST /v1/contracts/{id}/progress\n{progress: 50, message: "Processing"}
+activate CE
+CE -> CE : Update progress = 50%
+CE --> P : {status: ok}
+deactivate CE
+
+P -> CE : POST /v1/contracts/{id}/progress\n{progress: 75, message: "Finalizing"}
+activate CE
+CE -> CE : Update progress = 75%
+CE --> P : {status: ok}
+deactivate CE
+
+P -> C : Send final results
+
+== Completion ==
+
+P -> CE : POST /v1/contracts/{id}/complete\nAuthorization: Bearer {exec_token}\n{result: "...", metrics: {...}}
+activate CE
+CE -> CE : Validate token
+CE -> CE : Update contract:\nstatus = COMPLETED\ncompleted_at = now
+CE -> DB : Save
+CE -> CE : Trigger settlement\n(async)
+CE --> P : {status: COMPLETED,\ncompleted_at}
+deactivate CE
+
+note right of CE
+  Settlement process runs
+  asynchronously after
+  contract completion
+end note
+
+@enduml
+
+

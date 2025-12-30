@@ -24,7 +24,7 @@ func NewBidGatewayClient(baseURL string) *BidGatewayClient {
 }
 
 func (c *BidGatewayClient) GetBids(ctx context.Context, workID string) ([]model.BidPacket, error) {
-	u, err := url.Parse(c.baseURL + "/internal/bids")
+	u, err := url.Parse(c.baseURL + "/internal/v1/bids")
 	if err != nil {
 		return nil, err
 	}
@@ -55,4 +55,5 @@ func (c *BidGatewayClient) GetBids(ctx context.Context, workID string) ([]model.
 	}
 	return out.Bids, nil
 }
+
 

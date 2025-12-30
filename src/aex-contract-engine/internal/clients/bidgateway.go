@@ -33,7 +33,7 @@ func NewBidGatewayClient(baseURL string) *BidGatewayClient {
 }
 
 func (c *BidGatewayClient) ListBids(ctx context.Context, workID string) ([]Bid, error) {
-	u, err := url.Parse(c.baseURL + "/internal/bids")
+	u, err := url.Parse(c.baseURL + "/internal/v1/bids")
 	if err != nil {
 		return nil, err
 	}
@@ -61,4 +61,5 @@ func (c *BidGatewayClient) ListBids(ctx context.Context, workID string) ([]Bid, 
 	}
 	return out.Bids, nil
 }
+
 

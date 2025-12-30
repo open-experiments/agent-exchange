@@ -10,7 +10,8 @@ type Config struct {
 	Port string
 
 	// Auth
-	ProviderAPIKeys map[string]string // apiKey -> providerID
+	ProviderAPIKeys     map[string]string // apiKey -> providerID (static fallback)
+	ProviderRegistryURL string            // Provider registry URL for dynamic validation
 
 	// MongoDB (local persistence)
 	MongoURI        string
@@ -24,13 +25,14 @@ type Config struct {
 
 func Load() Config {
 	cfg := Config{
-		Port:            getenv("PORT", "8080"),
-		MongoURI:        strings.TrimSpace(os.Getenv("MONGO_URI")),
-		MongoDatabase:   getenv("MONGO_DB", "aex"),
-		MongoCollection: getenv("MONGO_COLLECTION_BIDS", "bids"),
-		ReadTimeout:     10 * time.Second,
-		WriteTimeout:    20 * time.Second,
-		IdleTimeout:     60 * time.Second,
+		Port:                getenv("PORT", "8080"),
+		ProviderRegistryURL: strings.TrimSpace(os.Getenv("PROVIDER_REGISTRY_URL")),
+		MongoURI:            strings.TrimSpace(os.Getenv("MONGO_URI")),
+		MongoDatabase:       getenv("MONGO_DB", "aex"),
+		MongoCollection:     getenv("MONGO_COLLECTION_BIDS", "bids"),
+		ReadTimeout:         10 * time.Second,
+		WriteTimeout:        20 * time.Second,
+		IdleTimeout:         60 * time.Second,
 	}
 
 	cfg.ProviderAPIKeys = parseProviderAPIKeys(os.Getenv("PROVIDER_API_KEYS"))

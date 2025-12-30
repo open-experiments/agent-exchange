@@ -41,7 +41,17 @@ func main() {
 		log.Printf("mongo disabled (set MONGO_URI to enable)")
 	}
 
-	svc := service.New(st, cfg.ProviderAPIKeys)
+	var svc *service.Service
+	if cfg.ProviderRegistryURL != "" {
+		svc = service.NewWithProviderRegistry(st, cfg.ProviderRegistryURL)
+		log.Printf("provider auth: validating via provider-registry at %s", cfg.ProviderRegistryURL)
+	} else if len(cfg.ProviderAPIKeys) > 0 {
+		svc = service.New(st, cfg.ProviderAPIKeys)
+		log.Printf("provider auth: using %d static API keys", len(cfg.ProviderAPIKeys))
+	} else {
+		svc = service.New(st, map[string]string{})
+		log.Printf("provider auth: WARNING - no auth configured, all bids will be rejected")
+	}
 	handler := httpapi.NewRouter(svc)
 
 	srv := &http.Server{

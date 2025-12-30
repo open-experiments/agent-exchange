@@ -40,3 +40,5 @@ func (s *MemoryContractStore) Update(ctx context.Context, c model.Contract) erro
 	return s.Save(ctx, c)
 }
 
+
+

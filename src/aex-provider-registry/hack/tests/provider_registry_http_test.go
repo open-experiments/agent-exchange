@@ -66,7 +66,7 @@ func TestRegisterSubscribeAndInternalLookup(t *testing.T) {
 	}
 
 	// Internal lookup should return the provider for travel.booking
-	resp3, err := http.Get(ts.URL + "/internal/providers/subscribed?category=travel.booking")
+	resp3, err := http.Get(ts.URL + "/internal/v1/providers/subscribed?category=travel.booking")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,4 +84,5 @@ func TestRegisterSubscribeAndInternalLookup(t *testing.T) {
 		t.Fatalf("expected provider %s, got %+v", regOut.ProviderID, out.Providers)
 	}
 }
+
 

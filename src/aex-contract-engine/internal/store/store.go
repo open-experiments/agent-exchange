@@ -12,3 +12,5 @@ type ContractStore interface {
 	Update(ctx context.Context, c model.Contract) error
 }
 
+
+

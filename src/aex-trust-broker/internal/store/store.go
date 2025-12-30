@@ -14,3 +14,5 @@ type Store interface {
 	ListOutcomes(ctx context.Context, providerID string, limit int) ([]model.ContractOutcome, error)
 }
 
+
+

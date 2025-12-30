@@ -16,7 +16,7 @@ import (
 func TestAwardProgressCompleteFlow(t *testing.T) {
 	// Bid-gateway stub (real HTTP server).
 	bg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/internal/bids" {
+		if r.Method != http.MethodGet || r.URL.Path != "/internal/v1/bids" {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -98,4 +98,5 @@ func TestAwardProgressCompleteFlow(t *testing.T) {
 		t.Fatalf("complete expected 200, got %d", resp2.StatusCode)
 	}
 }
+
 
