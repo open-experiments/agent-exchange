@@ -42,7 +42,10 @@ func main() {
 		log.Printf("mongo disabled (set MONGO_URI to enable)")
 	}
 
-	svc := service.New(st)
+	svc := service.NewWithOptions(st, cfg.AllowHTTP)
+	if cfg.AllowHTTP {
+		log.Printf("WARNING: HTTP URLs allowed (development mode)")
+	}
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      httpapi.NewRouter(svc),

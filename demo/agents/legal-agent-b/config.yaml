@@ -1,0 +1,64 @@
+agent:
+  name: "Standard Legal AI"
+  description: "Balanced contract review - thorough analysis at competitive rates"
+  version: "1.0.0"
+  provider:
+    organization: "LegalTech Solutions"
+    url: "https://github.com/open-experiments/agent-exchange"
+
+server:
+  host: "0.0.0.0"
+  port: 8101
+
+llm:
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+  temperature: 0.3
+  max_tokens: 4096
+
+# Agent characteristics for bidding
+characteristics:
+  tier: "standard"
+  response_style: "detailed"
+  detail_level: "comprehensive"
+  turnaround: "moderate"
+
+skills:
+  - id: "contract_review"
+    name: "Contract Review"
+    description: "Comprehensive contract analysis with risk assessment and recommendations"
+    tags: ["legal", "contracts", "review"]
+    examples:
+      - "Review this partnership agreement thoroughly"
+      - "Identify all risks and obligations"
+
+  - id: "compliance_check"
+    name: "Compliance Check"
+    description: "Detailed regulatory compliance analysis"
+    tags: ["legal", "compliance"]
+    examples:
+      - "Check GDPR compliance of this privacy policy"
+      - "Verify contract meets industry standards"
+
+  - id: "legal_research"
+    name: "Legal Research"
+    description: "In-depth legal research with citations"
+    tags: ["legal", "research"]
+    examples:
+      - "Research employment law requirements"
+
+aex:
+  enabled: true
+  gateway_url: "http://aex-gateway:8080"
+  auto_register: true
+  auto_bid: true
+  pricing:
+    base_rate: 15.00
+    per_page_rate: 0.50
+    max_pages_optimal: 30
+    currency: "USD"
+    description: "Balanced pricing for medium-length documents (5-30 pages)"
+  bidding:
+    confidence: 0.88
+    estimated_time_minutes: 15
+    max_document_pages: 50

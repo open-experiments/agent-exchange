@@ -1,0 +1,6 @@
+# Orchestrator Agent dependencies
+-r ../common/requirements.txt
+
+# Additional dependencies
+anthropic>=0.34.0
+httpx>=0.27.0

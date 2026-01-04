@@ -1,0 +1,88 @@
+@startuml Provider_Onboarding_AgentCard
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+title 1. Provider Onboarding - Agent Card Ingestion
+
+actor "Provider Admin" as admin
+participant "Provider Agent\n(A2A Server)" as agent #LightPink
+participant "AEX Gateway\n:8080" as gw #LightYellow
+participant "AEX Provider Registry\n:8085" as pr #LightYellow
+participant "Agent Card\nResolver" as acr #LightGreen
+database "MongoDB\n(providers)" as db #LightBlue
+
+== Provider Agent Setup ==
+
+admin -> agent : Deploy agent with\nAgent Card config
+activate agent
+agent -> agent : Start A2A JSON-RPC server
+agent -> agent : Serve /.well-known/agent-card.json
+deactivate agent
+
+== Registration with AEX ==
+
+admin -> gw : POST /v1/providers\n{"agent_base_url": "https://legal-agent.example"}
+activate gw
+gw -> pr : Forward registration request
+activate pr
+
+pr -> acr : FetchAgentCard(baseURL)
+activate acr
+
+acr -> agent : GET /.well-known/agent-card.json
+activate agent
+agent --> acr : 200 OK\n(Agent Card JSON)
+deactivate agent
+
+note right of acr
+  Agent Card contains:
+  - name, description
+  - supported_interfaces
+  - skills (id, name, tags)
+  - capabilities
+  - security_schemes
+end note
+
+acr -> acr : Validate schema
+acr -> acr : Parse skills & tags
+acr --> pr : AgentCard + ValidationResult
+deactivate acr
+
+pr -> pr : Create AgentCardProjection\n(indexed skills/tags)
+pr -> pr : Generate provider_id
+
+pr -> db : Insert provider document
+activate db
+note right of db
+  Document includes:
+  - provider_id
+  - agent_card_url
+  - agent_card_raw (full JSON)
+  - skills_index[]
+  - capabilities
+  - trust_score: 0.3 (default)
+  - trust_tier: "UNVERIFIED"
+  - status: "ACTIVE"
+end note
+db --> pr : Inserted
+deactivate db
+
+pr --> gw : 201 Created\n{provider_id, verification_status}
+deactivate pr
+gw --> admin : Registration response
+deactivate gw
+
+== Agent Card Refresh (Background) ==
+
+loop Every 1 hour
+    pr -> acr : RefreshAgentCard(provider_id)
+    acr -> agent : GET /.well-known/agent-card.json
+    agent --> acr : Agent Card
+    acr -> pr : Updated card
+    pr -> db : Update skills_index if changed
+end
+
+@enduml

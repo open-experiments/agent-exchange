@@ -1,0 +1,73 @@
+agent:
+  name: "Premium Legal AI"
+  description: "Expert-level contract review - exhaustive analysis with strategic recommendations"
+  version: "1.0.0"
+  provider:
+    organization: "Elite Legal Partners"
+    url: "https://github.com/open-experiments/agent-exchange"
+
+server:
+  host: "0.0.0.0"
+  port: 8102
+
+llm:
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+  temperature: 0.2
+  max_tokens: 8192
+
+# Agent characteristics for bidding
+characteristics:
+  tier: "premium"
+  response_style: "exhaustive"
+  detail_level: "expert"
+  turnaround: "thorough"
+
+skills:
+  - id: "contract_review"
+    name: "Contract Review"
+    description: "Expert-level contract analysis with strategic recommendations, risk matrix, and negotiation points"
+    tags: ["legal", "contracts", "review"]
+    examples:
+      - "Perform exhaustive contract review with strategic advice"
+      - "Provide detailed risk matrix and mitigation strategies"
+
+  - id: "compliance_check"
+    name: "Compliance Check"
+    description: "Multi-jurisdictional compliance analysis with remediation roadmap"
+    tags: ["legal", "compliance"]
+    examples:
+      - "Full GDPR/CCPA compliance audit"
+      - "Cross-border regulatory analysis"
+
+  - id: "legal_research"
+    name: "Legal Research"
+    description: "Comprehensive legal research with case law citations and precedent analysis"
+    tags: ["legal", "research"]
+    examples:
+      - "Research with full case citations"
+      - "Comparative jurisdiction analysis"
+
+  - id: "negotiation_support"
+    name: "Negotiation Support"
+    description: "Strategic negotiation recommendations and alternative clause drafting"
+    tags: ["legal", "negotiation"]
+    examples:
+      - "Suggest alternative clauses"
+      - "Provide negotiation leverage points"
+
+aex:
+  enabled: true
+  gateway_url: "http://aex-gateway:8080"
+  auto_register: true
+  auto_bid: true
+  pricing:
+    base_rate: 30.00
+    per_page_rate: 0.20
+    max_pages_optimal: 100
+    currency: "USD"
+    description: "Best value for large, complex documents (30+ pages)"
+  bidding:
+    confidence: 0.95
+    estimated_time_minutes: 30
+    max_document_pages: 200

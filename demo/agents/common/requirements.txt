@@ -1,0 +1,10 @@
+# Common dependencies for AEX demo agents
+aiohttp>=3.9.0
+pyyaml>=6.0
+langgraph>=0.2.0
+langchain>=0.2.0
+langchain-core>=0.2.0
+
+# LLM providers (Claude and Gemini only)
+langchain-anthropic>=0.2.0
+langchain-google-genai>=2.0.0

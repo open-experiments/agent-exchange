@@ -1,0 +1,35 @@
+agent:
+  name: "Orchestrator Agent"
+  description: "Intelligent task orchestration using AEX for agent discovery and A2A for execution"
+  version: "1.0.0"
+  provider:
+    organization: "AEX Demo"
+    url: "https://github.com/open-experiments/agent-exchange"
+
+server:
+  host: "0.0.0.0"
+  port: 8103
+
+llm:
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+  temperature: 0.5
+  max_tokens: 4096
+
+skills:
+  - id: "task_orchestration"
+    name: "Task Orchestration"
+    description: "Decompose complex requests and coordinate multiple agents"
+    tags: ["orchestration", "coordination"]
+    examples:
+      - "Plan my business trip and review the contract"
+      - "Help me prepare for the Berlin meeting"
+
+aex:
+  enabled: true
+  gateway_url: "http://aex-gateway:8080"
+  auto_register: false
+  auto_bid: false
+  pricing:
+    base_rate: 0.00
+    currency: "USD"

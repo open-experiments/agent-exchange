@@ -1,0 +1,39 @@
+@startuml
+title AEX ↔ A2A Provider Onboarding (Agent Card Ingestion)
+
+actor "Provider Admin" as Admin
+participant "AEX API Gateway" as GW
+participant "Provider Registry" as PR
+participant "Card Ingestor/Validator" as CI
+participant "A2A Server" as A2AS
+database "Discovery Index" as IDX
+
+Admin -> GW: POST /v1/providers\n{ agentCardUrl | domain }
+GW -> PR: createProvider(pending)
+
+PR -> CI: enqueue(Fetch+Validate, providerId)
+
+note right of CI
+Fetch order (compatibility):
+1) /.well-known/agent-card.json  (latest A2A)
+2) /.well-known/agent.json       (older A2A)
+end note
+
+CI -> A2AS: GET /.well-known/agent-card.json
+alt 200 OK
+  A2AS --> CI: AgentCard JSON
+else 404/Not Found
+  CI -> A2AS: GET /.well-known/agent.json
+  A2AS --> CI: AgentCard JSON
+end
+
+CI -> CI: Validate schema\n- supportedInterfaces\n- skills/tags\n- security schemes
+CI -> CI: Verify signatures if present\n(RFC 8785 canonicalization + JWS)
+
+CI -> IDX: upsert(providerId, skills, tags,\ninterfaces, extensions, trustHints)
+CI -> PR: markActive(providerId, cardHash,\nsignatureStatus, fetchedAt)
+
+PR --> GW: 201 Created\n(providerId, validationStatus)
+GW --> Admin: providerId + status + next actions
+
+@enduml

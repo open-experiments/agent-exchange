@@ -97,5 +97,83 @@ type SubscriptionResponse struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+// A2A Agent Card models
 
+type AgentCard struct {
+	Name             string            `json:"name" bson:"name"`
+	Description      string            `json:"description" bson:"description"`
+	URL              string            `json:"url" bson:"url"`
+	Version          string            `json:"version" bson:"version"`
+	Provider         *AgentProvider    `json:"provider,omitempty" bson:"provider,omitempty"`
+	DocumentationURL string            `json:"documentationUrl,omitempty" bson:"documentation_url,omitempty"`
+	Capabilities     AgentCapabilities `json:"capabilities" bson:"capabilities"`
+	Skills           []AgentSkill      `json:"skills" bson:"skills"`
+}
+
+type AgentProvider struct {
+	Organization string `json:"organization" bson:"organization"`
+	URL          string `json:"url,omitempty" bson:"url,omitempty"`
+}
+
+type AgentCapabilities struct {
+	Streaming              bool `json:"streaming,omitempty" bson:"streaming,omitempty"`
+	PushNotifications      bool `json:"pushNotifications,omitempty" bson:"push_notifications,omitempty"`
+	StateTransitionHistory bool `json:"stateTransitionHistory,omitempty" bson:"state_transition_history,omitempty"`
+}
+
+type AgentSkill struct {
+	ID          string   `json:"id" bson:"id"`
+	Name        string   `json:"name" bson:"name"`
+	Description string   `json:"description,omitempty" bson:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty" bson:"tags,omitempty"`
+	Examples    []string `json:"examples,omitempty" bson:"examples,omitempty"`
+	InputModes  []string `json:"inputModes,omitempty" bson:"input_modes,omitempty"`
+	OutputModes []string `json:"outputModes,omitempty" bson:"output_modes,omitempty"`
+}
+
+// SkillIndex for fast skill-based lookups
+type SkillIndex struct {
+	SkillID     string    `json:"skill_id" bson:"skill_id"`
+	SkillName   string    `json:"skill_name" bson:"skill_name"`
+	Description string    `json:"description" bson:"description"`
+	Tags        []string  `json:"tags" bson:"tags"`
+	ProviderID  string    `json:"provider_id" bson:"provider_id"`
+	AgentName   string    `json:"agent_name" bson:"agent_name"`
+	AgentURL    string    `json:"agent_url" bson:"agent_url"`
+	A2AEndpoint string    `json:"a2a_endpoint" bson:"a2a_endpoint"`
+	CreatedAt   time.Time `json:"created_at" bson:"created_at"`
+}
+
+// ProviderWithA2A extends Provider with A2A information
+type ProviderWithA2A struct {
+	Provider
+	AgentCard   *AgentCard `json:"agent_card,omitempty" bson:"agent_card,omitempty"`
+	A2AEndpoint string     `json:"a2a_endpoint,omitempty" bson:"a2a_endpoint,omitempty"`
+}
+
+// SearchProvidersRequest for skill-based search
+type SearchProvidersRequest struct {
+	SkillTags []string `json:"skill_tags,omitempty"`
+	Domain    string   `json:"domain,omitempty"`
+	MinTrust  float64  `json:"min_trust,omitempty"`
+	Limit     int      `json:"limit,omitempty"`
+}
+
+// SearchProvidersResponse contains matching providers
+type SearchProvidersResponse struct {
+	Providers []ProviderSearchResult `json:"providers"`
+	Total     int                    `json:"total"`
+}
+
+type ProviderSearchResult struct {
+	ProviderID  string   `json:"provider_id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Endpoint    string   `json:"endpoint"`
+	A2AEndpoint string   `json:"a2a_endpoint"`
+	TrustScore  float64  `json:"trust_score"`
+	TrustTier   string   `json:"trust_tier"`
+	Skills      []string `json:"skills"`
+	MatchedTags []string `json:"matched_tags"`
+}
 

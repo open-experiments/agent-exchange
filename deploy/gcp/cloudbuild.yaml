@@ -1,0 +1,134 @@
+# Cloud Build configuration for AEX services
+# Deploy to Cloud Run with Firestore backend
+
+steps:
+  # Build AEX services
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-gateway:$COMMIT_SHA', '-f', 'src/aex-gateway/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-provider-registry:$COMMIT_SHA', '-f', 'src/aex-provider-registry/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-work-publisher:$COMMIT_SHA', '-f', 'src/aex-work-publisher/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-bid-gateway:$COMMIT_SHA', '-f', 'src/aex-bid-gateway/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-bid-evaluator:$COMMIT_SHA', '-f', 'src/aex-bid-evaluator/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-contract-engine:$COMMIT_SHA', '-f', 'src/aex-contract-engine/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-settlement:$COMMIT_SHA', '-f', 'src/aex-settlement/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-trust-broker:$COMMIT_SHA', '-f', 'src/aex-trust-broker/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-identity:$COMMIT_SHA', '-f', 'src/aex-identity/Dockerfile', '.']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-telemetry:$COMMIT_SHA', '-f', 'src/aex-telemetry/Dockerfile', '.']
+    dir: '.'
+
+  # Build demo agents
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/legal-agent-a:$COMMIT_SHA', '--build-arg', 'AGENT_DIR=legal-agent-a', '-f', 'demo/agents/Dockerfile', 'demo/agents']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/legal-agent-b:$COMMIT_SHA', '--build-arg', 'AGENT_DIR=legal-agent-b', '-f', 'demo/agents/Dockerfile', 'demo/agents']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/legal-agent-c:$COMMIT_SHA', '--build-arg', 'AGENT_DIR=legal-agent-c', '-f', 'demo/agents/Dockerfile', 'demo/agents']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/orchestrator:$COMMIT_SHA', '--build-arg', 'AGENT_DIR=orchestrator', '-f', 'demo/agents/Dockerfile', 'demo/agents']
+    dir: '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/demo-ui:$COMMIT_SHA', '-f', 'demo/ui/Dockerfile', 'demo/ui']
+    dir: '.'
+
+  # Push all images
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-gateway']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-provider-registry']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-work-publisher']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-bid-gateway']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-bid-evaluator']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-contract-engine']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-settlement']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-trust-broker']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-identity']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-telemetry']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/legal-agent-a']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/legal-agent-b']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/legal-agent-c']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/orchestrator']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/demo-ui']
+
+images:
+  - 'gcr.io/$PROJECT_ID/aex-gateway:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-provider-registry:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-work-publisher:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-bid-gateway:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-bid-evaluator:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-contract-engine:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-settlement:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-trust-broker:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-identity:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/aex-telemetry:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/legal-agent-a:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/legal-agent-b:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/legal-agent-c:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/orchestrator:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/demo-ui:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '1800s'
