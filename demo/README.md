@@ -21,9 +21,9 @@ demo/
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              DEMO FLOW                                       │
+│                              DEMO FLOW                                      │
 │                                                                             │
-│  User ──► Mesop UI ──► Orchestrator ──► Agent Exchange ──► Provider Agents │
+│  User ──► Mesop UI ──► Orchestrator ──► Agent Exchange ──► Provider Agents  │
 │                              │                                   │          │
 │                              │         (Discovery, Bidding)      │          │
 │                              │                                   │          │
