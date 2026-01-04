@@ -30,7 +30,7 @@ This guide explains how to deploy Agent Exchange (AEX) and demo agents to Google
 │         │ A2A                            Skill Search  │                    │
 │         ▼                                              │                    │
 │  ┌──────────────────────────────────────────────────┐  │                    │
-│  │              Provider Agents (A2A)               │◀┘                     │
+│  │              Provider Agents (A2A)               │ ◀┘                    │
 │  │  ┌────────────┐ ┌────────────┐ ┌────────────┐    │                       │
 │  │  │Legal A     │ │Legal B     │ │Travel      │    │                       │
 │  │  │(Claude)    │ │(Gemini)    │ │(Gemini)    │    │                       │
