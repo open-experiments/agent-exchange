@@ -1,0 +1,5 @@
+# Demo UI dependencies
+mesop>=0.12.0
+aiohttp>=3.9.0
+httpx>=0.27.0
+gunicorn>=21.0.0

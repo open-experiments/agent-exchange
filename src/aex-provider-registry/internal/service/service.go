@@ -18,11 +18,16 @@ import (
 )
 
 type Service struct {
-	store store.Store
+	store     store.Store
+	allowHTTP bool
 }
 
 func New(st store.Store) *Service {
-	return &Service{store: st}
+	return &Service{store: st, allowHTTP: false}
+}
+
+func NewWithOptions(st store.Store, allowHTTP bool) *Service {
+	return &Service{store: st, allowHTTP: allowHTTP}
 }
 
 func (s *Service) HandleRegisterProvider(w http.ResponseWriter, r *http.Request) {
@@ -37,13 +42,13 @@ func (s *Service) HandleRegisterProvider(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
-	if err := validateHTTPSURL(req.Endpoint); err != nil {
-		http.Error(w, "endpoint must be a valid https URL", http.StatusBadRequest)
+	if err := s.validateURL(req.Endpoint); err != nil {
+		http.Error(w, "endpoint must be a valid URL: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	if req.BidWebhook != "" {
-		if err := validateHTTPSURL(req.BidWebhook); err != nil {
-			http.Error(w, "bid_webhook must be a valid https URL", http.StatusBadRequest)
+		if err := s.validateURL(req.BidWebhook); err != nil {
+			http.Error(w, "bid_webhook must be a valid URL: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 	}
@@ -116,8 +121,8 @@ func (s *Service) HandleCreateSubscription(w http.ResponseWriter, r *http.Reques
 	}
 
 	if req.Delivery.Method == "webhook" && req.Delivery.WebhookURL != "" {
-		if err := validateHTTPSURL(req.Delivery.WebhookURL); err != nil {
-			http.Error(w, "delivery.webhook_url must be a valid https URL", http.StatusBadRequest)
+		if err := s.validateURL(req.Delivery.WebhookURL); err != nil {
+			http.Error(w, "delivery.webhook_url must be a valid URL: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 	}
@@ -306,6 +311,31 @@ func validateHTTPSURL(raw string) error {
 	return nil
 }
 
+// validateURL validates URL, allowing HTTP in development mode
+func (s *Service) validateURL(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return errors.New("empty")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return err
+	}
+	if s.allowHTTP {
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return errors.New("scheme must be http or https")
+		}
+	} else {
+		if u.Scheme != "https" {
+			return errors.New("scheme must be https")
+		}
+	}
+	if u.Host == "" {
+		return errors.New("missing host")
+	}
+	return nil
+}
+
 func decodeJSON(r *http.Request, v any) error {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
@@ -365,4 +395,233 @@ func (s *Service) HandleValidateAPIKey(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// A2A Support Handlers
 
+// HandleSearchProviders searches providers by skill tags
+func (s *Service) HandleSearchProviders(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parse query parameters
+	skillTagsParam := strings.TrimSpace(r.URL.Query().Get("skill_tags"))
+	var skillTags []string
+	if skillTagsParam != "" {
+		skillTags = strings.Split(skillTagsParam, ",")
+		for i := range skillTags {
+			skillTags[i] = strings.TrimSpace(skillTags[i])
+		}
+	}
+
+	minTrust := 0.0
+	if mt := r.URL.Query().Get("min_trust"); mt != "" {
+		if parsed, err := parseFloat(mt); err == nil {
+			minTrust = parsed
+		}
+	}
+
+	limit := 100
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if parsed, err := parseInt(l); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	results, err := s.store.SearchBySkillTags(ctx, skillTags, minTrust, limit)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, model.SearchProvidersResponse{
+		Providers: results,
+		Total:     len(results),
+	})
+}
+
+// HandleRegisterAgentCard registers or updates an A2A agent card for a provider
+func (s *Service) HandleRegisterAgentCard(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract provider_id from path: /v1/providers/{provider_id}/agent-card
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/providers/"), "/")
+	if len(pathParts) < 2 {
+		http.Error(w, "invalid path", http.StatusBadRequest)
+		return
+	}
+	providerID := pathParts[0]
+
+	// Verify provider exists
+	provider, err := s.store.GetProvider(ctx, providerID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if provider == nil {
+		http.Error(w, "provider not found", http.StatusNotFound)
+		return
+	}
+
+	// Parse agent card
+	var card model.AgentCard
+	if err := decodeJSON(r, &card); err != nil {
+		http.Error(w, "invalid agent card: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if card.Name == "" || card.URL == "" || len(card.Skills) == 0 {
+		http.Error(w, "agent card must have name, url, and at least one skill", http.StatusBadRequest)
+		return
+	}
+
+	// Derive A2A endpoint
+	a2aEndpoint := deriveA2AEndpoint(card.URL)
+
+	// Save agent card
+	if err := s.store.SaveAgentCard(ctx, providerID, card, a2aEndpoint); err != nil {
+		http.Error(w, "failed to save agent card", http.StatusInternalServerError)
+		return
+	}
+
+	// Index skills
+	skills := make([]model.SkillIndex, 0, len(card.Skills))
+	for _, skill := range card.Skills {
+		skills = append(skills, model.SkillIndex{
+			SkillID:     skill.ID,
+			SkillName:   skill.Name,
+			Description: skill.Description,
+			Tags:        skill.Tags,
+			ProviderID:  providerID,
+			AgentName:   card.Name,
+			AgentURL:    card.URL,
+			A2AEndpoint: a2aEndpoint,
+		})
+	}
+
+	if err := s.store.IndexSkills(ctx, providerID, skills); err != nil {
+		http.Error(w, "failed to index skills", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"provider_id":  providerID,
+		"a2a_endpoint": a2aEndpoint,
+		"skills_indexed": len(skills),
+		"message":      "agent card registered successfully",
+	})
+}
+
+// HandleGetProviderWithA2A returns provider info including A2A details
+func (s *Service) HandleGetProviderWithA2A(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract provider_id from path
+	providerID := strings.TrimPrefix(r.URL.Path, "/v1/providers/")
+	providerID = strings.TrimSuffix(providerID, "/a2a")
+	providerID = strings.TrimSpace(providerID)
+
+	if providerID == "" {
+		http.Error(w, "provider_id is required", http.StatusBadRequest)
+		return
+	}
+
+	provider, err := s.store.GetProviderWithA2A(ctx, providerID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if provider == nil {
+		http.Error(w, "provider not found", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, provider)
+}
+
+// HandleListAllProviders lists all registered providers
+func (s *Service) HandleListAllProviders(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	providers, err := s.store.ListAllProviders(ctx)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Return simplified list
+	result := make([]map[string]any, 0, len(providers))
+	for _, p := range providers {
+		if p.Status != model.ProviderStatusActive {
+			continue
+		}
+		result = append(result, map[string]any{
+			"provider_id":  p.ProviderID,
+			"name":         p.Name,
+			"description":  p.Description,
+			"endpoint":     p.Endpoint,
+			"trust_score":  p.TrustScore,
+			"trust_tier":   p.TrustTier,
+			"capabilities": p.Capabilities,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"providers": result,
+		"total":     len(result),
+	})
+}
+
+func deriveA2AEndpoint(agentURL string) string {
+	u, err := url.Parse(agentURL)
+	if err != nil {
+		return agentURL + "/a2a"
+	}
+	u.Path = "/a2a"
+	return u.String()
+}
+
+func parseFloat(s string) (float64, error) {
+	var f float64
+	_, err := io.ReadFull(strings.NewReader(s), nil)
+	if err != nil && err != io.EOF {
+		return 0, err
+	}
+	n, err := io.ReadFull(strings.NewReader(s), nil)
+	_ = n
+	// Simple parsing
+	for i, c := range s {
+		if c == '.' {
+			whole := s[:i]
+			frac := s[i+1:]
+			var w, fr int
+			for _, ch := range whole {
+				w = w*10 + int(ch-'0')
+			}
+			div := 1.0
+			for _, ch := range frac {
+				fr = fr*10 + int(ch-'0')
+				div *= 10
+			}
+			f = float64(w) + float64(fr)/div
+			return f, nil
+		}
+	}
+	var w int
+	for _, ch := range s {
+		if ch < '0' || ch > '9' {
+			return 0, errors.New("invalid number")
+		}
+		w = w*10 + int(ch-'0')
+	}
+	return float64(w), nil
+}
+
+func parseInt(s string) (int, error) {
+	var w int
+	for _, ch := range s {
+		if ch < '0' || ch > '9' {
+			return 0, errors.New("invalid number")
+		}
+		w = w*10 + int(ch-'0')
+	}
+	return w, nil
+}

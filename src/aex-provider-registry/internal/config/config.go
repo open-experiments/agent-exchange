@@ -17,9 +17,15 @@ type Config struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+
+	// AllowHTTP allows HTTP URLs in development mode
+	AllowHTTP bool
 }
 
 func Load() Config {
+	env := strings.ToLower(getenv("ENVIRONMENT", "production"))
+	allowHTTP := env == "development" || env == "dev" || env == "local"
+
 	return Config{
 		Port:                     getenv("PORT", "8080"),
 		MongoURI:                 strings.TrimSpace(os.Getenv("MONGO_URI")),
@@ -29,6 +35,7 @@ func Load() Config {
 		ReadTimeout:              10 * time.Second,
 		WriteTimeout:             20 * time.Second,
 		IdleTimeout:              60 * time.Second,
+		AllowHTTP:                allowHTTP,
 	}
 }
 

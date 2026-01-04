@@ -1,0 +1,344 @@
+version: '3.8'
+
+services:
+  # ===========================================
+  # AEX Core Services
+  # ===========================================
+
+  mongo:
+    image: mongo:7
+    container_name: aex-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    ports:
+      - "27017:27017"
+    volumes:
+      - aex_mongo_data:/data/db
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  aex-gateway:
+    build:
+      context: ../src
+      dockerfile: aex-gateway/Dockerfile
+    container_name: aex-gateway
+    environment:
+      PORT: "8080"
+      IDENTITY_URL: "http://aex-identity:8080"
+      BID_GATEWAY_URL: "http://aex-bid-gateway:8080"
+      PROVIDER_REGISTRY_URL: "http://aex-provider-registry:8080"
+      CONTRACT_ENGINE_URL: "http://aex-contract-engine:8080"
+      TRUST_BROKER_URL: "http://aex-trust-broker:8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - aex-identity
+      - aex-bid-gateway
+      - aex-provider-registry
+      - aex-contract-engine
+      - aex-trust-broker
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  aex-work-publisher:
+    build:
+      context: ../src
+      dockerfile: aex-work-publisher/Dockerfile
+    container_name: aex-work-publisher
+    environment:
+      PORT: "8080"
+      STORE_TYPE: "mongo"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+      MONGO_COLLECTION_WORK: "work_specs"
+      PROVIDER_REGISTRY_URL: "http://aex-provider-registry:8080"
+      ENVIRONMENT: "development"
+    ports:
+      - "8081:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      aex-provider-registry:
+        condition: service_started
+    networks:
+      - aex-network
+
+  aex-bid-gateway:
+    build:
+      context: ../src
+      dockerfile: aex-bid-gateway/Dockerfile
+    container_name: aex-bid-gateway
+    environment:
+      PORT: "8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+      PROVIDER_REGISTRY_URL: "http://aex-provider-registry:8080"
+    ports:
+      - "8082:8080"
+    depends_on:
+      - mongo
+      - aex-provider-registry
+    networks:
+      - aex-network
+
+  aex-bid-evaluator:
+    build:
+      context: ../src
+      dockerfile: aex-bid-evaluator/Dockerfile
+    container_name: aex-bid-evaluator
+    environment:
+      PORT: "8080"
+      BID_GATEWAY_URL: "http://aex-bid-gateway:8080"
+      TRUST_BROKER_URL: "http://aex-trust-broker:8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8083:8080"
+    depends_on:
+      - mongo
+      - aex-bid-gateway
+      - aex-trust-broker
+    networks:
+      - aex-network
+
+  aex-contract-engine:
+    build:
+      context: ../src
+      dockerfile: aex-contract-engine/Dockerfile
+    container_name: aex-contract-engine
+    environment:
+      PORT: "8080"
+      BID_GATEWAY_URL: "http://aex-bid-gateway:8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8084:8080"
+    depends_on:
+      - mongo
+      - aex-bid-gateway
+    networks:
+      - aex-network
+
+  aex-provider-registry:
+    build:
+      context: ../src
+      dockerfile: aex-provider-registry/Dockerfile
+    container_name: aex-provider-registry
+    environment:
+      PORT: "8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+      ENVIRONMENT: "development"
+    ports:
+      - "8085:8080"
+    depends_on:
+      - mongo
+    networks:
+      - aex-network
+
+  aex-trust-broker:
+    build:
+      context: ../src
+      dockerfile: aex-trust-broker/Dockerfile
+    container_name: aex-trust-broker
+    environment:
+      PORT: "8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8086:8080"
+    depends_on:
+      - mongo
+    networks:
+      - aex-network
+
+  aex-identity:
+    build:
+      context: ../src
+      dockerfile: aex-identity/Dockerfile
+    container_name: aex-identity
+    environment:
+      PORT: "8080"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8087:8080"
+    depends_on:
+      - mongo
+    networks:
+      - aex-network
+
+  aex-settlement:
+    build:
+      context: ../src
+      dockerfile: aex-settlement/Dockerfile
+    container_name: aex-settlement
+    environment:
+      PORT: "8080"
+      ENVIRONMENT: "development"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8088:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - aex-network
+
+  aex-telemetry:
+    build:
+      context: ../src
+      dockerfile: aex-telemetry/Dockerfile
+    container_name: aex-telemetry
+    environment:
+      PORT: "8080"
+    ports:
+      - "8089:8080"
+    networks:
+      - aex-network
+
+  # ===========================================
+  # Demo Legal Agents (Tiered Pricing)
+  # ===========================================
+
+  # Budget Legal Agent - $5 + $2/page, fast, concise analysis (Claude)
+  legal-agent-a:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: legal-agent-a
+    container_name: aex-legal-agent-a
+    ports:
+      - "8100:8100"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AEX_GATEWAY_URL=http://aex-gateway:8080
+      - AEX_API_KEY=dev-api-key
+      - AGENT_HOSTNAME=legal-agent-a
+      - CONFIG_PATH=config.yaml
+    depends_on:
+      - aex-gateway
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Standard Legal Agent - $15 + $0.50/page, thorough analysis (Claude)
+  legal-agent-b:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: legal-agent-b
+    container_name: aex-legal-agent-b
+    ports:
+      - "8101:8101"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AEX_GATEWAY_URL=http://aex-gateway:8080
+      - AEX_API_KEY=dev-api-key
+      - AGENT_HOSTNAME=legal-agent-b
+      - CONFIG_PATH=config.yaml
+    depends_on:
+      - aex-gateway
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8101/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Premium Legal Agent - $30 + $0.20/page, exhaustive expert analysis (Claude)
+  legal-agent-c:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: legal-agent-c
+    container_name: aex-legal-agent-c
+    ports:
+      - "8102:8102"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AEX_GATEWAY_URL=http://aex-gateway:8080
+      - AEX_API_KEY=dev-api-key
+      - AGENT_HOSTNAME=legal-agent-c
+      - CONFIG_PATH=config.yaml
+    depends_on:
+      - aex-gateway
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8102/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  orchestrator:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: orchestrator
+    container_name: aex-orchestrator
+    ports:
+      - "8103:8103"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AEX_GATEWAY_URL=http://aex-gateway:8080
+      - AEX_API_KEY=dev-api-key
+      - CONFIG_PATH=config.yaml
+    depends_on:
+      - aex-gateway
+      - legal-agent-a
+      - legal-agent-b
+      - legal-agent-c
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8103/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  demo-ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: aex-demo-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:8103
+      - LEGAL_AGENT_A_URL=http://legal-agent-a:8100
+      - LEGAL_AGENT_B_URL=http://legal-agent-b:8101
+      - LEGAL_AGENT_C_URL=http://legal-agent-c:8102
+    depends_on:
+      - orchestrator
+    networks:
+      - aex-network
+
+volumes:
+  aex_mongo_data:
+
+networks:
+  aex-network:
+    driver: bridge

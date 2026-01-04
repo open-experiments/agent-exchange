@@ -1,0 +1,5 @@
+# Legal Agent C (Premium) dependencies
+-r ../common/requirements.txt
+
+# Uses Claude via langchain-anthropic (included in common)
+anthropic>=0.34.0

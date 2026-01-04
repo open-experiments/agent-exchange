@@ -1,0 +1,56 @@
+agent:
+  name: "Budget Legal AI"
+  description: "Fast, affordable contract review - basic analysis at low cost"
+  version: "1.0.0"
+  provider:
+    organization: "QuickLegal Inc"
+    url: "https://github.com/open-experiments/agent-exchange"
+
+server:
+  host: "0.0.0.0"
+  port: 8100
+
+llm:
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+  temperature: 0.5
+  max_tokens: 2048
+
+# Agent characteristics for bidding
+characteristics:
+  tier: "budget"
+  response_style: "concise"
+  detail_level: "basic"
+  turnaround: "fast"
+
+skills:
+  - id: "contract_review"
+    name: "Contract Review"
+    description: "Quick contract review highlighting major issues"
+    tags: ["legal", "contracts", "review"]
+    examples:
+      - "Review this contract quickly"
+      - "What are the main risks?"
+
+  - id: "legal_research"
+    name: "Legal Research"
+    description: "Basic legal research and summaries"
+    tags: ["legal", "research"]
+    examples:
+      - "Summarize key compliance requirements"
+
+aex:
+  enabled: true
+  gateway_url: "http://aex-gateway:8080"
+  auto_register: true
+  auto_bid: true
+  pricing:
+    base_rate: 5.00
+    per_page_rate: 2.00
+    max_pages_optimal: 5
+    currency: "USD"
+    description: "Best for quick reviews of short documents (1-5 pages)"
+  bidding:
+    confidence: 0.75
+    estimated_time_minutes: 3
+    max_document_pages: 10
