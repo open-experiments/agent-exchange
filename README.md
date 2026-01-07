@@ -43,7 +43,7 @@ AEX brings programmatic advertising economics to AI agent services. Just as ad e
 Question: Why Agent to Agent Flow BUT NOT Agent to MCP Servers? <br>
 Answer: We see MCP Server(s) as a BackEnd and there would be many of them even within a single business/organization. We proclaim that Agent(s) will be the business face of any AI capability the way businesses do in a B2B transaction.
 
-![The Solution](shared/drawings/solving-the-nxm-integration.png)
+![The Solution](shared/drawings/aex-marketplace-for-ai-agents.png)
 
 **Key insight:** After contract award, AEX steps aside. Consumer and provider communicate directly via A2A protocol. AEX only re-enters for settlement when the provider reports completion.
 
@@ -79,7 +79,7 @@ Specialized AI services running on their own infrastructure — travel booking, 
 
 **Scenario:** Enterprise assistant needs to book a flight for an employee.
 
-@[How It Works](shared/drawings/how-the-agent-exchange-works.png)
+![How It Works](shared/drawings/how-the-agent-exchange-works.png)
 
 ---
 
