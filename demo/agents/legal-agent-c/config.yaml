@@ -56,6 +56,14 @@ skills:
       - "Suggest alternative clauses"
       - "Provide negotiation leverage points"
 
+  - id: "risk_analysis"
+    name: "Risk Analysis"
+    description: "Detailed risk assessment with mitigation strategies and risk matrix"
+    tags: ["legal", "risk", "analysis"]
+    examples:
+      - "Provide comprehensive risk assessment"
+      - "Create risk mitigation roadmap"
+
 aex:
   enabled: true
   gateway_url: "http://aex-gateway:8080"

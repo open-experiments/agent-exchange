@@ -308,9 +308,12 @@ class OrchestratorAgent(BaseAgent):
                         skill_tags=st.skill_tags,
                     )
                     if providers:
-                        st.provider_id = providers[0].get("provider_id")
-                        st.agent_url = providers[0].get("endpoint")
-                        logger.info(f"[AEX] Found provider {st.provider_id} for {st.id}")
+                        # Select best provider based on skill requirements
+                        selected = self._select_best_provider(providers, st.skill_tags)
+                        st.provider_id = selected.get("provider_id")
+                        st.agent_url = selected.get("endpoint")
+                        agent_name = selected.get("name", st.provider_id)
+                        logger.info(f"[AEX] Found {len(providers)} providers, selected {agent_name} for {st.id} (skills: {st.skill_tags})")
                         continue
                 except Exception as e:
                     logger.warning(f"[AEX] Discovery failed for {st.id}: {e}")
@@ -327,6 +330,48 @@ class OrchestratorAgent(BaseAgent):
                 st.agent_url = "http://legal-agent-a:8100"
                 st.provider_id = "Budget Legal Agent ($5+$2/page)"
                 logger.info(f"[A2A] Default to {st.provider_id} for subtask: {st.description}")
+
+    def _select_best_provider(self, providers: list[dict], skill_tags: list[str]) -> dict:
+        """Select the best provider based on skill requirements.
+
+        Strategy:
+        - For premium-only skills (negotiation_support, risk_analysis), use Premium
+        - For standard skills (compliance_check), prefer Standard over Premium
+        - For basic skills (contract_review, legal_research), use Budget
+        """
+        premium_only_skills = {"negotiation_support", "risk_analysis"}
+        standard_skills = {"compliance_check"}
+
+        # Check if any skill requires premium
+        needs_premium = any(tag in premium_only_skills for tag in skill_tags)
+        needs_standard = any(tag in standard_skills for tag in skill_tags)
+
+        def get_tier(p):
+            """Get tier priority (lower = cheaper)."""
+            name = p.get("name", "")
+            if "Budget" in name:
+                return 0
+            elif "Standard" in name:
+                return 1
+            elif "Premium" in name:
+                return 2
+            return 3  # Unknown
+
+        sorted_providers = sorted(providers, key=get_tier)
+
+        if needs_premium:
+            # Must use Premium
+            for p in reversed(sorted_providers):
+                if "Premium" in p.get("name", ""):
+                    return p
+        elif needs_standard:
+            # Use Standard if available, otherwise cheapest
+            for p in sorted_providers:
+                if "Standard" in p.get("name", ""):
+                    return p
+
+        # Default: use cheapest (first in sorted list)
+        return sorted_providers[0] if sorted_providers else providers[0]
 
     async def _execute_subtasks(self, subtasks: list[SubTask]) -> dict[str, str]:
         """Execute subtasks via A2A protocol."""
