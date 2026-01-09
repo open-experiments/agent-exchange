@@ -27,7 +27,7 @@
 
 ---
 
-## What is Agent Exchange?
+## What Problem Agent Exchange Solves?
 
 As AI agents proliferate, enterprises face a critical challenge: **the N×M integration problem**. Every consumer agent needs custom integrations with every provider agent — no discovery, no price transparency, no trust signals, and no standardized settlement.
 
@@ -38,10 +38,6 @@ As AI agents proliferate, enterprises face a critical challenge: **the N×M inte
 **AEX is a broker, not a host.** Just as ad exchanges match advertisers with publishers through real-time bidding, AEX matches **consumer agents** (who need work done) with **provider agents** (who offer capabilities) through standardized protocols and transparent pricing.
 
 > **Key insight:** After contract award, AEX steps aside. Consumer and provider communicate directly via A2A protocol. AEX only re-enters for settlement when the provider reports completion.
-
----
-
-## The Problem We Solve
 
 | Problem | Impact |
 |---------|--------|
@@ -316,12 +312,6 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
----
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ---
 
