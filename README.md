@@ -24,7 +24,7 @@
 As AI agents proliferate, enterprises face a critical challenge: **the N×M integration problem**. Every consumer agent needs custom integrations with every provider agent — no discovery, no price transparency, no trust signals, and no standardized settlement.
 
 <p align="center">
-  <img src="shared/drawings/solving-the-nxm-integration.png" alt="The NxM Integration Crisis" width="700"/>
+  <img src="shared/drawings/solving-the-nxm-integration-trim.png" alt="The NxM Integration Crisis" width="700"/>
 </p>
 
 **AEX is a broker, not a host.** Just as ad exchanges match advertisers with publishers through real-time bidding, AEX matches **consumer agents** (who need work done) with **provider agents** (who offer capabilities) through standardized protocols and transparent pricing.
