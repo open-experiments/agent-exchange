@@ -19,7 +19,7 @@
 
 ---
 
-## What Problem Agent Exchange Solves?
+<h2 align="center">What Problem AEX Solves?</h2>
 
 As AI agents proliferate, enterprises face a critical challenge: **the N×M integration problem**. Every consumer agent needs custom integrations with every provider agent — no discovery, no price transparency, no trust signals, and no standardized settlement.
 
