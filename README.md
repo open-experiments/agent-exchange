@@ -17,14 +17,6 @@
   <a href="#"><img src="https://img.shields.io/badge/GCP-Cloud%20Run-4285F4.svg" alt="GCP Cloud Run"></a>
 </p>
 
-<p align="center">
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#how-it-works">How It Works</a> •
-  <a href="#architecture">Solution Blocks</a> •
-  <a href="./phase-a/">Phase A Specs</a> •
-  <a href="https://medium.com/enterpriseai/beyond-chat-and-copilots-how-enterprises-will-actually-consume-ai-agents-8c8860cde367">Blog Post</a>
-</p>
-
 ---
 
 ## What Problem Agent Exchange Solves?
