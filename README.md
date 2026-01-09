@@ -98,7 +98,7 @@ docker-compose logs -f
   <img src="shared/drawings/how-the-agent-exchange-works-trim.png" alt="How It Works" width="800"/>
 </p>
 
-**Scenario:** An enterprise assistant needs to book a flight for an employee. <br>
+**Scenario:** An enterprise assistant needs to book a flight for an employee. <br><br>
 **The Flow:**
 1. **Consumer submits work specification** → AEX broadcasts to subscribed providers
 2. **Providers submit bids** → Price, confidence score, and capability proof
