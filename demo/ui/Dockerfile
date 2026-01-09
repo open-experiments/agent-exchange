@@ -14,8 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application
 COPY main.py .
 
-# Expose port
-EXPOSE 8501
+# Expose port (Cloud Run provides PORT env var, default 8080)
+EXPOSE 8080
 
-# Run the UI with gunicorn (mesop binds to localhost by default, gunicorn allows 0.0.0.0)
-CMD ["gunicorn", "--bind", "0.0.0.0:8501", "main:me"]
+# Run the UI with gunicorn, respecting PORT env var
+# Increase timeout to 180s for long-running A2A calls to legal agents
+CMD gunicorn --bind 0.0.0.0:${PORT:-8080} --timeout 180 --workers 2 main:me

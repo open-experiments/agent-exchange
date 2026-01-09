@@ -91,13 +91,16 @@ def load_config(config_path: str = "config.yaml") -> AgentConfig:
             url=agent_data["provider"].get("url"),
         )
 
+    # Respect PORT env var for Cloud Run compatibility
+    port = int(os.environ.get("PORT", server_data.get("port", 8100)))
+
     return AgentConfig(
         name=agent_data.get("name", "Unknown Agent"),
         description=agent_data.get("description", ""),
         version=agent_data.get("version", "1.0.0"),
         server=ServerConfig(
             host=server_data.get("host", "0.0.0.0"),
-            port=server_data.get("port", 8100),
+            port=port,
         ),
         llm=LLMConfig(
             provider=llm_data.get("provider", "anthropic"),

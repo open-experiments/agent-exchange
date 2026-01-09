@@ -2,46 +2,46 @@
 # Deploy to Cloud Run with Firestore backend
 
 steps:
-  # Build AEX services
+  # Build AEX services (context is src/ directory)
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-gateway:$COMMIT_SHA', '-f', 'src/aex-gateway/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-gateway:$COMMIT_SHA', '-f', 'aex-gateway/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-provider-registry:$COMMIT_SHA', '-f', 'src/aex-provider-registry/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-provider-registry:$COMMIT_SHA', '-f', 'aex-provider-registry/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-work-publisher:$COMMIT_SHA', '-f', 'src/aex-work-publisher/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-work-publisher:$COMMIT_SHA', '-f', 'aex-work-publisher/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-bid-gateway:$COMMIT_SHA', '-f', 'src/aex-bid-gateway/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-bid-gateway:$COMMIT_SHA', '-f', 'aex-bid-gateway/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-bid-evaluator:$COMMIT_SHA', '-f', 'src/aex-bid-evaluator/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-bid-evaluator:$COMMIT_SHA', '-f', 'aex-bid-evaluator/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-contract-engine:$COMMIT_SHA', '-f', 'src/aex-contract-engine/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-contract-engine:$COMMIT_SHA', '-f', 'aex-contract-engine/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-settlement:$COMMIT_SHA', '-f', 'src/aex-settlement/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-settlement:$COMMIT_SHA', '-f', 'aex-settlement/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-trust-broker:$COMMIT_SHA', '-f', 'src/aex-trust-broker/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-trust-broker:$COMMIT_SHA', '-f', 'aex-trust-broker/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-identity:$COMMIT_SHA', '-f', 'src/aex-identity/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-identity:$COMMIT_SHA', '-f', 'aex-identity/Dockerfile', '.']
+    dir: 'src'
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-telemetry:$COMMIT_SHA', '-f', 'src/aex-telemetry/Dockerfile', '.']
-    dir: '.'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/aex-telemetry:$COMMIT_SHA', '-f', 'aex-telemetry/Dockerfile', '.']
+    dir: 'src'
 
   # Build demo agents
   - name: 'gcr.io/cloud-builders/docker'
