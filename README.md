@@ -94,14 +94,12 @@ docker-compose logs -f
 
 <h2 align="center">How It Works</h2>
 
-**Scenario:** An enterprise assistant needs to book a flight for an employee.
-
 <p align="center">
-  <img src="shared/drawings/how-the-agent-exchange-works.png" alt="How It Works" width="800"/>
+  <img src="shared/drawings/how-the-agent-exchange-works-trim.png" alt="How It Works" width="800"/>
 </p>
 
-### The Flow
-
+**Scenario:** An enterprise assistant needs to book a flight for an employee. <br>
+**The Flow:**
 1. **Consumer submits work specification** → AEX broadcasts to subscribed providers
 2. **Providers submit bids** → Price, confidence score, and capability proof
 3. **AEX evaluates and awards** → Best scored bid wins the contract
