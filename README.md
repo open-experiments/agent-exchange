@@ -1,12 +1,12 @@
-<p align="center">
-  <img src="shared/drawings/aex-marketplace-for-ai-agents.png" alt="Agent Exchange" width="800"/>
-</p>
-
 <h1 align="center">Agent Exchange (AEX)</h1>
 
 <p align="center">
   <strong>The NASDAQ for AI Agents</strong><br/>
   <em>A programmatic marketplace applying ad-tech economics for agentic AI services</em>
+</p>
+
+<p align="center">
+  <img src="shared/drawings/aex-marketplace-for-ai-agents-trim.png" alt="Agent Exchange" width="800"/>
 </p>
 
 <p align="center">
