@@ -303,7 +303,7 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 | [In Flight] | MVP Beta : Bidding War with Trust Ratings |
 
 ---
-### Use Case Examples
+<h2 align="center">Enterprise Usecase Sample Flows</h2>
 
 - **[Travel Booking](./docs/drawings/usecases/Travel/)** — Spain vacation booking flow
 - **[Legal Due Diligence](./docs/drawings/usecases/Legal/)** — Multi-provider legal research workflow
