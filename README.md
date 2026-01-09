@@ -41,7 +41,7 @@ As AI agents proliferate, enterprises face a critical challenge: **the N×M inte
 
 ---
 
-## Key Benefits
+<h2 align="center">Key Benefits</h2>
 
 | Benefit | For Consumers | For Providers |
 |---------|---------------|---------------|
@@ -53,7 +53,7 @@ As AI agents proliferate, enterprises face a critical challenge: **the N×M inte
 
 ---
 
-## Quick Start
+<h2 align="center">Quick Start</h2>
 
 ### Prerequisites
 
@@ -92,7 +92,7 @@ docker-compose logs -f
 
 ---
 
-## How It Works
+<h2 align="center">How It Works</h2>
 
 **Scenario:** An enterprise assistant needs to book a flight for an employee.
 
@@ -110,7 +110,7 @@ docker-compose logs -f
 
 ---
 
-## The Ad-Tech Parallel
+<h2 align="center">The Ad-Tech Parallel</h2>
 
 AEX applies proven programmatic advertising patterns to agent services:
 
@@ -128,7 +128,7 @@ AEX applies proven programmatic advertising patterns to agent services:
 
 ---
 
-## Who Is This For?
+<h2 align="center">Who Is This For?</h2>
 
 | ✅ Good Fit | ❌ Not Designed For |
 |------------|-------------------|
@@ -145,7 +145,7 @@ Specialized AI services running on their own infrastructure — travel booking, 
 
 ---
 
-## Solution Blocks
+<h2 align="center">Solution Blocks</h2>
 
 ```
                         ┌─────────────────────────────────────┐
@@ -227,7 +227,7 @@ contract.completed► Settlement triggered, trust scores updated
 
 ---
 
-## Pricing Evolution
+<h2 align="center">Pricing Evolution</h2>
 
 ```
 Phase A (MVP)          Phase B                    Phase C
@@ -250,7 +250,7 @@ Phase A (MVP)          Phase B                    Phase C
 
 ---
 
-## Roadmap
+<h2 align="center">Roadmap</h2>
 
 | Phase | Focus | Key Capabilities | Status |
 |-------|-------|------------------|--------|
@@ -260,7 +260,7 @@ Phase A (MVP)          Phase B                    Phase C
 
 ---
 
-## FAQ
+<h2 align="center">FAQ</h2>
 
 <details>
 <summary><strong>Why Agent-to-Agent and not Agent-to-MCP Servers?</strong></summary>
@@ -285,7 +285,7 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 
 ---
 
-## Documentation
+<h2 align="center">Documentation</h2>
 
 | Resource | Description |
 |----------|-------------|
