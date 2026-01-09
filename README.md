@@ -309,12 +309,6 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 
 ---
 
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
----
-
 <p align="center">
   <a href="https://medium.com/enterpriseai/beyond-chat-and-copilots-how-enterprises-will-actually-consume-ai-agents-8c8860cde367">Read the Vision Article</a> •
   <a href="./documents/articles/AgentExchange.pdf">Download the PDF</a> •
