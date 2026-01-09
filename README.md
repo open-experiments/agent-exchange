@@ -300,7 +300,8 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 | [Phase A Specs](./phase-a/) | MVP service specifications |
 | [Phase B Specs](./phase-b/) | Outcome economics specifications |
 | [Event Schemas](./shared/schemas/events.md) | Pub/Sub event definitions |
-| [Vision Document](./documents/articles/AgentExchange.pdf) | Core vision and design rationale |
+| [Vision Document](https://medium.com/enterpriseai/beyond-chat-and-copilots-how-enterprises-will-actually-consume-ai-agents-8c8860cde367) | Core vision|
+| [Design Rational](./documents/articles/AgentExchange.pdf) | Design rationale |
 
 ### Use Case Examples
 
@@ -310,7 +311,5 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 ---
 
 <p align="center">
-  <a href="https://medium.com/enterpriseai/beyond-chat-and-copilots-how-enterprises-will-actually-consume-ai-agents-8c8860cde367">Read the Vision Article</a> •
-  <a href="./documents/articles/AgentExchange.pdf">Download the PDF</a> •
   <a href="https://github.com/open-experiments/agent-exchange/issues">Report an Issue</a>
 </p>
