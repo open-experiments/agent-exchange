@@ -881,3 +881,536 @@ def home():
                     render_provider_card("Budget Legal AI", "VERIFIED", "Online", 0.72, ACCENT_GREEN)
                     render_provider_card("Standard Legal AI", "TRUSTED", "Online", 0.85, ACCENT_GREEN)
                     render_provider_card("Premium Legal AI", "PREFERRED", "Online", 0.94, ACCENT_GREEN)
+
+
+# ============================================================================
+# LANDING PAGE - Animated Flow Visualization
+# ============================================================================
+
+@me.stateclass
+class LandingState:
+    """Landing page state."""
+    active_step: int = 0
+    auto_play: bool = True
+
+
+def on_step_click(e: me.ClickEvent):
+    """Handle step click."""
+    state = me.state(LandingState)
+    state.active_step = int(e.key)
+    state.auto_play = False
+
+
+def on_next_step(e: me.ClickEvent):
+    """Advance to next step."""
+    state = me.state(LandingState)
+    state.active_step = (state.active_step + 1) % 6
+    state.auto_play = False
+
+
+def on_auto_play(e: me.ClickEvent):
+    """Toggle auto-play."""
+    state = me.state(LandingState)
+    state.auto_play = not state.auto_play
+    if state.auto_play:
+        state.active_step = (state.active_step + 1) % 6
+
+
+STEP_DATA = [
+    {
+        "num": 1,
+        "title": "PUBLISH WORK",
+        "desc": "Consumer Agent sends a task request with requirements to AEX",
+        "color": ACCENT_BLUE,
+        "icon": "description",
+    },
+    {
+        "num": 2,
+        "title": "BROADCAST",
+        "desc": "AEX broadcasts the opportunity to all matching Provider Agents",
+        "color": ACCENT_ORANGE,
+        "icon": "cell_tower",
+    },
+    {
+        "num": 3,
+        "title": "SUBMIT BIDS",
+        "desc": "Providers submit competitive bids with price and confidence scores",
+        "color": ACCENT_PURPLE,
+        "icon": "gavel",
+    },
+    {
+        "num": 4,
+        "title": "EVALUATE & AWARD",
+        "desc": "AEX scores bids on price, trust, and quality - awards contract to winner",
+        "color": ACCENT_CYAN,
+        "icon": "emoji_events",
+    },
+    {
+        "num": 5,
+        "title": "DIRECT EXECUTION",
+        "desc": "AEX steps aside - Consumer and Provider communicate directly via A2A",
+        "color": ACCENT_GREEN,
+        "icon": "sync_alt",
+    },
+    {
+        "num": 6,
+        "title": "SETTLEMENT",
+        "desc": "Upon completion, AEX processes payment with 15% platform fee",
+        "color": "#ec4899",
+        "icon": "account_balance_wallet",
+    },
+]
+
+
+def render_flow_step(step_num: int, active: bool, step_data: dict):
+    """Render a single flow step indicator."""
+    is_active = active
+    with me.box(
+        key=str(step_num - 1),
+        on_click=on_step_click,
+        style=me.Style(
+            display="flex",
+            flex_direction="column",
+            align_items="center",
+            cursor="pointer",
+            opacity=1.0 if is_active else 0.4,
+            transition="all 0.3s ease",
+        ),
+    ):
+        # Step circle
+        with me.box(style=me.Style(
+            width=60,
+            height=60,
+            border_radius="50%",
+            background=step_data["color"] if is_active else "#1e293b",
+            border=me.Border.all(me.BorderSide(width=3, color=step_data["color"])),
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            box_shadow=f"0 0 20px {step_data['color']}66" if is_active else "none",
+            transition="all 0.3s ease",
+        )):
+            me.icon(step_data["icon"], style=me.Style(color=TEXT_PRIMARY if is_active else step_data["color"], font_size=28))
+
+        me.text(f"{step_num}", style=me.Style(
+            font_size=12,
+            font_weight="bold",
+            color=step_data["color"],
+            margin=me.Margin(top=8),
+        ))
+        me.text(step_data["title"], style=me.Style(
+            font_size=10,
+            color=TEXT_PRIMARY if is_active else TEXT_SECONDARY,
+            text_align="center",
+            max_width=80,
+        ))
+
+
+def render_agent_node(name: str, icon: str, color: str, is_active: bool, subtitle: str = ""):
+    """Render an agent node (Consumer or Provider)."""
+    with me.box(style=me.Style(
+        display="flex",
+        flex_direction="column",
+        align_items="center",
+        padding=me.Padding.all(16),
+        opacity=1.0 if is_active else 0.5,
+        transition="all 0.3s ease",
+    )):
+        with me.box(style=me.Style(
+            width=80,
+            height=80,
+            border_radius="50%",
+            background=f"linear-gradient(135deg, {color}44, {color}22)",
+            border=me.Border.all(me.BorderSide(width=2, color=color)),
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            box_shadow=f"0 0 30px {color}44" if is_active else "none",
+            transition="all 0.3s ease",
+        )):
+            me.icon(icon, style=me.Style(color=color, font_size=40))
+
+        me.text(name, style=me.Style(
+            font_size=14,
+            font_weight="bold",
+            color=TEXT_PRIMARY,
+            margin=me.Margin(top=12),
+            text_align="center",
+        ))
+        if subtitle:
+            me.text(subtitle, style=me.Style(
+                font_size=11,
+                color=TEXT_SECONDARY,
+                text_align="center",
+            ))
+
+
+def render_aex_hub(is_active: bool, active_step: int):
+    """Render the central AEX hub."""
+    # Determine hub color based on step
+    hub_color = STEP_DATA[active_step]["color"] if is_active else ACCENT_ORANGE
+
+    with me.box(style=me.Style(
+        display="flex",
+        flex_direction="column",
+        align_items="center",
+    )):
+        # Outer glow ring
+        with me.box(style=me.Style(
+            width=140,
+            height=140,
+            border_radius="50%",
+            background=f"radial-gradient(circle, {hub_color}33 0%, transparent 70%)",
+            display="flex",
+            align_items="center",
+            justify_content="center",
+        )):
+            # Main hub circle
+            with me.box(style=me.Style(
+                width=100,
+                height=100,
+                border_radius="50%",
+                background=f"linear-gradient(135deg, {hub_color}, {hub_color}aa)",
+                display="flex",
+                align_items="center",
+                justify_content="center",
+                box_shadow=f"0 0 40px {hub_color}66",
+            )):
+                me.text("AEX", style=me.Style(
+                    font_size=28,
+                    font_weight="bold",
+                    color=TEXT_PRIMARY,
+                ))
+
+        me.text("Agent Exchange", style=me.Style(
+            font_size=12,
+            color=TEXT_SECONDARY,
+            margin=me.Margin(top=12),
+        ))
+
+
+def render_bid_card(provider: str, price: str, confidence: str, color: str, show: bool):
+    """Render a floating bid card."""
+    with me.box(style=me.Style(
+        background=CARD_BG,
+        border=me.Border.all(me.BorderSide(width=1, color=color)),
+        border_radius=8,
+        padding=me.Padding.all(10),
+        margin=me.Margin(bottom=8),
+        opacity=1.0 if show else 0.0,
+        transition="all 0.5s ease",
+    )):
+        me.text(provider, style=me.Style(font_size=12, font_weight="bold", color=TEXT_PRIMARY))
+        with me.box(style=me.Style(display="flex", gap=12)):
+            me.text(f"Bid: {price}", style=me.Style(font_size=11, color=ACCENT_GREEN))
+            me.text(f"Conf: {confidence}", style=me.Style(font_size=11, color=ACCENT_CYAN))
+
+
+def render_connection_line(from_side: str, to_side: str, is_active: bool, color: str, label: str = ""):
+    """Render a connection line between nodes."""
+    with me.box(style=me.Style(
+        flex_grow=1,
+        display="flex",
+        flex_direction="column",
+        align_items="center",
+    )):
+        with me.box(style=me.Style(
+            width="100%",
+            height=4,
+            background=f"linear-gradient(90deg, {color}00, {color}, {color}00)" if is_active else "#1e293b",
+            border_radius=2,
+            transition="all 0.5s ease",
+            box_shadow=f"0 0 10px {color}" if is_active else "none",
+        )):
+            pass
+        if label:
+            me.text(label, style=me.Style(
+                font_size=10,
+                color=color if is_active else TEXT_SECONDARY,
+                margin=me.Margin(top=4),
+            ))
+
+
+@me.page(path="/landing")
+def landing():
+    """Landing page with animated flow visualization."""
+    state = me.state(LandingState)
+
+    # CSS for animations
+    me.html("""
+    <style>
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        @keyframes flowRight {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        @keyframes flowLeft {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .flow-line-active {
+            background: linear-gradient(90deg, transparent, #10b981, transparent);
+            background-size: 200% 100%;
+            animation: flowRight 1.5s infinite;
+        }
+    </style>
+    """)
+
+    with me.box(style=me.Style(
+        min_height="100vh",
+        background=f"linear-gradient(180deg, {DARK_BG} 0%, #0f172a 50%, {DARK_BG} 100%)",
+        padding=me.Padding.all(24),
+    )):
+        # Header
+        with me.box(style=me.Style(text_align="center", margin=me.Margin(bottom=32))):
+            me.text("Agent Exchange", style=me.Style(
+                font_size=42,
+                font_weight="bold",
+                color=TEXT_PRIMARY,
+                margin=me.Margin(bottom=8),
+            ))
+            me.text("The Programmatic Marketplace for AI Agents", style=me.Style(
+                font_size=18,
+                color=TEXT_SECONDARY,
+                margin=me.Margin(bottom=4),
+            ))
+            me.text("Ad-tech economics applied to agentic AI", style=me.Style(
+                font_size=14,
+                color=ACCENT_CYAN,
+            ))
+
+        # Main visualization container
+        with me.box(style=me.Style(
+            background=CARD_BG,
+            border_radius=16,
+            padding=me.Padding.all(32),
+            max_width=1100,
+            margin=me.Margin(left="auto", right="auto", bottom=32),
+            border=me.Border.all(me.BorderSide(width=1, color="#1e293b")),
+        )):
+            # Flow visualization - 3 column layout
+            with me.box(style=me.Style(
+                display="flex",
+                align_items="center",
+                justify_content="space-between",
+                margin=me.Margin(bottom=40),
+                min_height=250,
+            )):
+                # Left: Consumer Agent
+                with me.box(style=me.Style(width=150, display="flex", flex_direction="column", align_items="center")):
+                    render_agent_node(
+                        "Consumer Agent",
+                        "smart_toy",
+                        ACCENT_BLUE,
+                        state.active_step in [0, 4, 5],
+                        "Task Requester"
+                    )
+                    # Request snippet for step 1
+                    if state.active_step == 0:
+                        with me.box(style=me.Style(
+                            background="#0f172a",
+                            border_radius=8,
+                            padding=me.Padding.all(10),
+                            margin=me.Margin(top=12),
+                            border=me.Border.all(me.BorderSide(width=1, color=ACCENT_BLUE)),
+                        )):
+                            me.text("Request:", style=me.Style(font_size=10, color=TEXT_SECONDARY))
+                            me.text('{"category": "legal",', style=me.Style(font_size=9, color=ACCENT_GREEN, font_family="monospace"))
+                            me.text(' "budget": 50.00}', style=me.Style(font_size=9, color=ACCENT_GREEN, font_family="monospace"))
+
+                # Connection: Consumer → AEX
+                with me.box(style=me.Style(flex_grow=1, display="flex", flex_direction="column", align_items="center")):
+                    with me.box(style=me.Style(
+                        width="100%",
+                        height=4,
+                        background=f"linear-gradient(90deg, {ACCENT_BLUE}00, {ACCENT_BLUE}, {ACCENT_ORANGE})" if state.active_step == 0 else (
+                            f"linear-gradient(270deg, {ACCENT_GREEN}00, {ACCENT_GREEN}, {ACCENT_BLUE})" if state.active_step == 4 else "#1e293b"
+                        ),
+                        border_radius=2,
+                        box_shadow=f"0 0 10px {ACCENT_BLUE}" if state.active_step in [0, 4] else "none",
+                        transition="all 0.5s ease",
+                    )):
+                        pass
+                    if state.active_step == 0:
+                        me.text("1. Publish", style=me.Style(font_size=10, color=ACCENT_BLUE, margin=me.Margin(top=4)))
+                    elif state.active_step == 4:
+                        me.text("5. A2A Direct", style=me.Style(font_size=10, color=ACCENT_GREEN, margin=me.Margin(top=4)))
+
+                # Center: AEX Hub
+                with me.box(style=me.Style(width=180)):
+                    render_aex_hub(True, state.active_step)
+
+                    # Show winner badge for step 3
+                    if state.active_step == 3:
+                        with me.box(style=me.Style(
+                            display="flex",
+                            justify_content="center",
+                            margin=me.Margin(top=12),
+                        )):
+                            with me.box(style=me.Style(
+                                background=ACCENT_CYAN,
+                                border_radius=16,
+                                padding=me.Padding.symmetric(horizontal=12, vertical=4),
+                            )):
+                                me.text("WINNER SELECTED", style=me.Style(font_size=10, font_weight="bold", color=TEXT_PRIMARY))
+
+                # Connection: AEX → Providers
+                with me.box(style=me.Style(flex_grow=1, display="flex", flex_direction="column", align_items="center")):
+                    with me.box(style=me.Style(
+                        width="100%",
+                        height=4,
+                        background=f"linear-gradient(90deg, {ACCENT_ORANGE}, {ACCENT_ORANGE}, {ACCENT_PURPLE}00)" if state.active_step == 1 else (
+                            f"linear-gradient(270deg, {ACCENT_PURPLE}, {ACCENT_PURPLE}, {ACCENT_CYAN}00)" if state.active_step == 2 else "#1e293b"
+                        ),
+                        border_radius=2,
+                        box_shadow=f"0 0 10px {ACCENT_ORANGE}" if state.active_step in [1, 2] else "none",
+                        transition="all 0.5s ease",
+                    )):
+                        pass
+                    if state.active_step == 1:
+                        me.text("2. Broadcast", style=me.Style(font_size=10, color=ACCENT_ORANGE, margin=me.Margin(top=4)))
+                    elif state.active_step == 2:
+                        me.text("3. Submit Bids", style=me.Style(font_size=10, color=ACCENT_PURPLE, margin=me.Margin(top=4)))
+
+                # Right: Provider Agents
+                with me.box(style=me.Style(width=200, display="flex", flex_direction="column", align_items="center")):
+                    me.text("Provider Agents", style=me.Style(
+                        font_size=14,
+                        font_weight="bold",
+                        color=TEXT_PRIMARY,
+                        margin=me.Margin(bottom=12),
+                    ))
+
+                    # Provider icons row
+                    with me.box(style=me.Style(display="flex", gap=8, margin=me.Margin(bottom=12))):
+                        for icon, color in [("gavel", ACCENT_PURPLE), ("account_balance", ACCENT_ORANGE), ("business", ACCENT_CYAN)]:
+                            with me.box(style=me.Style(
+                                width=45,
+                                height=45,
+                                border_radius="50%",
+                                background=f"{color}22",
+                                border=me.Border.all(me.BorderSide(width=1, color=color)),
+                                display="flex",
+                                align_items="center",
+                                justify_content="center",
+                                opacity=1.0 if state.active_step in [1, 2, 4] else 0.4,
+                                transition="all 0.3s ease",
+                            )):
+                                me.icon(icon, style=me.Style(color=color, font_size=22))
+
+                    # Bid cards (show during bid step)
+                    if state.active_step == 2:
+                        render_bid_card("Legal Agent A", "$15.00", "0.85", ACCENT_PURPLE, True)
+                        render_bid_card("Legal Agent B", "$22.50", "0.92", ACCENT_CYAN, True)
+                        render_bid_card("Legal Agent C", "$35.00", "0.95", ACCENT_GREEN, True)
+
+            # Step indicators
+            with me.box(style=me.Style(
+                display="flex",
+                justify_content="space-between",
+                align_items="flex-start",
+                padding=me.Padding.symmetric(horizontal=20),
+                margin=me.Margin(bottom=32),
+            )):
+                for i, step in enumerate(STEP_DATA):
+                    render_flow_step(step["num"], state.active_step == i, step)
+
+            # Step description
+            with me.box(style=me.Style(
+                background="#0f172a",
+                border_radius=12,
+                padding=me.Padding.all(20),
+                border=me.Border.all(me.BorderSide(width=2, color=STEP_DATA[state.active_step]["color"])),
+                text_align="center",
+            )):
+                me.text(f"Step {state.active_step + 1}: {STEP_DATA[state.active_step]['title']}", style=me.Style(
+                    font_size=20,
+                    font_weight="bold",
+                    color=STEP_DATA[state.active_step]["color"],
+                    margin=me.Margin(bottom=8),
+                ))
+                me.text(STEP_DATA[state.active_step]["desc"], style=me.Style(
+                    font_size=16,
+                    color=TEXT_PRIMARY,
+                ))
+
+            # Controls
+            with me.box(style=me.Style(
+                display="flex",
+                justify_content="center",
+                gap=16,
+                margin=me.Margin(top=24),
+            )):
+                me.button(
+                    "Next Step",
+                    on_click=on_next_step,
+                    style=me.Style(
+                        background=ACCENT_CYAN,
+                        color=TEXT_PRIMARY,
+                        padding=me.Padding.symmetric(horizontal=32, vertical=12),
+                        border_radius=8,
+                        font_size=14,
+                        font_weight="bold",
+                    ),
+                )
+
+        # Try Demo CTA
+        with me.box(style=me.Style(text_align="center")):
+            me.link(
+                text="Try the Interactive Demo →",
+                url="/",
+                style=me.Style(
+                    font_size=18,
+                    color=ACCENT_GREEN,
+                    text_decoration="none",
+                ),
+            )
+            me.text("Experience the full 6-step marketplace flow", style=me.Style(
+                font_size=14,
+                color=TEXT_SECONDARY,
+                margin=me.Margin(top=8),
+            ))
+
+        # Value props - highlight based on active step
+        # Map: steps 0,1,2 → Bidding, step 3 → Trust, step 4 → A2A, step 5 → Settlement
+        value_props = [
+            ("speed", "Real-time Bidding", "Sub-second bid collection and evaluation", [0, 1, 2], ACCENT_ORANGE),
+            ("security", "Trust Scoring", "Reputation system with verified tiers", [3], ACCENT_CYAN),
+            ("sync_alt", "A2A Protocol", "Direct agent-to-agent execution", [4], ACCENT_GREEN),
+            ("account_balance_wallet", "Fair Settlement", "Automated payment with 15% platform fee", [5], "#ec4899"),
+        ]
+
+        with me.box(style=me.Style(
+            display="flex",
+            justify_content="center",
+            gap=32,
+            margin=me.Margin(top=48),
+            flex_wrap="wrap",
+        )):
+            for icon, title, desc, active_steps, color in value_props:
+                is_active = state.active_step in active_steps
+                with me.box(style=me.Style(
+                    background=f"{color}22" if is_active else CARD_BG,
+                    border_radius=12,
+                    padding=me.Padding.all(20),
+                    width=220,
+                    text_align="center",
+                    border=me.Border.all(me.BorderSide(width=2, color=color if is_active else "#1e293b")),
+                    box_shadow=f"0 0 20px {color}44" if is_active else "none",
+                    transition="all 0.3s ease",
+                    opacity=1.0 if is_active else 0.5,
+                )):
+                    me.icon(icon, style=me.Style(color=color if is_active else TEXT_SECONDARY, font_size=32))
+                    me.text(title, style=me.Style(
+                        font_size=16,
+                        font_weight="bold",
+                        color=TEXT_PRIMARY if is_active else TEXT_SECONDARY,
+                        margin=me.Margin(top=12, bottom=8),
+                    ))
+                    me.text(desc, style=me.Style(
+                        font_size=13,
+                        color=TEXT_PRIMARY if is_active else TEXT_SECONDARY,
+                    ))
