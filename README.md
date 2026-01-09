@@ -297,6 +297,10 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 
 <h2 align="center">Demos</h2>
 
+<p align="center">
+  <img src="docs/drawings/demo/mvp-demo03.gif" alt="AEX Demo - Legal Contract Review" width="800"/>
+</p>
+
 | Resource | Description |
 |----------|-------------|
 | [Demo-MVP-Alpha](https://www.youtube.com/watch?v=Nq2ebfP0pOE) | MVP Alpha 01: Fundamentals Working Together |
