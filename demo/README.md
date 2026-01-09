@@ -331,6 +331,6 @@ python scripts/test_e2e.py
 
 ## Related Documentation
 
-- [A2A Integration Roadmap](../documents/a2a-integration/AEX_A2A_INTEGRATION_ROADMAP.md)
-- [Value Proposition](../documents/a2a-integration/AEX_A2A_VALUE_PROPOSITION.md)
-- [Call Flow Diagrams](../documents/a2a-integration/diagrams/)
+- [A2A Integration Roadmap](../docs/a2a-integration/AEX_A2A_INTEGRATION_ROADMAP.md)
+- [Value Proposition](../docs/a2a-integration/AEX_A2A_VALUE_PROPOSITION.md)
+- [Call Flow Diagrams](../docs/a2a-integration/diagrams/)

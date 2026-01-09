@@ -291,12 +291,12 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 | [Phase B Specs](./phase-b/) | Outcome economics specifications |
 | [Event Schemas](./shared/schemas/events.md) | Pub/Sub event definitions |
 | [Vision Document](https://medium.com/enterpriseai/beyond-chat-and-copilots-how-enterprises-will-actually-consume-ai-agents-8c8860cde367) | Core vision|
-| [Design Rational](./documents/articles/AgentExchange.pdf) | Design rationale |
+| [Design Rational](./docs/articles/AgentExchange.pdf) | Design rationale |
 
 ### Use Case Examples
 
-- **[Travel Booking](./documents/drawings/usecases/Travel/)** — Spain vacation booking flow
-- **[Legal Due Diligence](./documents/drawings/usecases/Legal/)** — Multi-provider legal research workflow
+- **[Travel Booking](./docs/drawings/usecases/Travel/)** — Spain vacation booking flow
+- **[Legal Due Diligence](./docs/drawings/usecases/Legal/)** — Multi-provider legal research workflow
 
 ---
 
