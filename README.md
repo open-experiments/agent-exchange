@@ -153,7 +153,7 @@ Specialized AI services running on their own infrastructure — travel booking, 
 
 ---
 
-## Architecture
+## Solution Blocks
 
 ```
                         ┌─────────────────────────────────────┐
