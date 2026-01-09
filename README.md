@@ -300,7 +300,7 @@ Yes. AEX is protocol-based. Any agent that implements the AWE (Agent Work Exchan
 | Resource | Description |
 |----------|-------------|
 | [Demo-MVP-Alpha](https://www.youtube.com/watch?v=Nq2ebfP0pOE) | MVP Alpha 01: Fundamentals Working Together |
-| [Demo-MVP-Beta]() | MVP Beta : Bidding War with Trust Ratings |
+| [In Flight] | MVP Beta : Bidding War with Trust Ratings |
 
 ---
 ### Use Case Examples
