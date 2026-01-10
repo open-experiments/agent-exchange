@@ -7,8 +7,7 @@ This guide explains how to deploy Agent Exchange (AEX) and demo agents to Google
 1. **GCP Project** with billing enabled
 2. **gcloud CLI** installed and authenticated
 3. **API Keys** for LLM providers:
-   - Anthropic API Key (for Claude - used by Legal Agent A and Orchestrator)
-   - Google AI API Key (for Gemini - used by Legal Agent B and Travel Agent)
+   - Anthropic API Key (for Claude - used by all agents)
 
 ## Architecture
 
@@ -18,28 +17,31 @@ This guide explains how to deploy Agent Exchange (AEX) and demo agents to Google
 │                                                                             │
 │  ┌─────────────┐    ┌────────────────────────────────────────────────┐      │
 │  │   Demo UI   │───▶│                  AEX Gateway                   │      │
+│  │  (Streamlit)│    │                    (8080)                      │      │
 │  └─────────────┘    └────────────────────────────────────────────────┘      │
 │         │                              │                                    │
 │         │           ┌──────────────────┼──────────────────┐                 │
 │         │           │                  │                  │                 │
 │         ▼           ▼                  ▼                  ▼                 │
 │  ┌─────────────┐ ┌─────────┐ ┌─────────────┐ ┌─────────────────┐            │
-│  │ Orchestrator│ │Work Pub │ │Bid Gateway  │ │Provider Registry│            │ 
+│  │ Orchestrator│ │Work Pub │ │Bid Gateway  │ │Provider Registry│            │
+│  │   (8103)    │ │ (8081)  │ │   (8082)    │ │     (8085)      │            │
 │  └─────────────┘ └─────────┘ └─────────────┘ └─────────────────┘            │
 │         │                                              │                    │
 │         │ A2A                            Skill Search  │                    │
 │         ▼                                              │                    │
 │  ┌──────────────────────────────────────────────────┐  │                    │
-│  │              Provider Agents (A2A)               │ ◀┘                    │
+│  │              Provider Agents (A2A)               │◀─┘                    │
 │  │  ┌────────────┐ ┌────────────┐ ┌────────────┐    │                       │
-│  │  │Legal A     │ │Legal B     │ │Travel      │    │                       │
-│  │  │(Claude)    │ │(Gemini)    │ │(Gemini)    │    │                       │
+│  │  │Legal A     │ │Legal B     │ │Legal C     │    │                       │
+│  │  │Budget 8100 │ │Standard8101│ │Premium 8102│    │                       │
+│  │  │(Claude)    │ │(Claude)    │ │(Claude)    │    │                       │
 │  │  └────────────┘ └────────────┘ └────────────┘    │                       │
 │  └──────────────────────────────────────────────────┘                       │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                         Secret Manager                              │    │
-│  │         ANTHROPIC_API_KEY  |  GOOGLE_AI_API_KEY                     │    │
+│  │                        ANTHROPIC_API_KEY                            │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -70,11 +72,8 @@ cd deploy/gcp
 After deployment, update the secrets with your actual API keys:
 
 ```bash
-# Anthropic (Claude) - for Legal Agent A and Orchestrator
+# Anthropic (Claude) - used by all demo agents
 echo "sk-ant-..." | gcloud secrets versions add ANTHROPIC_API_KEY --data-file=-
-
-# Google AI (Gemini) - for Legal Agent B and Travel Agent
-echo "AI..." | gcloud secrets versions add GOOGLE_AI_API_KEY --data-file=-
 ```
 
 ### 4. Access the demo
@@ -118,12 +117,12 @@ gcloud run deploy aex-gateway \
 
 ### Demo Agents
 
-| Agent | LLM | Required Secrets |
-|-------|-----|-----------------|
-| legal-agent-a | Claude | ANTHROPIC_API_KEY |
-| legal-agent-b | Gemini | GOOGLE_AI_API_KEY |
-| travel-agent | Gemini | GOOGLE_AI_API_KEY |
-| orchestrator | Claude | ANTHROPIC_API_KEY |
+| Agent | Tier | LLM | Port | Required Secrets |
+|-------|------|-----|------|-----------------|
+| legal-agent-a | Budget | Claude | 8100 | ANTHROPIC_API_KEY |
+| legal-agent-b | Standard | Claude | 8101 | ANTHROPIC_API_KEY |
+| legal-agent-c | Premium | Claude | 8102 | ANTHROPIC_API_KEY |
+| orchestrator | - | Claude | 8103 | ANTHROPIC_API_KEY |
 
 ## Cost Optimization
 
@@ -134,7 +133,7 @@ gcloud run deploy aex-gateway \
 To reduce costs further:
 ```bash
 # Set all services to min-instances 0
-for service in aex-gateway aex-provider-registry legal-agent-a; do
+for service in aex-gateway aex-provider-registry legal-agent-a legal-agent-b legal-agent-c; do
     gcloud run services update $service --min-instances 0 --region $REGION
 done
 ```
@@ -154,7 +153,7 @@ To delete all deployed services:
 
 ```bash
 # Delete Cloud Run services
-for service in demo-ui orchestrator travel-agent legal-agent-b legal-agent-a \
+for service in demo-ui orchestrator legal-agent-c legal-agent-b legal-agent-a \
     aex-gateway aex-telemetry aex-identity aex-settlement aex-contract-engine \
     aex-bid-evaluator aex-trust-broker aex-bid-gateway aex-work-publisher \
     aex-provider-registry; do

@@ -145,10 +145,22 @@ gcloud services enable \
 
 ### Database (GCP)
 
-Agent Exchange uses Firestore in Native mode for production.
+**Current Implementation:** MongoDB (via Docker or MongoDB Atlas)
+**Production Target:** Firestore in Native mode (not yet migrated)
+
+#### Option A: MongoDB (Current)
 
 ```bash
-# Create database (done by setup script)
+# For development/staging - MongoDB via Docker or Atlas
+# Connection string in environment variable:
+export MONGO_URI="mongodb://root:root@localhost:27017/?authSource=admin"
+export MONGO_DB="aex"
+```
+
+#### Option B: Firestore (Future Production)
+
+```bash
+# Create database (for future Firestore migration)
 gcloud firestore databases create \
   --location=$GCP_REGION \
   --type=firestore-native
@@ -170,7 +182,7 @@ gcloud firestore databases create \
 | `transactions` | Financial transactions |
 | `ledger` | Ledger entries |
 
-#### Firestore Indexes
+#### Firestore Indexes (for future migration)
 
 ```bash
 gcloud firestore indexes composite create \
