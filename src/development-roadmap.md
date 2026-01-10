@@ -6,8 +6,37 @@ This document tracks the gaps between Phase A specifications and current impleme
 
 **Status: Core business logic implemented, infrastructure and completeness gaps remain**
 
-The end-to-end marketplace flow works:
-- Tenant creation → Provider registration → Work submission → Bidding → Evaluation → Contract award → Settlement → Trust updates
+### What's Working
+
+The end-to-end marketplace flow works via HTTP calls:
+```
+Tenant creation → Provider registration → Work submission → Bidding →
+Evaluation → Contract award → A2A execution → Settlement → Trust updates
+```
+
+### Service Implementation Status
+
+| Service | Core API | Store | Events | Status |
+|---------|----------|-------|--------|--------|
+| aex-gateway | ✅ Proxy, rate limit | N/A | N/A | ✅ Working |
+| aex-work-publisher | ✅ CRUD | MongoDB/Firestore | ⚠️ Logged | ✅ Working |
+| aex-bid-gateway | ✅ Submit, list | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-bid-evaluator | ✅ Evaluate | Memory | ⚠️ Logged | ✅ Working |
+| aex-contract-engine | ✅ Award, complete | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-provider-registry | ✅ Register, subscribe | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-trust-broker | ✅ Get/record | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-identity | ✅ Tenants, keys | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-settlement | ✅ Balance, settle | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-telemetry | ✅ Ingest, query | Memory only | N/A | ⚠️ MVP |
+
+### Demo Status
+
+| Component | Status |
+|-----------|--------|
+| 3 Legal Provider Agents (LangGraph) | ✅ Working |
+| Orchestrator Consumer Agent | ✅ Working |
+| Streamlit UI Dashboard | ✅ Working |
+| A2A Protocol Integration | ✅ Working |
 
 However, the following categories of work remain to achieve full Phase A spec compliance.
 
