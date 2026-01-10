@@ -63,7 +63,7 @@ Once running, services are available at:
 
 | Service | URL | Status |
 |---------|-----|--------|
-| **Gateway** | http://localhost:8080 | 📋 TODO |
+| **Gateway** | http://localhost:8080 | ✅ Ready |
 | **Work Publisher** | http://localhost:8081 | ✅ Ready |
 | **Bid Gateway** | http://localhost:8082 | ✅ Ready |
 | **Bid Evaluator** | http://localhost:8083 | ✅ Ready |
@@ -72,7 +72,7 @@ Once running, services are available at:
 | **Trust Broker** | http://localhost:8086 | ✅ Ready |
 | **Identity** | http://localhost:8087 | ✅ Ready |
 | **Settlement** | http://localhost:8088 | ✅ Ready |
-| **Telemetry** | http://localhost:8089 | 📋 TODO |
+| **Telemetry** | http://localhost:8089 | ⚠️ MVP |
 
 **MongoDB:** `mongodb://root:root@localhost:27017`
 
@@ -311,10 +311,11 @@ Key variables:
 
 ## Next Steps
 
-1. **Read the API Documentation** - See `IMPLEMENTATION_STATUS.md`
+1. **Run the Demo** - See `demo/README.md` for the full demo with UI
 2. **Run Integration Tests** - `make test`
 3. **Explore the Code** - Start with `src/aex-work-publisher`
-4. **Check the TODO** - See `TODO.md` for what's next
+4. **Check the Roadmap** - See `src/development-roadmap.md` for gaps and next steps
+5. **Read Phase A Specs** - See `phase-a/readme.md` for architecture details
 
 ## Architecture
 
@@ -344,7 +345,5 @@ Key variables:
 ## Getting Help
 
 - **Issues:** Report bugs in GitHub Issues
-- **Documentation:** See `/docs` folder
-- **Status:** Check `IMPLEMENTATION_STATUS.md`
-
-Happy coding! 🚀
+- **Documentation:** See `docs/` folder and `phase-a/specs/`
+- **Roadmap:** Check `src/development-roadmap.md` for current status and gaps

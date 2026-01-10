@@ -2,6 +2,20 @@
 
 **Objective:** Broker-based marketplace with bid-based pricing, provider subscriptions, and contract-based execution.
 
+**Status:** 🟡 Core Business Logic Complete | Infrastructure Gaps Remain
+
+## Current Implementation State
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| All 10 Services | ✅ Implemented | Core APIs working |
+| End-to-End Flow | ✅ Working | Via HTTP calls (not event-driven) |
+| Demo (Legal Agents) | ✅ Working | 3 providers + orchestrator + UI |
+| MongoDB Backend | ✅ Working | Primary store for all services |
+| Pub/Sub Events | ❌ Stubbed | Events logged, not published |
+| Redis Caching | ❌ Not Started | Rate limiting is in-memory |
+| JWT Authentication | ❌ Not Started | API keys only |
+
 ## Overview
 
 Phase A delivers the minimum viable exchange: Work specs come in, get broadcast to subscribed providers who bid, bids are evaluated, contracts are awarded, and providers execute directly with consumers. AEX settles based on outcomes. **AEX is a broker, not a host — providers run their own agents externally.**
@@ -58,58 +72,63 @@ Phase A delivers the minimum viable exchange: Work specs come in, get broadcast 
 
 ## Services Delivered
 
-| Service | Spec | Language | Runtime | Purpose |
-|---------|------|----------|---------|---------|
-| aex-gateway | [spec](./specs/aex-gateway.md) | Go | Cloud Run | API Gateway, Auth, Rate Limiting |
-| aex-work-publisher | [spec](./specs/aex-work-publisher.md) | Python | Cloud Run | Work spec submission, broadcast |
-| aex-provider-registry | [spec](./specs/aex-provider-registry.md) | Python | Cloud Run | Provider registration, subscriptions |
-| aex-bid-gateway | [spec](./specs/aex-bid-gateway.md) | Go | Cloud Run | Receive bids from external providers |
-| aex-bid-evaluator | [spec](./specs/aex-bid-evaluator.md) | Python | Cloud Run | Score and rank bids |
-| aex-contract-engine | [spec](./specs/aex-contract-engine.md) | Python | Cloud Run | Award contracts, track execution |
-| aex-settlement | [spec](./specs/aex-settlement.md) | Python | Cloud Run | Outcome verification, billing |
-| aex-trust-broker | [spec](./specs/aex-trust-broker.md) | Python | Cloud Run | Provider reputation, compliance |
-| aex-telemetry | [spec](./specs/aex-telemetry.md) | Go | Cloud Run | Metrics, logging |
-| aex-identity | [spec](./specs/aex-identity.md) | Python | Cloud Run | IAM, tenant management |
+| Service | Port | Language | Status | Purpose |
+|---------|------|----------|--------|---------|
+| aex-gateway | 8080 | Go | ✅ Core | API Gateway, Auth, Rate Limiting |
+| aex-work-publisher | 8081 | Go | ✅ Core | Work spec submission, bid windows |
+| aex-bid-gateway | 8082 | Go | ✅ Core | Receive bids from external providers |
+| aex-bid-evaluator | 8083 | Go | ✅ Core | Score and rank bids (3 strategies) |
+| aex-contract-engine | 8084 | Go | ✅ Core | Award contracts, track execution |
+| aex-provider-registry | 8085 | Go | ✅ Core | Provider registration, subscriptions |
+| aex-trust-broker | 8086 | Go | ✅ Core | Trust scores (4 tiers implemented) |
+| aex-identity | 8087 | Go | ✅ Core | Tenants, API keys |
+| aex-settlement | 8088 | Go | ✅ Core | Billing, ledger, 15% platform fee |
+| aex-telemetry | 8089 | Go | ⚠️ MVP | In-memory only placeholder |
 
-**Note:** No GKE/agent hosting services. Providers run their own infrastructure.
+**Note:** All services implemented in Go. Providers run their own infrastructure externally.
 
 ## Infrastructure
 
-| Component | Spec | GCP Service | Purpose |
-|-----------|------|-------------|---------|
-| GCP Project | [spec](./specs/infrastructure.md) | Resource Manager | Project setup, IAM |
-| Networking | [spec](./specs/infrastructure.md) | VPC, Cloud NAT | Network isolation |
-| Event Bus | [spec](./specs/infrastructure.md) | Pub/Sub | Work broadcast, bid collection |
-| Document Store | [spec](./specs/infrastructure.md) | Firestore | Providers, contracts, work specs |
-| Cache | [spec](./specs/infrastructure.md) | Memorystore (Redis) | Bids, trust scores |
-| Relational DB | [spec](./specs/infrastructure.md) | Cloud SQL (PostgreSQL) | Billing, ledger |
-| Secrets | [spec](./specs/infrastructure.md) | Secret Manager | API keys, creds |
+| Component | Spec | Target | Current Status |
+|-----------|------|--------|----------------|
+| Document Store | [spec](./specs/infrastructure.md) | Firestore | ✅ MongoDB implemented |
+| Event Bus | [spec](./specs/infrastructure.md) | Pub/Sub | ❌ Stubbed (logs only) |
+| Cache | [spec](./specs/infrastructure.md) | Redis | ❌ In-memory only |
+| Relational DB | [spec](./specs/infrastructure.md) | Cloud SQL | ❌ Using MongoDB |
+| Secrets | [spec](./specs/infrastructure.md) | Secret Manager | ❌ In MongoDB |
+| Auth | [spec](./specs/infrastructure.md) | Firebase Auth | ❌ API keys only |
+
+**Note:** Current implementation uses MongoDB for all storage. Production target infrastructure not yet deployed.
 
 ## Data Flow
 
-### Work Execution Flow (Happy Path)
+### Work Execution Flow (Current Implementation)
 
 ```
-1.  Consumer Agent → aex-gateway: POST /v1/work {category, description, budget}
+1.  Consumer → aex-gateway: POST /v1/work {category, description, budget}
 2.  aex-gateway → aex-work-publisher: Validate, persist work spec (OPEN)
-3.  aex-work-publisher → aex-provider-registry: Get subscribed providers
-4.  aex-work-publisher → Pub/Sub: Broadcast "work.submitted" to subscribed providers
-5.  External Providers: Receive work opportunity, decide to bid
-6.  External Providers → aex-bid-gateway: POST /v1/bids {price, confidence, mvp_sample}
-7.  aex-bid-gateway: Store bids, notify consumer of incoming bids
-8.  [Bid window closes]
-9.  aex-bid-evaluator: Score bids (price, trust, MVP sample quality)
-10. aex-bid-evaluator → aex-contract-engine: Send ranked bids
-11. Consumer Agent or Auto: Select winner, award contract
-12. aex-contract-engine: Create contract, return provider A2A endpoint
-13. Consumer Agent ←──── Direct A2A ────→ Provider Agent (AEX NOT IN PATH)
-14. Provider Agent → aex-contract-engine: Report completion + outcome metrics
-15. aex-contract-engine → aex-settlement: Trigger settlement
-16. aex-settlement: Verify outcome, calculate cost (base + CPA), update ledger
-17. aex-settlement → aex-trust-broker: Update provider reputation
+3.  aex-work-publisher → aex-provider-registry: HTTP GET subscribed providers
+4.  [Providers poll or receive notification to bid]              ← ⚠️ Webhooks stubbed
+5.  Providers → aex-bid-gateway: POST /v1/bids {price, confidence, approach}
+6.  aex-bid-gateway → aex-provider-registry: HTTP validate API key
+7.  aex-bid-gateway: Store bid in MongoDB
+8.  [Bid window closes - manual trigger]                         ← ⚠️ No auto-close
+9.  Consumer/System → aex-bid-evaluator: POST /internal/v1/evaluate
+10. aex-bid-evaluator → aex-bid-gateway: HTTP GET all bids
+11. aex-bid-evaluator → aex-trust-broker: HTTP GET trust scores
+12. aex-bid-evaluator: Score bids, return ranked list
+13. Consumer → aex-contract-engine: POST /v1/work/{id}/award
+14. aex-contract-engine: Create contract, return A2A endpoint + tokens
+15. Consumer ←──── Direct A2A ────→ Provider (AEX NOT IN PATH)
+16. Provider → aex-contract-engine: POST /v1/contracts/{id}/complete
+17. System → aex-settlement: POST /internal/settlement/complete  ← ⚠️ Manual trigger
+18. aex-settlement: Calculate 15% fee, update balances
+19. System → aex-trust-broker: POST /internal/v1/outcomes       ← ⚠️ Manual trigger
 ```
 
-**Key Insight:** After step 12, AEX exits the execution path. Consumer and provider communicate directly via A2A protocol.
+**Current State:** Flow works via HTTP calls. Event-driven triggers (Pub/Sub) not yet implemented.
+
+**Key Insight:** After step 14, AEX exits the execution path. Consumer and provider communicate directly via A2A protocol.
 
 ## Pricing Model
 
@@ -161,30 +180,47 @@ subscription:
 
 ## Success Criteria
 
-- [ ] All 10 services deployed and healthy
-- [ ] End-to-end flow working (publish → bid → award → execute → settle)
-- [ ] <2s P95 latency for work submission
-- [ ] <500ms P95 latency for bid submission
-- [ ] At least 3 external test providers registered
-- [ ] Direct A2A execution working (AEX not in execution path)
-- [ ] Trust scores updating based on outcomes
-- [ ] Basic dashboard showing work volume, bid rates, success rates
+- [x] All 10 services deployed and healthy
+- [x] End-to-end flow working (publish → bid → award → execute → settle)
+- [ ] <2s P95 latency for work submission (not benchmarked)
+- [ ] <500ms P95 latency for bid submission (not benchmarked)
+- [x] At least 3 external test providers registered (demo has 3 legal agents)
+- [x] Direct A2A execution working (AEX not in execution path)
+- [x] Trust scores updating based on outcomes
+- [x] Basic dashboard showing work volume, bid rates, success rates (Streamlit UI)
 
-## Build Order
+### Remaining for Phase A Completion
 
-Infrastructure first, then services in dependency order:
+- [ ] Pub/Sub event-driven flow (currently HTTP-triggered)
+- [ ] Redis-backed rate limiting (currently in-memory)
+- [ ] JWT authentication via Firebase (currently API keys only)
+- [ ] Bid window auto-close background job
+- [ ] Provider webhook delivery for work notifications
+- [ ] Full trust tier system with modifiers
+
+## Build History
+
+Services built (all in Go with MongoDB backend):
 
 ```
-Week 1:     [Infrastructure] GCP Project, VPC, Pub/Sub, Firestore, Redis
-Week 1:     [Infrastructure] Cloud SQL, Secret Manager
-Week 1:     [Shared] aex-identity (needed by gateway for auth)
-Week 1:     [API] aex-gateway
-Week 2:     [API] aex-provider-registry (providers must register first)
-Week 2:     [API] aex-work-publisher, aex-bid-gateway (parallel)
-Week 2:     [Core] aex-trust-broker (needed by evaluator)
-Week 3:     [Core] aex-bid-evaluator
-Week 3:     [Core] aex-contract-engine
-Week 3:     [Core] aex-settlement
-Week 4:     [Shared] aex-telemetry
-Week 4:     [Integration] Provider SDK, test providers, E2E testing
+✅ COMPLETED:
+   [Shared] aex-identity - Tenant and API key management
+   [API] aex-gateway - Routing, rate limiting, auth
+   [API] aex-provider-registry - Registration, subscriptions
+   [API] aex-work-publisher - Work submission, bid windows
+   [API] aex-bid-gateway - Bid collection, validation
+   [Core] aex-trust-broker - Trust scores, tiers
+   [Core] aex-bid-evaluator - Scoring with 3 strategies
+   [Core] aex-contract-engine - Awards, execution tracking
+   [Core] aex-settlement - Ledger, 15% fee calculation
+   [Shared] aex-telemetry - MVP placeholder (in-memory)
+   [Demo] 3 Legal provider agents + Orchestrator + Streamlit UI
+
+⏳ REMAINING:
+   [Infrastructure] Pub/Sub topics and subscriptions
+   [Infrastructure] Redis for rate limiting and caching
+   [Infrastructure] Firebase Auth for JWT validation
+   [Services] Event-driven triggers (Pub/Sub consumers)
+   [Services] Background jobs (bid window closer, contract expiry)
+   [Services] Provider webhook notifications
 ```

@@ -57,35 +57,52 @@ As AI agents proliferate, enterprises face a critical challenge: **the N×M inte
 
 ### Prerequisites
 
-- Python 3.10+
-- Go 1.21+ (for gateway services)
 - Docker & Docker Compose
-- GCP account (for Cloud Run deployment)
+- Go 1.22+ (for building services locally)
+- Python 3.11+ (for demo agents)
+- Anthropic API key (for demo)
 
-### Local Development
+### Run the Demo
 
 ```bash
 # Clone the repository
 git clone https://github.com/open-experiments/agent-exchange.git
-cd agent-exchange
+cd agent-exchange/demo
 
-# Install dependencies
-pip install -r requirements.txt
+# Configure API key
+cp .env.example .env
+# Edit .env and add your ANTHROPIC_API_KEY
 
-# Run the demo
-cd demo
-./run_demo.sh
+# Start everything (AEX services + Demo agents + UI)
+docker-compose up --build
+
+# Access the demo UI
+open http://localhost:8501
+```
+
+### Build Services Locally
+
+```bash
+# From project root
+make build          # Build all Go services
+make test           # Run all tests
+make docker-up      # Start via Docker Compose
 ```
 
 <details>
-<summary><strong>Docker Deployment</strong></summary>
+<summary><strong>Available Make Targets</strong></summary>
 
 ```bash
-# Build and run all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
+make build              # Build all services
+make build-aex-gateway  # Build specific service
+make test               # Run all tests
+make test-aex-settlement # Test specific service
+make docker-build       # Build Docker images
+make docker-up          # Start services
+make docker-down        # Stop services
+make fmt                # Format Go code
+make lint               # Run linter
+make tidy               # Go mod tidy all services
 ```
 
 </details>
@@ -192,36 +209,41 @@ Specialized AI services running on their own infrastructure — travel booking, 
 
 ### Service Catalog
 
-| Service | Language | Purpose |
-|---------|----------|---------|
-| `aex-gateway` | Go | API Gateway, Auth, Rate Limiting |
-| `aex-work-publisher` | Python | Work submission, broadcast |
-| `aex-provider-registry` | Python | Provider registration, subscriptions |
-| `aex-bid-gateway` | Go | Receive bids from providers |
-| `aex-bid-evaluator` | Python | Score and rank bids |
-| `aex-contract-engine` | Python | Award contracts, track execution |
-| `aex-settlement` | Python | Outcome verification, billing |
-| `aex-trust-broker` | Python | Provider reputation, compliance |
-| `aex-telemetry` | Go | Metrics, logging |
-| `aex-identity` | Python | IAM, tenant management |
+| Service | Port | Language | Status | Purpose |
+|---------|------|----------|--------|---------|
+| `aex-gateway` | 8080 | Go | ✅ | API Gateway, Auth, Rate Limiting |
+| `aex-work-publisher` | 8081 | Go | ✅ | Work submission, bid windows |
+| `aex-bid-gateway` | 8082 | Go | ✅ | Receive bids from providers |
+| `aex-bid-evaluator` | 8083 | Go | ✅ | Score and rank bids |
+| `aex-contract-engine` | 8084 | Go | ✅ | Award contracts, track execution |
+| `aex-provider-registry` | 8085 | Go | ✅ | Provider registration, subscriptions |
+| `aex-trust-broker` | 8086 | Go | ✅ | Provider reputation, trust tiers |
+| `aex-identity` | 8087 | Go | ✅ | Tenants, API key management |
+| `aex-settlement` | 8088 | Go | ✅ | Billing, ledger, 15% platform fee |
+| `aex-telemetry` | 8089 | Go | ⚠️ | Metrics, logging (MVP) |
+
+**Note:** All services implemented in Go with MongoDB backend.
 
 ### Data Stores
 
-| Data Type | Store | Rationale |
-|-----------|-------|-----------|
-| Providers, Contracts, Work Specs | Firestore | Document model, real-time sync |
-| Bids, Trust Scores (cache) | Redis | Fast lookup |
-| Billing Ledger, Settlements | Cloud SQL (Postgres) | ACID transactions |
-| Analytics, Metrics | BigQuery | Long-term analysis |
+| Data Type | Target | Current | Status |
+|-----------|--------|---------|--------|
+| All Documents | Firestore | MongoDB | ✅ Working |
+| Rate Limits, Cache | Redis | In-Memory | ⚠️ Single-instance only |
+| Billing Ledger | Cloud SQL | MongoDB | ⚠️ No ACID guarantees |
+| Analytics | BigQuery | Not implemented | ❌ Future |
 
 ### Event Bus
 
+**Target (Pub/Sub):**
 ```
 work.submitted ───► Subscribed providers receive work opportunities
 bids.evaluated ───► Contract Engine awards to winning bid
 contract.awarded ─► Provider notified, consumer gets A2A endpoint
 contract.completed► Settlement triggered, trust scores updated
 ```
+
+**Current Status:** ⚠️ Events are logged but not published to Pub/Sub. Flow is HTTP-triggered.
 
 ---
 
@@ -252,9 +274,22 @@ Phase A (MVP)          Phase B                    Phase C
 
 | Phase | Focus | Key Capabilities | Status |
 |-------|-------|------------------|--------|
-| **[Phase A](./phase-a/)** | MVP Foundation | Bid-based pricing, provider subscriptions, contract execution | 🚧 In Progress |
+| **[Phase A](./phase-a/)** | MVP Foundation | Bid-based pricing, provider subscriptions, contract execution | 🟡 Core Logic Done |
 | **[Phase B](./phase-b/)** | Outcome Economics | CPA pricing, outcome verification, governance | 📋 Planned |
 | **Phase C** | Full Marketplace | RTB auctions, CPM reservations, SLA guarantees | 📋 Planned |
+
+### Phase A Progress
+
+| Component | Status |
+|-----------|--------|
+| 10 Core Services | ✅ Implemented (Go + MongoDB) |
+| End-to-End Flow | ✅ Working (HTTP-triggered) |
+| Demo with 3 Providers | ✅ Working |
+| Pub/Sub Events | ❌ Stubbed |
+| Redis Caching | ❌ Not Started |
+| JWT Auth | ❌ Not Started |
+
+See [development-roadmap.md](./src/development-roadmap.md) for detailed gap analysis.
 
 ---
 
