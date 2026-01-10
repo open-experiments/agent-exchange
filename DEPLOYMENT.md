@@ -429,7 +429,7 @@ aws docdb create-db-instance \
 ```bash
 aws secretsmanager create-secret \
   --name aex-mongo-uri \
-  --secret-string "mongodb+srv://user:pass@cluster.mongodb.net/aex"
+  --secret-string "mongodb+srv://<USERNAME>:<PASSWORD>@<CLUSTER>.mongodb.net/aex"
 ```
 
 ### Deploy (AWS)
