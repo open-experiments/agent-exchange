@@ -1,0 +1,116 @@
+version: 0.2
+
+# AWS CodeBuild configuration for AEX services
+# Builds and pushes Docker images to ECR
+
+env:
+  variables:
+    ENVIRONMENT_NAME: "aex"
+  parameter-store:
+    DOCKER_HUB_USERNAME: "/codebuild/docker-hub-username"
+    DOCKER_HUB_PASSWORD: "/codebuild/docker-hub-password"
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - echo Logging in to Docker Hub to avoid rate limits...
+      - echo $DOCKER_HUB_PASSWORD | docker login --username $DOCKER_HUB_USERNAME --password-stdin || true
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:-latest}
+      - ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building AEX core services...
+
+      # Build AEX services (context is src/ directory)
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-gateway:$IMAGE_TAG -f src/aex-gateway/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-provider-registry:$IMAGE_TAG -f src/aex-provider-registry/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-work-publisher:$IMAGE_TAG -f src/aex-work-publisher/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-gateway:$IMAGE_TAG -f src/aex-bid-gateway/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-evaluator:$IMAGE_TAG -f src/aex-bid-evaluator/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-contract-engine:$IMAGE_TAG -f src/aex-contract-engine/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-settlement:$IMAGE_TAG -f src/aex-settlement/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-trust-broker:$IMAGE_TAG -f src/aex-trust-broker/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-identity:$IMAGE_TAG -f src/aex-identity/Dockerfile src/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-telemetry:$IMAGE_TAG -f src/aex-telemetry/Dockerfile src/
+
+      - echo Building demo agents...
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-a:$IMAGE_TAG --build-arg AGENT_DIR=legal-agent-a -f demo/agents/Dockerfile demo/agents/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-b:$IMAGE_TAG --build-arg AGENT_DIR=legal-agent-b -f demo/agents/Dockerfile demo/agents/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:$IMAGE_TAG --build-arg AGENT_DIR=legal-agent-c -f demo/agents/Dockerfile demo/agents/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:$IMAGE_TAG --build-arg AGENT_DIR=orchestrator -f demo/agents/Dockerfile demo/agents/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:$IMAGE_TAG -f demo/ui/Dockerfile demo/ui/
+
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing Docker images to ECR...
+
+      # Push AEX services
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-gateway:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-provider-registry:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-work-publisher:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-gateway:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-evaluator:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-contract-engine:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-settlement:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-trust-broker:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-identity:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-telemetry:$IMAGE_TAG
+
+      # Push demo agents
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-a:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-b:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:$IMAGE_TAG
+
+      # Tag as latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-gateway:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-gateway:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-provider-registry:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-provider-registry:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-work-publisher:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-work-publisher:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-gateway:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-gateway:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-evaluator:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-evaluator:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-contract-engine:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-contract-engine:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-settlement:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-settlement:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-trust-broker:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-trust-broker:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-identity:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-identity:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-telemetry:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-telemetry:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-a:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-a:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-b:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-b:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:latest
+
+      # Push latest tags
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-gateway:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-provider-registry:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-work-publisher:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-gateway:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-bid-evaluator:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-contract-engine:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-settlement:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-trust-broker:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-identity:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-telemetry:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-a:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-b:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:latest
+
+      - echo Writing image definitions file...
+      - printf '{"ImageTag":"%s"}' $IMAGE_TAG > imageDefinitions.json
+
+artifacts:
+  files:
+    - imageDefinitions.json
+    - deploy/aws/**/*
+
+cache:
+  paths:
+    - '/root/.docker/**/*'

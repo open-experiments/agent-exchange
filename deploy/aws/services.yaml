@@ -1,0 +1,1257 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AEX ECS Services - Fargate Tasks and Services'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: aex
+    Description: Environment name prefix for resources
+
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag to deploy
+
+Resources:
+  # MongoDB Service Discovery
+  MongoDBServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: mongodb
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  # Service Discovery Services
+  ProviderRegistryServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: provider-registry
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  WorkPublisherServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: work-publisher
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  BidGatewayServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: bid-gateway
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  TrustBrokerServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: trust-broker
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  BidEvaluatorServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: bid-evaluator
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  ContractEngineServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: contract-engine
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  SettlementServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: settlement
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  IdentityServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: identity
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  TelemetryServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: telemetry
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  GatewayServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: gateway
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  LegalAgentAServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: legal-agent-a
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  LegalAgentBServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: legal-agent-b
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  LegalAgentCServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: legal-agent-c
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  OrchestratorServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: orchestrator
+      NamespaceId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ServiceDiscoveryNamespaceId
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  # ALB Target Groups
+  GatewayTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-gateway-tg
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-VPCId
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  DemoUITargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-demo-ui-tg
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-VPCId
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  # ALB Listener Rules
+  GatewayListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ALBListenerArn
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /api/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref GatewayTargetGroup
+
+  DemoUIListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ALBListenerArn
+      Priority: 20
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref DemoUITargetGroup
+
+  # MongoDB Task Definition
+  MongoDBTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-mongodb
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: mongodb
+          Image: mongo:7
+          PortMappings:
+            - ContainerPort: 27017
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: mongodb
+          Environment:
+            - Name: MONGO_INITDB_ROOT_USERNAME
+              Value: root
+            - Name: MONGO_INITDB_ROOT_PASSWORD
+              Value: root
+          EntryPoint:
+            - docker-entrypoint.sh
+          Command:
+            - mongod
+            - --bind_ip
+            - 0.0.0.0
+
+  # Task Definitions
+  ProviderRegistryTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-provider-registry
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: provider-registry
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-provider-registry:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8085
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: provider-registry
+          Environment:
+            - Name: PORT
+              Value: '8085'
+            - Name: MONGO_URI
+              Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
+            - Name: MONGO_DB
+              Value: aex
+
+  WorkPublisherTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-work-publisher
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: work-publisher
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-work-publisher:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8081
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: work-publisher
+          Environment:
+            - Name: PORT
+              Value: '8081'
+            - Name: PROVIDER_REGISTRY_URL
+              Value: !Sub http://provider-registry.${EnvironmentName}.local:8085
+            - Name: STORE_TYPE
+              Value: mongo
+            - Name: MONGO_URI
+              Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
+            - Name: MONGO_DB
+              Value: aex
+            - Name: MONGO_COLLECTION_WORK
+              Value: work_specs
+
+  BidGatewayTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-bid-gateway
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: bid-gateway
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-bid-gateway:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8082
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: bid-gateway
+          Environment:
+            - Name: PORT
+              Value: '8082'
+            - Name: PROVIDER_REGISTRY_URL
+              Value: !Sub http://provider-registry.${EnvironmentName}.local:8085
+            - Name: MONGO_URI
+              Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
+            - Name: MONGO_DB
+              Value: aex
+
+  TrustBrokerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-trust-broker
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: trust-broker
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-trust-broker:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8088
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: trust-broker
+          Environment:
+            - Name: PORT
+              Value: '8088'
+            - Name: MONGO_URI
+              Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
+            - Name: MONGO_DB
+              Value: aex
+
+  BidEvaluatorTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-bid-evaluator
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: bid-evaluator
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-bid-evaluator:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8083
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: bid-evaluator
+          Environment:
+            - Name: PORT
+              Value: '8083'
+            - Name: BID_GATEWAY_URL
+              Value: !Sub http://bid-gateway.${EnvironmentName}.local:8082
+            - Name: TRUST_BROKER_URL
+              Value: !Sub http://trust-broker.${EnvironmentName}.local:8088
+            - Name: WORK_PUBLISHER_URL
+              Value: !Sub http://work-publisher.${EnvironmentName}.local:8081
+            - Name: MONGO_URI
+              Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
+            - Name: MONGO_DB
+              Value: aex
+
+  ContractEngineTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-contract-engine
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: contract-engine
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-contract-engine:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8084
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: contract-engine
+          Environment:
+            - Name: PORT
+              Value: '8084'
+            - Name: BID_GATEWAY_URL
+              Value: !Sub http://bid-gateway.${EnvironmentName}.local:8082
+            - Name: WORK_PUBLISHER_URL
+              Value: !Sub http://work-publisher.${EnvironmentName}.local:8081
+            - Name: MONGO_URI
+              Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
+            - Name: MONGO_DB
+              Value: aex
+
+  SettlementTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-settlement
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: settlement
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-settlement:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8086
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: settlement
+          Environment:
+            - Name: PORT
+              Value: '8086'
+            - Name: CONTRACT_ENGINE_URL
+              Value: !Sub http://contract-engine.${EnvironmentName}.local:8084
+            - Name: TRUST_BROKER_URL
+              Value: !Sub http://trust-broker.${EnvironmentName}.local:8088
+            - Name: MONGO_URI
+              Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
+            - Name: MONGO_DB
+              Value: aex
+
+  IdentityTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-identity
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: identity
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-identity:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8089
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: identity
+          Environment:
+            - Name: PORT
+              Value: '8089'
+            - Name: MONGO_URI
+              Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
+            - Name: MONGO_DB
+              Value: aex
+
+  TelemetryTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-telemetry
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: telemetry
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-telemetry:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8090
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: telemetry
+          Environment:
+            - Name: PORT
+              Value: '8090'
+
+  GatewayTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-gateway
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: gateway
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/aex-gateway:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8080
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: gateway
+          Environment:
+            - Name: PORT
+              Value: '8080'
+            - Name: WORK_PUBLISHER_URL
+              Value: !Sub http://work-publisher.${EnvironmentName}.local:8081
+            - Name: BID_GATEWAY_URL
+              Value: !Sub http://bid-gateway.${EnvironmentName}.local:8082
+            - Name: BID_EVALUATOR_URL
+              Value: !Sub http://bid-evaluator.${EnvironmentName}.local:8083
+            - Name: CONTRACT_ENGINE_URL
+              Value: !Sub http://contract-engine.${EnvironmentName}.local:8084
+            - Name: SETTLEMENT_URL
+              Value: !Sub http://settlement.${EnvironmentName}.local:8086
+            - Name: PROVIDER_REGISTRY_URL
+              Value: !Sub http://provider-registry.${EnvironmentName}.local:8085
+            - Name: TRUST_BROKER_URL
+              Value: !Sub http://trust-broker.${EnvironmentName}.local:8088
+            - Name: IDENTITY_URL
+              Value: !Sub http://identity.${EnvironmentName}.local:8089
+            - Name: TELEMETRY_URL
+              Value: !Sub http://telemetry.${EnvironmentName}.local:8090
+
+  # Demo Agent Task Definitions
+  LegalAgentATaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-legal-agent-a
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: legal-agent-a
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/legal-agent-a:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8100
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: legal-agent-a
+          Environment:
+            - Name: PORT
+              Value: '8100'
+            - Name: AEX_GATEWAY_URL
+              Value: !Sub http://gateway.${EnvironmentName}.local:8080
+          Secrets:
+            - Name: ANTHROPIC_API_KEY
+              ValueFrom: !ImportValue
+                Fn::Sub: ${EnvironmentName}-AnthropicAPIKeySecretArn
+
+  LegalAgentBTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-legal-agent-b
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: legal-agent-b
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/legal-agent-b:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8101
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: legal-agent-b
+          Environment:
+            - Name: PORT
+              Value: '8101'
+            - Name: AEX_GATEWAY_URL
+              Value: !Sub http://gateway.${EnvironmentName}.local:8080
+          Secrets:
+            - Name: ANTHROPIC_API_KEY
+              ValueFrom: !ImportValue
+                Fn::Sub: ${EnvironmentName}-AnthropicAPIKeySecretArn
+
+  LegalAgentCTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-legal-agent-c
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: legal-agent-c
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/legal-agent-c:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8102
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: legal-agent-c
+          Environment:
+            - Name: PORT
+              Value: '8102'
+            - Name: AEX_GATEWAY_URL
+              Value: !Sub http://gateway.${EnvironmentName}.local:8080
+          Secrets:
+            - Name: ANTHROPIC_API_KEY
+              ValueFrom: !ImportValue
+                Fn::Sub: ${EnvironmentName}-AnthropicAPIKeySecretArn
+
+  OrchestratorTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-orchestrator
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: orchestrator
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/orchestrator:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8103
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: orchestrator
+          Environment:
+            - Name: PORT
+              Value: '8103'
+            - Name: AEX_GATEWAY_URL
+              Value: !Sub http://gateway.${EnvironmentName}.local:8080
+          Secrets:
+            - Name: ANTHROPIC_API_KEY
+              ValueFrom: !ImportValue
+                Fn::Sub: ${EnvironmentName}-AnthropicAPIKeySecretArn
+
+  DemoUITaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-demo-ui
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: demo-ui
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/demo-ui:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8080
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: demo-ui
+          Environment:
+            - Name: ORCHESTRATOR_URL
+              Value: !Sub http://orchestrator.${EnvironmentName}.local:8103
+
+  # ECS Services
+  # MongoDB must start first - all other services depend on it
+  MongoDBService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: mongodb
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref MongoDBTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt MongoDBServiceDiscovery.Arn
+
+  ProviderRegistryService:
+    Type: AWS::ECS::Service
+    DependsOn: MongoDBService
+    Properties:
+      ServiceName: provider-registry
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref ProviderRegistryTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ProviderRegistryServiceDiscovery.Arn
+
+  WorkPublisherService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - MongoDBService
+      - ProviderRegistryService
+    Properties:
+      ServiceName: work-publisher
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref WorkPublisherTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt WorkPublisherServiceDiscovery.Arn
+
+  BidGatewayService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - MongoDBService
+      - ProviderRegistryService
+    Properties:
+      ServiceName: bid-gateway
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref BidGatewayTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt BidGatewayServiceDiscovery.Arn
+
+  TrustBrokerService:
+    Type: AWS::ECS::Service
+    DependsOn: MongoDBService
+    Properties:
+      ServiceName: trust-broker
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref TrustBrokerTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt TrustBrokerServiceDiscovery.Arn
+
+  BidEvaluatorService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - MongoDBService
+      - BidGatewayService
+      - TrustBrokerService
+      - WorkPublisherService
+    Properties:
+      ServiceName: bid-evaluator
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref BidEvaluatorTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt BidEvaluatorServiceDiscovery.Arn
+
+  ContractEngineService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - MongoDBService
+      - BidGatewayService
+      - WorkPublisherService
+    Properties:
+      ServiceName: contract-engine
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref ContractEngineTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt ContractEngineServiceDiscovery.Arn
+
+  SettlementService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - MongoDBService
+      - ContractEngineService
+      - TrustBrokerService
+    Properties:
+      ServiceName: settlement
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref SettlementTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt SettlementServiceDiscovery.Arn
+
+  IdentityService:
+    Type: AWS::ECS::Service
+    DependsOn: MongoDBService
+    Properties:
+      ServiceName: identity
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref IdentityTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt IdentityServiceDiscovery.Arn
+
+  TelemetryService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: telemetry
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref TelemetryTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt TelemetryServiceDiscovery.Arn
+
+  GatewayService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WorkPublisherService
+      - BidGatewayService
+      - BidEvaluatorService
+      - ContractEngineService
+      - SettlementService
+      - ProviderRegistryService
+      - TrustBrokerService
+      - IdentityService
+      - TelemetryService
+      - GatewayListenerRule
+    Properties:
+      ServiceName: gateway
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref GatewayTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: gateway
+          ContainerPort: 8080
+          TargetGroupArn: !Ref GatewayTargetGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt GatewayServiceDiscovery.Arn
+
+  # Demo Services
+  LegalAgentAService:
+    Type: AWS::ECS::Service
+    DependsOn: GatewayService
+    Properties:
+      ServiceName: legal-agent-a
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref LegalAgentATaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt LegalAgentAServiceDiscovery.Arn
+
+  LegalAgentBService:
+    Type: AWS::ECS::Service
+    DependsOn: GatewayService
+    Properties:
+      ServiceName: legal-agent-b
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref LegalAgentBTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt LegalAgentBServiceDiscovery.Arn
+
+  LegalAgentCService:
+    Type: AWS::ECS::Service
+    DependsOn: GatewayService
+    Properties:
+      ServiceName: legal-agent-c
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref LegalAgentCTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt LegalAgentCServiceDiscovery.Arn
+
+  OrchestratorService:
+    Type: AWS::ECS::Service
+    DependsOn: GatewayService
+    Properties:
+      ServiceName: orchestrator
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref OrchestratorTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt OrchestratorServiceDiscovery.Arn
+
+  DemoUIService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - OrchestratorService
+      - DemoUIListenerRule
+    Properties:
+      ServiceName: demo-ui
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref DemoUITaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: demo-ui
+          ContainerPort: 8080
+          TargetGroupArn: !Ref DemoUITargetGroup
+
+Outputs:
+  GatewayServiceName:
+    Description: Gateway ECS Service Name
+    Value: !GetAtt GatewayService.Name
+
+  DemoUIServiceName:
+    Description: Demo UI ECS Service Name
+    Value: !GetAtt DemoUIService.Name
+
+  ALBDNSName:
+    Description: Application Load Balancer DNS Name
+    Value: !ImportValue
+      Fn::Sub: ${EnvironmentName}-ALBDNSName
