@@ -86,7 +86,7 @@ func (s *MongoWorkStore) ListWork(ctx context.Context, consumerID string, limit 
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var works []model.WorkSpec
 	for cur.Next(ctx) {

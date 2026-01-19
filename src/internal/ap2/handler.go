@@ -36,12 +36,12 @@ type ProcessPaymentRequest struct {
 
 // PaymentResult contains the result of a payment processing.
 type PaymentResult struct {
-	Success          bool            `json:"success"`
-	Receipt          *PaymentReceipt `json:"receipt,omitempty"`
-	IntentMandate    *IntentMandate  `json:"intent_mandate,omitempty"`
-	CartMandate      *CartMandate    `json:"cart_mandate,omitempty"`
-	PaymentMandate   *PaymentMandate `json:"payment_mandate,omitempty"`
-	ErrorMessage     string          `json:"error_message,omitempty"`
+	Success        bool            `json:"success"`
+	Receipt        *PaymentReceipt `json:"receipt,omitempty"`
+	IntentMandate  *IntentMandate  `json:"intent_mandate,omitempty"`
+	CartMandate    *CartMandate    `json:"cart_mandate,omitempty"`
+	PaymentMandate *PaymentMandate `json:"payment_mandate,omitempty"`
+	ErrorMessage   string          `json:"error_message,omitempty"`
 }
 
 // ProcessPayment handles the full AP2 payment flow for a contract.

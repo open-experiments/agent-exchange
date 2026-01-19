@@ -48,7 +48,7 @@ func TestSubmitBidAndListInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
@@ -57,7 +57,7 @@ func TestSubmitBidAndListInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listResp.Body.Close()
+	defer func() { _ = listResp.Body.Close() }()
 	if listResp.StatusCode != 200 {
 		t.Fatalf("expected 200, got %d", listResp.StatusCode)
 	}

@@ -10,6 +10,3 @@ type EvaluationStore interface {
 	Save(ctx context.Context, ev model.BidEvaluation) error
 	GetLatest(ctx context.Context, workID string) (*model.BidEvaluation, error)
 }
-
-
-

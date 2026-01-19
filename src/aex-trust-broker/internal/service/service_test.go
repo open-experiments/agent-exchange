@@ -66,8 +66,8 @@ func TestCalculateWeightedScore(t *testing.T) {
 		{
 			name: "mixed outcomes - weighted average",
 			outcomes: []model.ContractOutcome{
-				{Outcome: model.OutcomeSuccess},            // 1.0 * 1.0 = 1.0
-				{Outcome: model.OutcomeFailureProvider},    // 0.0 * 1.0 = 0.0
+				{Outcome: model.OutcomeSuccess},         // 1.0 * 1.0 = 1.0
+				{Outcome: model.OutcomeFailureProvider}, // 0.0 * 1.0 = 0.0
 			},
 			wantScore: 0.5, // (1.0 + 0.0) / 2
 		},
@@ -120,74 +120,74 @@ func TestCalculateWeightedScore(t *testing.T) {
 
 func TestDetermineTier(t *testing.T) {
 	tests := []struct {
-		name          string
-		score         float64
-		currentTier   model.TrustTier
+		name           string
+		score          float64
+		currentTier    model.TrustTier
 		totalContracts int
-		wantTier      model.TrustTier
+		wantTier       model.TrustTier
 	}{
 		{
-			name:          "internal tier always stays internal",
-			score:         0.5,
-			currentTier:   model.TrustTierInternal,
+			name:           "internal tier always stays internal",
+			score:          0.5,
+			currentTier:    model.TrustTierInternal,
 			totalContracts: 0,
-			wantTier:      model.TrustTierInternal,
+			wantTier:       model.TrustTierInternal,
 		},
 		{
-			name:          "preferred tier requires high score and volume",
-			score:         0.95,
-			currentTier:   model.TrustTierTrusted,
+			name:           "preferred tier requires high score and volume",
+			score:          0.95,
+			currentTier:    model.TrustTierTrusted,
 			totalContracts: 100,
-			wantTier:      model.TrustTierPreferred,
+			wantTier:       model.TrustTierPreferred,
 		},
 		{
-			name:          "preferred tier not reached without enough contracts",
-			score:         0.95,
-			currentTier:   model.TrustTierTrusted,
+			name:           "preferred tier not reached without enough contracts",
+			score:          0.95,
+			currentTier:    model.TrustTierTrusted,
 			totalContracts: 99,
-			wantTier:      model.TrustTierTrusted,
+			wantTier:       model.TrustTierTrusted,
 		},
 		{
-			name:          "trusted tier requires 0.7+ score and 25+ contracts",
-			score:         0.75,
-			currentTier:   model.TrustTierVerified,
+			name:           "trusted tier requires 0.7+ score and 25+ contracts",
+			score:          0.75,
+			currentTier:    model.TrustTierVerified,
 			totalContracts: 25,
-			wantTier:      model.TrustTierTrusted,
+			wantTier:       model.TrustTierTrusted,
 		},
 		{
-			name:          "verified tier requires 0.5+ score and 5+ contracts",
-			score:         0.6,
-			currentTier:   model.TrustTierUnverified,
+			name:           "verified tier requires 0.5+ score and 5+ contracts",
+			score:          0.6,
+			currentTier:    model.TrustTierUnverified,
 			totalContracts: 5,
-			wantTier:      model.TrustTierVerified,
+			wantTier:       model.TrustTierVerified,
 		},
 		{
-			name:          "new provider starts unverified",
-			score:         0.3,
-			currentTier:   model.TrustTierUnverified,
+			name:           "new provider starts unverified",
+			score:          0.3,
+			currentTier:    model.TrustTierUnverified,
 			totalContracts: 0,
-			wantTier:      model.TrustTierUnverified,
+			wantTier:       model.TrustTierUnverified,
 		},
 		{
-			name:          "low score returns to unverified",
-			score:         0.4,
-			currentTier:   model.TrustTierVerified,
+			name:           "low score returns to unverified",
+			score:          0.4,
+			currentTier:    model.TrustTierVerified,
 			totalContracts: 10,
-			wantTier:      model.TrustTierUnverified,
+			wantTier:       model.TrustTierUnverified,
 		},
 		{
-			name:          "boundary case - exactly 0.9 score and 100 contracts",
-			score:         0.9,
-			currentTier:   model.TrustTierTrusted,
+			name:           "boundary case - exactly 0.9 score and 100 contracts",
+			score:          0.9,
+			currentTier:    model.TrustTierTrusted,
 			totalContracts: 100,
-			wantTier:      model.TrustTierPreferred,
+			wantTier:       model.TrustTierPreferred,
 		},
 		{
-			name:          "boundary case - just below preferred threshold",
-			score:         0.89,
-			currentTier:   model.TrustTierTrusted,
+			name:           "boundary case - just below preferred threshold",
+			score:          0.89,
+			currentTier:    model.TrustTierTrusted,
 			totalContracts: 100,
-			wantTier:      model.TrustTierTrusted,
+			wantTier:       model.TrustTierTrusted,
 		},
 	}
 
@@ -291,60 +291,60 @@ func TestClamp01(t *testing.T) {
 
 func TestTrustScoreModifiers(t *testing.T) {
 	tests := []struct {
-		name              string
-		identityVerified  bool
-		endpointVerified  bool
-		tenureMonths      int
-		wantModifier      float64
+		name             string
+		identityVerified bool
+		endpointVerified bool
+		tenureMonths     int
+		wantModifier     float64
 	}{
 		{
-			name:              "no verification, new provider",
-			identityVerified:  false,
-			endpointVerified:  false,
-			tenureMonths:      0,
-			wantModifier:      0.0,
+			name:             "no verification, new provider",
+			identityVerified: false,
+			endpointVerified: false,
+			tenureMonths:     0,
+			wantModifier:     0.0,
 		},
 		{
-			name:              "identity verified only",
-			identityVerified:  true,
-			endpointVerified:  false,
-			tenureMonths:      0,
-			wantModifier:      0.05,
+			name:             "identity verified only",
+			identityVerified: true,
+			endpointVerified: false,
+			tenureMonths:     0,
+			wantModifier:     0.05,
 		},
 		{
-			name:              "endpoint verified only",
-			identityVerified:  false,
-			endpointVerified:  true,
-			tenureMonths:      0,
-			wantModifier:      0.05,
+			name:             "endpoint verified only",
+			identityVerified: false,
+			endpointVerified: true,
+			tenureMonths:     0,
+			wantModifier:     0.05,
 		},
 		{
-			name:              "both verified",
-			identityVerified:  true,
-			endpointVerified:  true,
-			tenureMonths:      0,
-			wantModifier:      0.10,
+			name:             "both verified",
+			identityVerified: true,
+			endpointVerified: true,
+			tenureMonths:     0,
+			wantModifier:     0.10,
 		},
 		{
-			name:              "both verified + 1 month tenure",
-			identityVerified:  true,
-			endpointVerified:  true,
-			tenureMonths:      1,
-			wantModifier:      0.12, // 0.05 + 0.05 + 0.02
+			name:             "both verified + 1 month tenure",
+			identityVerified: true,
+			endpointVerified: true,
+			tenureMonths:     1,
+			wantModifier:     0.12, // 0.05 + 0.05 + 0.02
 		},
 		{
-			name:              "both verified + 5 months tenure (max)",
-			identityVerified:  true,
-			endpointVerified:  true,
-			tenureMonths:      5,
-			wantModifier:      0.20, // 0.05 + 0.05 + 0.10
+			name:             "both verified + 5 months tenure (max)",
+			identityVerified: true,
+			endpointVerified: true,
+			tenureMonths:     5,
+			wantModifier:     0.20, // 0.05 + 0.05 + 0.10
 		},
 		{
-			name:              "both verified + 10 months tenure (capped at 5)",
-			identityVerified:  true,
-			endpointVerified:  true,
-			tenureMonths:      10,
-			wantModifier:      0.20, // 0.05 + 0.05 + 0.10 (capped)
+			name:             "both verified + 10 months tenure (capped at 5)",
+			identityVerified: true,
+			endpointVerified: true,
+			tenureMonths:     10,
+			wantModifier:     0.20, // 0.05 + 0.05 + 0.10 (capped)
 		},
 	}
 
@@ -374,13 +374,13 @@ func TestTrustScoreModifiers(t *testing.T) {
 func TestTrustScoreIntegration(t *testing.T) {
 	// Test complete trust score calculation with base + modifiers
 	tests := []struct {
-		name              string
-		outcomes          []model.ContractOutcome
-		identityVerified  bool
-		endpointVerified  bool
-		tenureMonths      int
-		wantMinScore      float64
-		wantMaxScore      float64
+		name             string
+		outcomes         []model.ContractOutcome
+		identityVerified bool
+		endpointVerified bool
+		tenureMonths     int
+		wantMinScore     float64
+		wantMaxScore     float64
 	}{
 		{
 			name: "perfect provider",
@@ -398,7 +398,7 @@ func TestTrustScoreIntegration(t *testing.T) {
 			wantMaxScore:     1.0, // Clamped at 1.0
 		},
 		{
-			name: "new provider with no contracts",
+			name:             "new provider with no contracts",
 			outcomes:         []model.ContractOutcome{},
 			identityVerified: false,
 			endpointVerified: false,

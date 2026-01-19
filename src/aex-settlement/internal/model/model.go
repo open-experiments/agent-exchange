@@ -32,12 +32,12 @@ type Execution struct {
 	PaymentMethod        string `json:"payment_method,omitempty" bson:"payment_method,omitempty"`
 
 	// Payment Provider fields (for payment provider marketplace)
-	PaymentProviderID   string  `json:"payment_provider_id,omitempty" bson:"payment_provider_id,omitempty"`
-	PaymentProviderName string  `json:"payment_provider_name,omitempty" bson:"payment_provider_name,omitempty"`
-	PaymentBaseFee      string  `json:"payment_base_fee,omitempty" bson:"payment_base_fee,omitempty"`
-	PaymentReward       string  `json:"payment_reward,omitempty" bson:"payment_reward,omitempty"`
-	PaymentNetCost      string  `json:"payment_net_cost,omitempty" bson:"payment_net_cost,omitempty"` // Can be negative (cashback)
-	WorkCategory        string  `json:"work_category,omitempty" bson:"work_category,omitempty"`
+	PaymentProviderID   string `json:"payment_provider_id,omitempty" bson:"payment_provider_id,omitempty"`
+	PaymentProviderName string `json:"payment_provider_name,omitempty" bson:"payment_provider_name,omitempty"`
+	PaymentBaseFee      string `json:"payment_base_fee,omitempty" bson:"payment_base_fee,omitempty"`
+	PaymentReward       string `json:"payment_reward,omitempty" bson:"payment_reward,omitempty"`
+	PaymentNetCost      string `json:"payment_net_cost,omitempty" bson:"payment_net_cost,omitempty"` // Can be negative (cashback)
+	WorkCategory        string `json:"work_category,omitempty" bson:"work_category,omitempty"`
 }
 
 // LedgerEntry represents an immutable ledger entry
@@ -120,8 +120,8 @@ type ContractCompletedEvent struct {
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 
 	// AP2 Payment options
-	UseAP2         bool   `json:"use_ap2,omitempty"`
-	PaymentMethod  string `json:"payment_method,omitempty"`
+	UseAP2        bool   `json:"use_ap2,omitempty"`
+	PaymentMethod string `json:"payment_method,omitempty"`
 
 	// Work category for payment provider selection
 	WorkCategory string `json:"work_category,omitempty"` // "contracts", "compliance", "general"
@@ -129,24 +129,24 @@ type ContractCompletedEvent struct {
 
 // AP2PaymentResult contains the result of AP2 payment processing
 type AP2PaymentResult struct {
-	Success            bool   `json:"success"`
-	PaymentMandateID   string `json:"payment_mandate_id,omitempty"`
-	ReceiptID          string `json:"receipt_id,omitempty"`
-	TransactionID      string `json:"transaction_id,omitempty"`
-	PaymentMethod      string `json:"payment_method,omitempty"`
-	ErrorMessage       string `json:"error_message,omitempty"`
+	Success          bool   `json:"success"`
+	PaymentMandateID string `json:"payment_mandate_id,omitempty"`
+	ReceiptID        string `json:"receipt_id,omitempty"`
+	TransactionID    string `json:"transaction_id,omitempty"`
+	PaymentMethod    string `json:"payment_method,omitempty"`
+	ErrorMessage     string `json:"error_message,omitempty"`
 }
 
 // PaymentProviderBid represents a bid from a payment provider
 type PaymentProviderBid struct {
-	ProviderID           string   `json:"provider_id"`
-	ProviderName         string   `json:"provider_name"`
-	BaseFeePercent       float64  `json:"base_fee_percent"`
-	RewardPercent        float64  `json:"reward_percent"`
-	NetFeePercent        float64  `json:"net_fee_percent"` // base_fee - reward (can be negative = cashback)
-	ProcessingTimeSeconds int     `json:"processing_time_seconds"`
-	SupportedMethods     []string `json:"supported_methods"`
-	FraudProtection      string   `json:"fraud_protection"` // "none", "basic", "standard", "advanced"
+	ProviderID            string   `json:"provider_id"`
+	ProviderName          string   `json:"provider_name"`
+	BaseFeePercent        float64  `json:"base_fee_percent"`
+	RewardPercent         float64  `json:"reward_percent"`
+	NetFeePercent         float64  `json:"net_fee_percent"` // base_fee - reward (can be negative = cashback)
+	ProcessingTimeSeconds int      `json:"processing_time_seconds"`
+	SupportedMethods      []string `json:"supported_methods"`
+	FraudProtection       string   `json:"fraud_protection"` // "none", "basic", "standard", "advanced"
 }
 
 // PaymentProviderSelection represents the selected payment provider and its bid

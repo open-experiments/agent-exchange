@@ -11,6 +11,3 @@ type ContractStore interface {
 	Get(ctx context.Context, contractID string) (*model.Contract, error)
 	Update(ctx context.Context, c model.Contract) error
 }
-
-
-

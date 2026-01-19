@@ -46,4 +46,3 @@ func Logging(next http.Handler) http.Handler {
 			r.Method, r.URL.Path, wrapped.status, duration, requestID, tenantID, wrapped.size)
 	})
 }
-

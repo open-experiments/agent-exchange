@@ -301,7 +301,7 @@ func decodeJSON(r *http.Request, v any) error {
 	if err != nil {
 		return err
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	return json.Unmarshal(body, v)
 }
 

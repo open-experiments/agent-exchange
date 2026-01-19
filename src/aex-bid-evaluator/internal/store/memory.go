@@ -35,6 +35,3 @@ func (s *MemoryEvaluationStore) GetLatest(ctx context.Context, workID string) (*
 	out := ev
 	return &out, nil
 }
-
-
-

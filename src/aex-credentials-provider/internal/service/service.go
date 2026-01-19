@@ -15,9 +15,9 @@ import (
 // Service implements the AP2 Credentials Provider functionality.
 type Service struct {
 	mu             sync.RWMutex
-	paymentMethods map[string][]ap2.PaymentMethod      // userID -> methods
-	tokens         map[string]*ap2.PaymentMethodToken  // tokenID -> token
-	transactions   map[string]*ap2.PaymentReceipt      // receiptID -> receipt
+	paymentMethods map[string][]ap2.PaymentMethod     // userID -> methods
+	tokens         map[string]*ap2.PaymentMethodToken // tokenID -> token
+	transactions   map[string]*ap2.PaymentReceipt     // receiptID -> receipt
 }
 
 // New creates a new Credentials Provider service.
@@ -36,32 +36,32 @@ func (s *Service) initDemoData() {
 	// Default payment methods available to all users
 	defaultMethods := []ap2.PaymentMethod{
 		{
-			ID:          "pm_demo_visa_4242",
-			Type:        "CARD",
-			DisplayName: "Visa ending in 4242",
-			Last4:       "4242",
-			ExpiryMonth: 12,
-			ExpiryYear:  2027,
-			Brand:       "Visa",
-			IsDefault:   true,
+			ID:               "pm_demo_visa_4242",
+			Type:             "CARD",
+			DisplayName:      "Visa ending in 4242",
+			Last4:            "4242",
+			ExpiryMonth:      12,
+			ExpiryYear:       2027,
+			Brand:            "Visa",
+			IsDefault:        true,
 			SupportedMethods: []string{"CARD"},
 		},
 		{
-			ID:          "pm_demo_mc_5555",
-			Type:        "CARD",
-			DisplayName: "Mastercard ending in 5555",
-			Last4:       "5555",
-			ExpiryMonth: 6,
-			ExpiryYear:  2026,
-			Brand:       "Mastercard",
-			IsDefault:   false,
+			ID:               "pm_demo_mc_5555",
+			Type:             "CARD",
+			DisplayName:      "Mastercard ending in 5555",
+			Last4:            "5555",
+			ExpiryMonth:      6,
+			ExpiryYear:       2026,
+			Brand:            "Mastercard",
+			IsDefault:        false,
 			SupportedMethods: []string{"CARD"},
 		},
 		{
-			ID:          "pm_aex_balance",
-			Type:        "AEX_BALANCE",
-			DisplayName: "AEX Account Balance",
-			IsDefault:   false,
+			ID:               "pm_aex_balance",
+			Type:             "AEX_BALANCE",
+			DisplayName:      "AEX Account Balance",
+			IsDefault:        false,
 			SupportedMethods: []string{"AEX_BALANCE"},
 		},
 	}
@@ -285,6 +285,6 @@ func (s *Service) GetReceipt(ctx context.Context, receiptID string) (*ap2.Paymen
 // generateID creates a random ID with prefix.
 func (s *Service) generateID(prefix string) string {
 	var b [8]byte
-	rand.Read(b[:])
+	_, _ = rand.Read(b[:])
 	return prefix + "_" + hex.EncodeToString(b[:])
 }

@@ -42,7 +42,7 @@ func (s *MongoBidStore) ListByWorkID(ctx context.Context, workID string) ([]mode
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var out []model.BidPacket
 	for cur.Next(ctx) {
@@ -57,6 +57,3 @@ func (s *MongoBidStore) ListByWorkID(ctx context.Context, workID string) ([]mode
 	}
 	return out, nil
 }
-
-
-

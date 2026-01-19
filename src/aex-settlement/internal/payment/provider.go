@@ -198,7 +198,7 @@ func (c *ProviderClient) requestBid(ctx context.Context, provider PaymentProvide
 	if err != nil {
 		return model.PaymentProviderBid{}, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return model.PaymentProviderBid{}, fmt.Errorf("unexpected status: %d", resp.StatusCode)

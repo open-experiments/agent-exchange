@@ -38,7 +38,7 @@ func (c *TrustBrokerClient) GetScore(ctx context.Context, providerID string) (fl
 	if err != nil {
 		return 0.5, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return 0.5, fmt.Errorf("trust-broker returned %d", resp.StatusCode)
 	}
@@ -50,6 +50,3 @@ func (c *TrustBrokerClient) GetScore(ctx context.Context, providerID string) (fl
 	}
 	return out.TrustScore, nil
 }
-
-
-

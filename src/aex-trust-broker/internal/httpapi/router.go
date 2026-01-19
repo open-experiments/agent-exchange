@@ -14,5 +14,3 @@ func NewRouter(svc *service.Service) http.Handler {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	return mux
 }
-
-

@@ -201,10 +201,9 @@ type ProviderSearchResult struct {
 
 // SearchProvidersRequestV2 includes AP2 filter
 type SearchProvidersRequestV2 struct {
-	SkillTags   []string `json:"skill_tags,omitempty"`
-	Domain      string   `json:"domain,omitempty"`
-	MinTrust    float64  `json:"min_trust,omitempty"`
-	Limit       int      `json:"limit,omitempty"`
-	RequireAP2  bool     `json:"require_ap2,omitempty"`
+	SkillTags  []string `json:"skill_tags,omitempty"`
+	Domain     string   `json:"domain,omitempty"`
+	MinTrust   float64  `json:"min_trust,omitempty"`
+	Limit      int      `json:"limit,omitempty"`
+	RequireAP2 bool     `json:"require_ap2,omitempty"`
 }
-

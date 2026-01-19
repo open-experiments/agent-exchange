@@ -123,4 +123,3 @@ func RateLimit(limiter *RateLimiter) func(http.Handler) http.Handler {
 		})
 	}
 }
-

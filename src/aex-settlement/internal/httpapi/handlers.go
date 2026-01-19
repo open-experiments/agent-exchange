@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/parlakisik/agent-exchange/aex-settlement/internal/model"
 	"github.com/parlakisik/agent-exchange/aex-settlement/internal/service"
@@ -154,14 +153,5 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 func respondJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
-}
-
-// Helper to extract path segments
-func getPathSegment(path string, index int) string {
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if index < len(parts) {
-		return parts[index]
-	}
-	return ""
+	_ = json.NewEncoder(w).Encode(data)
 }

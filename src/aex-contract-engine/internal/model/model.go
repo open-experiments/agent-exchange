@@ -95,6 +95,3 @@ type FailRequest struct {
 	Message    string `json:"message"`
 	ReportedBy string `json:"reported_by"` // "provider" or "consumer"
 }
-
-
-

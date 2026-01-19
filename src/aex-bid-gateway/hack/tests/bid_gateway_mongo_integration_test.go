@@ -62,6 +62,3 @@ func TestBidGatewayMongoIntegration(t *testing.T) {
 		t.Fatalf("expected 200, got %d", listResp.StatusCode)
 	}
 }
-
-
-

@@ -52,7 +52,7 @@ func (g *MandateGenerator) GenerateCartMandate(info ContractInfo, intent *Intent
 				{
 					SupportedMethods: "CARD",
 					Data: map[string]interface{}{
-						"payment_processor_url": fmt.Sprintf("http://aex-settlement:8106/v1/process"),
+						"payment_processor_url": "http://aex-settlement:8106/v1/process",
 					},
 				},
 				{
@@ -196,7 +196,7 @@ func (g *MandateGenerator) ValidatePaymentMandate(mandate *PaymentMandate) error
 // generateRandomID creates a random hex ID.
 func generateRandomID() string {
 	var b [8]byte
-	rand.Read(b[:])
+	_, _ = rand.Read(b[:])
 	return hex.EncodeToString(b[:])
 }
 

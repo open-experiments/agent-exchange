@@ -44,7 +44,7 @@ func (c *ProviderRegistryClient) ValidateAPIKey(ctx context.Context, apiKey stri
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("invalid API key: status %d", resp.StatusCode)
@@ -61,4 +61,3 @@ func (c *ProviderRegistryClient) ValidateAPIKey(ctx context.Context, apiKey stri
 
 	return result.ProviderID, nil
 }
-

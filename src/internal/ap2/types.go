@@ -71,8 +71,8 @@ type PaymentDetailsModifier struct {
 
 // PaymentDetailsInit contains the details of the payment being requested.
 type PaymentDetailsInit struct {
-	ID              string                   `json:"id"`                        // Unique identifier
-	DisplayItems    []PaymentItem            `json:"display_items"`             // Items to display
+	ID              string                   `json:"id"`            // Unique identifier
+	DisplayItems    []PaymentItem            `json:"display_items"` // Items to display
 	ShippingOptions []PaymentShippingOption  `json:"shipping_options,omitempty"`
 	Modifiers       []PaymentDetailsModifier `json:"modifiers,omitempty"`
 	Total           PaymentItem              `json:"total"` // Total payment amount
@@ -89,23 +89,23 @@ type PaymentRequest struct {
 
 // ContactAddress represents a physical address.
 type ContactAddress struct {
-	Country            string   `json:"country,omitempty"`
-	AddressLine        []string `json:"address_line,omitempty"`
-	Region             string   `json:"region,omitempty"`
-	City               string   `json:"city,omitempty"`
-	DependentLocality  string   `json:"dependent_locality,omitempty"`
-	PostalCode         string   `json:"postal_code,omitempty"`
-	SortingCode        string   `json:"sorting_code,omitempty"`
-	Organization       string   `json:"organization,omitempty"`
-	Recipient          string   `json:"recipient,omitempty"`
-	Phone              string   `json:"phone,omitempty"`
+	Country           string   `json:"country,omitempty"`
+	AddressLine       []string `json:"address_line,omitempty"`
+	Region            string   `json:"region,omitempty"`
+	City              string   `json:"city,omitempty"`
+	DependentLocality string   `json:"dependent_locality,omitempty"`
+	PostalCode        string   `json:"postal_code,omitempty"`
+	SortingCode       string   `json:"sorting_code,omitempty"`
+	Organization      string   `json:"organization,omitempty"`
+	Recipient         string   `json:"recipient,omitempty"`
+	Phone             string   `json:"phone,omitempty"`
 }
 
 // PaymentResponse indicates a user has chosen a payment method.
 type PaymentResponse struct {
-	RequestID       string                 `json:"request_id"`                 // From original PaymentRequest
-	MethodName      string                 `json:"method_name"`                // Payment method chosen
-	Details         map[string]interface{} `json:"details,omitempty"`          // Method-specific details
+	RequestID       string                 `json:"request_id"`        // From original PaymentRequest
+	MethodName      string                 `json:"method_name"`       // Payment method chosen
+	Details         map[string]interface{} `json:"details,omitempty"` // Method-specific details
 	ShippingAddress *ContactAddress        `json:"shipping_address,omitempty"`
 	ShippingOption  *PaymentShippingOption `json:"shipping_option,omitempty"`
 	PayerName       string                 `json:"payer_name,omitempty"`
@@ -182,13 +182,13 @@ type PaymentMandate struct {
 
 // PaymentReceipt represents the result of a payment transaction.
 type PaymentReceipt struct {
-	ReceiptID        string    `json:"receipt_id"`
-	PaymentMandateID string    `json:"payment_mandate_id"`
-	Status           string    `json:"status"` // "SUCCESS", "FAILED", "PENDING"
-	TransactionID    string    `json:"transaction_id,omitempty"`
+	ReceiptID        string                `json:"receipt_id"`
+	PaymentMandateID string                `json:"payment_mandate_id"`
+	Status           string                `json:"status"` // "SUCCESS", "FAILED", "PENDING"
+	TransactionID    string                `json:"transaction_id,omitempty"`
 	Amount           PaymentCurrencyAmount `json:"amount"`
-	Timestamp        time.Time `json:"timestamp"`
-	ErrorMessage     string    `json:"error_message,omitempty"`
+	Timestamp        time.Time             `json:"timestamp"`
+	ErrorMessage     string                `json:"error_message,omitempty"`
 }
 
 // AP2ExtensionParams defines the A2A extension parameters for AP2.
@@ -212,8 +212,8 @@ type PaymentMethod struct {
 
 // PaymentMethodToken represents a tokenized payment credential.
 type PaymentMethodToken struct {
-	Token       string    `json:"token"`        // Tokenized credential
-	MethodID    string    `json:"method_id"`    // Reference to PaymentMethod
-	ExpiresAt   time.Time `json:"expires_at"`   // Token expiration
-	TokenType   string    `json:"token_type"`   // e.g., "SINGLE_USE", "MULTI_USE"
+	Token     string    `json:"token"`      // Tokenized credential
+	MethodID  string    `json:"method_id"`  // Reference to PaymentMethod
+	ExpiresAt time.Time `json:"expires_at"` // Token expiration
+	TokenType string    `json:"token_type"` // e.g., "SINGLE_USE", "MULTI_USE"
 }

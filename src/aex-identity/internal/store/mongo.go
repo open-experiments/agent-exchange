@@ -84,7 +84,7 @@ func (s *MongoStore) ListAPIKeys(ctx context.Context, tenantID string) ([]model.
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var out []model.APIKey
 	for cur.Next(ctx) {
@@ -140,6 +140,3 @@ func (s *MongoStore) FindAPIKeyByHash(ctx context.Context, keyHash string) (*mod
 	}
 	return &k, nil
 }
-
-
-

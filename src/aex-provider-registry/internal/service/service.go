@@ -351,24 +351,6 @@ func (s *Service) HandleInternalSubscribed(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func validateHTTPSURL(raw string) error {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return errors.New("empty")
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return err
-	}
-	if u.Scheme != "https" {
-		return errors.New("scheme must be https")
-	}
-	if u.Host == "" {
-		return errors.New("missing host")
-	}
-	return nil
-}
-
 // validateURL validates URL, allowing HTTP in development mode
 func (s *Service) validateURL(raw string) error {
 	raw = strings.TrimSpace(raw)
@@ -399,7 +381,7 @@ func decodeJSON(r *http.Request, v any) error {
 	if err != nil {
 		return err
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	return json.Unmarshal(body, v)
 }
 
@@ -561,10 +543,10 @@ func (s *Service) HandleRegisterAgentCard(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"provider_id":  providerID,
-		"a2a_endpoint": a2aEndpoint,
+		"provider_id":    providerID,
+		"a2a_endpoint":   a2aEndpoint,
 		"skills_indexed": len(skills),
-		"message":      "agent card registered successfully",
+		"message":        "agent card registered successfully",
 	})
 }
 
@@ -639,12 +621,6 @@ func deriveA2AEndpoint(agentURL string) string {
 
 func parseFloat(s string) (float64, error) {
 	var f float64
-	_, err := io.ReadFull(strings.NewReader(s), nil)
-	if err != nil && err != io.EOF {
-		return 0, err
-	}
-	n, err := io.ReadFull(strings.NewReader(s), nil)
-	_ = n
 	// Simple parsing
 	for i, c := range s {
 		if c == '.' {

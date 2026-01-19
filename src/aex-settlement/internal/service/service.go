@@ -483,7 +483,7 @@ func (s *Service) ProcessDeposit(ctx context.Context, tenantID string, amount st
 
 func generateID(prefix string) string {
 	var b [8]byte
-	rand.Read(b[:])
+	_, _ = rand.Read(b[:])
 	return prefix + "_" + hex.EncodeToString(b[:])
 }
 

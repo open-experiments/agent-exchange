@@ -35,7 +35,7 @@ func (h *Handlers) HandleSubmitWork(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to read request", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	var req model.WorkSubmission
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -132,7 +132,7 @@ func (h *Handlers) HandleBidSubmitted(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 // HandleCloseBidWindow handles POST /internal/work/{work_id}/close-bids (internal endpoint)
@@ -153,7 +153,7 @@ func (h *Handlers) HandleCloseBidWindow(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

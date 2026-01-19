@@ -5,17 +5,17 @@ import "time"
 // AgentCard represents the A2A Agent Card structure
 // Based on https://google.github.io/A2A/specification/
 type AgentCard struct {
-	Name              string            `json:"name"`
-	Description       string            `json:"description"`
-	URL               string            `json:"url"`
-	Provider          *Provider         `json:"provider,omitempty"`
-	Version           string            `json:"version"`
-	DocumentationURL  string            `json:"documentationUrl,omitempty"`
-	Capabilities      Capabilities      `json:"capabilities"`
-	Authentication    *Authentication   `json:"authentication,omitempty"`
-	DefaultInputModes []string          `json:"defaultInputModes,omitempty"`
-	DefaultOutputModes []string         `json:"defaultOutputModes,omitempty"`
-	Skills            []Skill           `json:"skills"`
+	Name               string          `json:"name"`
+	Description        string          `json:"description"`
+	URL                string          `json:"url"`
+	Provider           *Provider       `json:"provider,omitempty"`
+	Version            string          `json:"version"`
+	DocumentationURL   string          `json:"documentationUrl,omitempty"`
+	Capabilities       Capabilities    `json:"capabilities"`
+	Authentication     *Authentication `json:"authentication,omitempty"`
+	DefaultInputModes  []string        `json:"defaultInputModes,omitempty"`
+	DefaultOutputModes []string        `json:"defaultOutputModes,omitempty"`
+	Skills             []Skill         `json:"skills"`
 }
 
 // Provider represents agent provider information
@@ -54,8 +54,8 @@ func (c *Capabilities) HasAP2Support() bool {
 
 // Authentication represents authentication requirements
 type Authentication struct {
-	Schemes []string `json:"schemes"`
-	Credentials string `json:"credentials,omitempty"`
+	Schemes     []string `json:"schemes"`
+	Credentials string   `json:"credentials,omitempty"`
 }
 
 // Skill represents an agent skill/capability
@@ -72,10 +72,10 @@ type Skill struct {
 // ResolvedAgentCard is the internal representation with additional metadata
 type ResolvedAgentCard struct {
 	AgentCard
-	SourceURL   string    `json:"source_url"`
-	ResolvedAt  time.Time `json:"resolved_at"`
-	ValidUntil  time.Time `json:"valid_until"`
-	ProviderID  string    `json:"provider_id,omitempty"`
+	SourceURL  string    `json:"source_url"`
+	ResolvedAt time.Time `json:"resolved_at"`
+	ValidUntil time.Time `json:"valid_until"`
+	ProviderID string    `json:"provider_id,omitempty"`
 }
 
 // SkillIndex represents searchable skill information

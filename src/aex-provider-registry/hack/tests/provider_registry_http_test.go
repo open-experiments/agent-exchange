@@ -31,7 +31,7 @@ func TestRegisterSubscribeAndInternalLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
@@ -60,7 +60,7 @@ func TestRegisterSubscribeAndInternalLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 	if resp2.StatusCode != 200 {
 		t.Fatalf("expected 200, got %d", resp2.StatusCode)
 	}
@@ -70,7 +70,7 @@ func TestRegisterSubscribeAndInternalLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp3.Body.Close()
+	defer func() { _ = resp3.Body.Close() }()
 	if resp3.StatusCode != 200 {
 		t.Fatalf("expected 200, got %d", resp3.StatusCode)
 	}
@@ -84,5 +84,3 @@ func TestRegisterSubscribeAndInternalLookup(t *testing.T) {
 		t.Fatalf("expected provider %s, got %+v", regOut.ProviderID, out.Providers)
 	}
 }
-
-

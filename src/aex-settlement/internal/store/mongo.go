@@ -101,7 +101,7 @@ func (s *MongoSettlementStore) ListExecutionsByTenant(ctx context.Context, tenan
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var executions []model.Execution
 	if err := cur.All(ctx, &executions); err != nil {
@@ -148,7 +148,7 @@ func (s *MongoSettlementStore) GetLedgerEntries(ctx context.Context, tenantID st
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var entries []model.LedgerEntry
 	if err := cur.All(ctx, &entries); err != nil {
@@ -231,7 +231,7 @@ func (s *MongoSettlementStore) ListTransactions(ctx context.Context, tenantID st
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var txs []model.Transaction
 	if err := cur.All(ctx, &txs); err != nil {

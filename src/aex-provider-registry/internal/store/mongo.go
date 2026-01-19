@@ -11,19 +11,19 @@ import (
 )
 
 type MongoStore struct {
-	providers   *mongo.Collection
-	subs        *mongo.Collection
-	agentCards  *mongo.Collection
-	skillIndex  *mongo.Collection
+	providers  *mongo.Collection
+	subs       *mongo.Collection
+	agentCards *mongo.Collection
+	skillIndex *mongo.Collection
 }
 
 func NewMongoStore(client *mongo.Client, dbName, providersColl, subsColl string) *MongoStore {
 	db := client.Database(dbName)
 	return &MongoStore{
-		providers:   db.Collection(providersColl),
-		subs:        db.Collection(subsColl),
-		agentCards:  db.Collection("agent_cards"),
-		skillIndex:  db.Collection("skill_index"),
+		providers:  db.Collection(providersColl),
+		subs:       db.Collection(subsColl),
+		agentCards: db.Collection("agent_cards"),
+		skillIndex: db.Collection("skill_index"),
 	}
 }
 
@@ -134,7 +134,7 @@ func (s *MongoStore) ListProviders(ctx context.Context, providerIDs []string) ([
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 	var out []model.Provider
 	for cur.Next(ctx) {
 		var p model.Provider
@@ -163,7 +163,7 @@ func (s *MongoStore) ListSubscriptions(ctx context.Context) ([]model.Subscriptio
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 	var out []model.Subscription
 	for cur.Next(ctx) {
 		var sub model.Subscription
@@ -185,7 +185,7 @@ func (s *MongoStore) ListAllProviders(ctx context.Context) ([]model.Provider, er
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 	var out []model.Provider
 	for cur.Next(ctx) {
 		var p model.Provider
@@ -307,7 +307,7 @@ func (s *MongoStore) SearchBySkillTags(ctx context.Context, tags []string, minTr
 	// First, try skill_index collection
 	cur, err := s.skillIndex.Find(ctx, bson.M{"tags": bson.M{"$in": tags}})
 	if err == nil {
-		defer cur.Close(ctx)
+		defer func() { _ = cur.Close(ctx) }()
 		for cur.Next(ctx) {
 			var skill model.SkillIndex
 			if err := cur.Decode(&skill); err != nil {
@@ -333,7 +333,7 @@ func (s *MongoStore) SearchBySkillTags(ctx context.Context, tags []string, minTr
 		"status":       model.ProviderStatusActive,
 	})
 	if err == nil {
-		defer provCur.Close(ctx)
+		defer func() { _ = provCur.Close(ctx) }()
 		for provCur.Next(ctx) {
 			var p model.Provider
 			if err := provCur.Decode(&p); err != nil {
@@ -375,7 +375,7 @@ func (s *MongoStore) SearchBySkillTags(ctx context.Context, tags []string, minTr
 	if err != nil {
 		return nil, err
 	}
-	defer cardCur.Close(ctx)
+	defer func() { _ = cardCur.Close(ctx) }()
 
 	a2aEndpoints := make(map[string]string)
 	for cardCur.Next(ctx) {

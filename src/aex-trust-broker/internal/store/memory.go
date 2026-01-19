@@ -65,6 +65,3 @@ func (s *MemoryStore) ListOutcomes(ctx context.Context, providerID string, limit
 	copy(out, outs)
 	return out, nil
 }
-
-
-

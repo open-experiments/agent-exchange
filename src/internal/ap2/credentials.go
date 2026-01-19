@@ -52,32 +52,32 @@ func (cp *MockCredentialsProvider) initDemoData() {
 	// Demo consumer payment methods
 	demoMethods := []PaymentMethod{
 		{
-			ID:          "pm_demo_visa_4242",
-			Type:        "CARD",
-			DisplayName: "Visa ending in 4242",
-			Last4:       "4242",
-			ExpiryMonth: 12,
-			ExpiryYear:  2027,
-			Brand:       "Visa",
-			IsDefault:   true,
+			ID:               "pm_demo_visa_4242",
+			Type:             "CARD",
+			DisplayName:      "Visa ending in 4242",
+			Last4:            "4242",
+			ExpiryMonth:      12,
+			ExpiryYear:       2027,
+			Brand:            "Visa",
+			IsDefault:        true,
 			SupportedMethods: []string{"CARD"},
 		},
 		{
-			ID:          "pm_demo_mc_5555",
-			Type:        "CARD",
-			DisplayName: "Mastercard ending in 5555",
-			Last4:       "5555",
-			ExpiryMonth: 6,
-			ExpiryYear:  2026,
-			Brand:       "Mastercard",
-			IsDefault:   false,
+			ID:               "pm_demo_mc_5555",
+			Type:             "CARD",
+			DisplayName:      "Mastercard ending in 5555",
+			Last4:            "5555",
+			ExpiryMonth:      6,
+			ExpiryYear:       2026,
+			Brand:            "Mastercard",
+			IsDefault:        false,
 			SupportedMethods: []string{"CARD"},
 		},
 		{
-			ID:          "pm_aex_balance",
-			Type:        "AEX_BALANCE",
-			DisplayName: "AEX Account Balance",
-			IsDefault:   false,
+			ID:               "pm_aex_balance",
+			Type:             "AEX_BALANCE",
+			DisplayName:      "AEX Account Balance",
+			IsDefault:        false,
 			SupportedMethods: []string{"AEX_BALANCE"},
 		},
 	}
@@ -255,6 +255,6 @@ func (cp *MockCredentialsProvider) GetDefaultPaymentMethod(ctx context.Context, 
 // generateTokenID creates a random token ID.
 func generateTokenID() string {
 	var b [12]byte
-	rand.Read(b[:])
+	_, _ = rand.Read(b[:])
 	return hex.EncodeToString(b[:])
 }

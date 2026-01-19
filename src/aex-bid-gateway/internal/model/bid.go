@@ -53,5 +53,3 @@ type SubmitBidResponse struct {
 	Status     string    `json:"status"`
 	ReceivedAt time.Time `json:"received_at"`
 }
-
-
