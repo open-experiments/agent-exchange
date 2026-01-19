@@ -1,0 +1,58 @@
+agent:
+  name: "ContractPay"
+  description: "Contract & Real Estate payment specialist - highest rewards on contract work"
+  version: "1.0.0"
+  provider:
+    organization: "ContractPay Solutions"
+    url: "https://github.com/open-experiments/agent-exchange"
+
+server:
+  host: "0.0.0.0"
+  port: 8201
+
+# Payment provider characteristics
+payment:
+  base_fee_percent: 2.5
+  processing_time_seconds: 5
+  fraud_protection: "standard"
+  supported_methods:
+    - "card"
+    - "bank_transfer"
+    - "aex_balance"
+
+  # Category-specific rewards (cashback percentages)
+  # Specializes in contracts and real estate
+  rewards:
+    contracts: 3.0      # 3% back on contracts → net -0.5% (CASHBACK!)
+    contract_review: 3.0
+    real_estate: 2.5    # 2.5% back on real estate → net 0%
+    compliance: 1.0     # 1% back on compliance → net 1.5%
+    compliance_check: 1.0
+    ip_patent: 1.0      # 1% back on IP → net 1.5%
+    legal_research: 1.0
+    negotiation: 2.0    # 2% back on negotiation → net 0.5%
+    default: 1.0        # 1% back on other → net 1.5%
+
+  # Marketing copy
+  tagline: "Get PAID to pay for contract work - up to 0.5% cashback!"
+  best_for: "Contract reviews, NDAs, real estate transactions"
+
+skills:
+  - id: "payment_processing"
+    name: "Payment Processing"
+    description: "Process payments with bonus rewards for contract work"
+    tags: ["payment", "contracts", "real_estate"]
+    examples:
+      - "Process payment for NDA review"
+      - "Process payment for real estate contract"
+
+aex:
+  enabled: true
+  gateway_url: "http://aex-gateway:8080"
+  auto_register: true
+  auto_bid: true
+  trust_tier: "TRUSTED"
+  trust_score: 0.88
+  pricing:
+    base_rate: 0.0
+    currency: "USD"

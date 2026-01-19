@@ -64,6 +64,10 @@ steps:
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/demo-ui:$COMMIT_SHA', '-f', 'demo/ui/Dockerfile', 'demo/ui']
     dir: '.'
 
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/demo-ui-nicegui:$COMMIT_SHA', '-f', 'demo/ui/Dockerfile.nicegui', 'demo/ui']
+    dir: '.'
+
   # Push all images
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/aex-gateway']
@@ -110,6 +114,9 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/demo-ui']
 
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', 'gcr.io/$PROJECT_ID/demo-ui-nicegui']
+
 images:
   - 'gcr.io/$PROJECT_ID/aex-gateway:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/aex-provider-registry:$COMMIT_SHA'
@@ -126,6 +133,7 @@ images:
   - 'gcr.io/$PROJECT_ID/legal-agent-c:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/orchestrator:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/demo-ui:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/demo-ui-nicegui:$COMMIT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY

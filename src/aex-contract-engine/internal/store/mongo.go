@@ -56,6 +56,3 @@ func (s *MongoContractStore) Update(ctx context.Context, c model.Contract) error
 	_, err := s.coll.ReplaceOne(ctx, bson.M{"contract_id": c.ContractID}, c, options.Replace().SetUpsert(false))
 	return err
 }
-
-
-

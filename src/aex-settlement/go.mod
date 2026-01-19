@@ -3,10 +3,13 @@ module github.com/parlakisik/agent-exchange/aex-settlement
 go 1.24.0
 
 require (
+	github.com/parlakisik/agent-exchange/internal/ap2 v0.0.0
 	github.com/parlakisik/agent-exchange/internal/events v0.0.0
 	github.com/shopspring/decimal v1.3.1
 	go.mongodb.org/mongo-driver v1.13.1
 )
+
+replace github.com/parlakisik/agent-exchange/internal/ap2 => ../internal/ap2
 
 replace github.com/parlakisik/agent-exchange/internal/events => ../internal/events
 

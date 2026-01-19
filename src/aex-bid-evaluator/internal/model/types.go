@@ -84,6 +84,3 @@ type EvaluateRequest struct {
 	Constraints *WorkConstraints `json:"constraints,omitempty"`
 	Description *string          `json:"description,omitempty"`
 }
-
-
-

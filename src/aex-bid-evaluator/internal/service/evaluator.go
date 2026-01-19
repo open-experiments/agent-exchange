@@ -42,7 +42,7 @@ func (s *Service) HandleEvaluate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	var req model.EvaluateRequest
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -228,6 +228,3 @@ func generateEvalID() string {
 	_, _ = rand.Read(b[:])
 	return "eval_" + hex.EncodeToString(b[:8])
 }
-
-
-

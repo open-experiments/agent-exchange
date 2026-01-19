@@ -53,12 +53,70 @@ func (s *Service) HandleRegisterProvider(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// Check if provider with same name already exists - upsert behavior
+	existing, err := s.store.GetProviderByName(ctx, req.Name)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	now := time.Now().UTC()
+
+	if existing != nil {
+		// Update existing provider's info (keeps same provider_id and API keys)
+		existing.Description = req.Description
+		existing.Endpoint = req.Endpoint
+		existing.BidWebhook = req.BidWebhook
+		existing.Capabilities = req.Capabilities
+		existing.ContactEmail = req.ContactEmail
+		existing.Metadata = req.Metadata
+		existing.UpdatedAt = now
+
+		if err := s.store.UpdateProvider(ctx, *existing); err != nil {
+			http.Error(w, "failed to update provider", http.StatusInternalServerError)
+			return
+		}
+
+		// Return existing provider info (API keys masked since we only store hashes)
+		resp := model.ProviderRegistrationResponse{
+			ProviderID: existing.ProviderID,
+			APIKey:     "***existing***",
+			APISecret:  "***existing***",
+			Status:     existing.Status,
+			TrustTier:  existing.TrustTier,
+			CreatedAt:  existing.CreatedAt,
+		}
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
+	// Create new provider
 	apiKey := generateToken("aex_pk_live_")
 	apiSecret := generateToken("aex_sk_live_")
 	keyHash := sha256Hex(apiKey)
 	secretHash := sha256Hex(apiSecret)
 
-	now := time.Now().UTC()
+	// Default trust values
+	trustScore := 0.3
+	trustTier := model.TrustTierUnverified
+
+	// Allow trust tier/score to be specified via metadata (for demo purposes)
+	if req.Metadata != nil {
+		if ts, ok := req.Metadata["trust_score"].(float64); ok && ts > 0 && ts <= 1.0 {
+			trustScore = ts
+		}
+		if tt, ok := req.Metadata["trust_tier"].(string); ok {
+			switch tt {
+			case "VERIFIED":
+				trustTier = model.TrustTierVerified
+			case "TRUSTED":
+				trustTier = model.TrustTierTrusted
+			case "PREFERRED":
+				trustTier = model.TrustTierPreferred
+			}
+		}
+	}
+
 	p := model.Provider{
 		ProviderID:    generateToken("prov_"),
 		Name:          req.Name,
@@ -71,8 +129,8 @@ func (s *Service) HandleRegisterProvider(w http.ResponseWriter, r *http.Request)
 		APIKeyHash:    keyHash,
 		APISecretHash: secretHash,
 		Status:        model.ProviderStatusActive, // Option A: keep it usable immediately for local dev
-		TrustScore:    0.3,
-		TrustTier:     model.TrustTierUnverified,
+		TrustScore:    trustScore,
+		TrustTier:     trustTier,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -293,24 +351,6 @@ func (s *Service) HandleInternalSubscribed(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func validateHTTPSURL(raw string) error {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return errors.New("empty")
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return err
-	}
-	if u.Scheme != "https" {
-		return errors.New("scheme must be https")
-	}
-	if u.Host == "" {
-		return errors.New("missing host")
-	}
-	return nil
-}
-
 // validateURL validates URL, allowing HTTP in development mode
 func (s *Service) validateURL(raw string) error {
 	raw = strings.TrimSpace(raw)
@@ -341,7 +381,7 @@ func decodeJSON(r *http.Request, v any) error {
 	if err != nil {
 		return err
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	return json.Unmarshal(body, v)
 }
 
@@ -503,10 +543,10 @@ func (s *Service) HandleRegisterAgentCard(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"provider_id":  providerID,
-		"a2a_endpoint": a2aEndpoint,
+		"provider_id":    providerID,
+		"a2a_endpoint":   a2aEndpoint,
 		"skills_indexed": len(skills),
-		"message":      "agent card registered successfully",
+		"message":        "agent card registered successfully",
 	})
 }
 
@@ -581,12 +621,6 @@ func deriveA2AEndpoint(agentURL string) string {
 
 func parseFloat(s string) (float64, error) {
 	var f float64
-	_, err := io.ReadFull(strings.NewReader(s), nil)
-	if err != nil && err != io.EOF {
-		return 0, err
-	}
-	n, err := io.ReadFull(strings.NewReader(s), nil)
-	_ = n
 	// Simple parsing
 	for i, c := range s {
 		if c == '.' {

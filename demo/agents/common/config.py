@@ -5,7 +5,7 @@ from typing import Optional
 import os
 import yaml
 
-from .agent_card import AgentCard, Skill, Provider, Capabilities
+from .agent_card import AgentCard, Skill, Provider, Capabilities, Extension, ap2_extension
 
 
 @dataclass
@@ -33,6 +33,9 @@ class AEXConfig:
     auto_bid: bool = True
     base_rate: float = 25.0
     currency: str = "USD"
+    ap2_enabled: bool = True  # Enable AP2 payment support
+    trust_tier: str = "UNVERIFIED"  # UNVERIFIED, VERIFIED, TRUSTED, PREFERRED
+    trust_score: float = 0.3  # 0.0 to 1.0
 
 
 @dataclass
@@ -49,13 +52,18 @@ class AgentConfig:
 
     def get_agent_card(self, base_url: str) -> AgentCard:
         """Generate A2A Agent Card from config."""
+        # Build extensions based on config
+        extensions = []
+        if self.aex.ap2_enabled:
+            extensions.append(ap2_extension(required=True))
+
         return AgentCard(
             name=self.name,
             description=self.description,
             url=base_url,
             version=self.version,
             provider=self.provider,
-            capabilities=Capabilities(streaming=True),
+            capabilities=Capabilities(streaming=True, extensions=extensions),
             skills=self.skills,
         )
 
@@ -115,6 +123,9 @@ def load_config(config_path: str = "config.yaml") -> AgentConfig:
             auto_bid=aex_data.get("auto_bid", True),
             base_rate=aex_data.get("pricing", {}).get("base_rate", 25.0),
             currency=aex_data.get("pricing", {}).get("currency", "USD"),
+            ap2_enabled=aex_data.get("ap2_enabled", True),  # AP2 enabled by default
+            trust_tier=aex_data.get("trust_tier", "UNVERIFIED"),
+            trust_score=aex_data.get("trust_score", 0.3),
         ),
         skills=skills,
         provider=provider,

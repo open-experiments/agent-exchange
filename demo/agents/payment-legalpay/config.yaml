@@ -1,0 +1,51 @@
+agent:
+  name: "LegalPay"
+  description: "General legal payment processor - consistent low fees for all legal work"
+  version: "1.0.0"
+  provider:
+    organization: "LegalPay Financial"
+    url: "https://github.com/open-experiments/agent-exchange"
+
+server:
+  host: "0.0.0.0"
+  port: 8200
+
+# Payment provider characteristics
+payment:
+  base_fee_percent: 2.0
+  processing_time_seconds: 3
+  fraud_protection: "basic"
+  supported_methods:
+    - "card"
+    - "aex_balance"
+
+  # Category-specific rewards (cashback percentages)
+  rewards:
+    contracts: 1.0      # 1% back on contracts → net 1.0%
+    compliance: 1.0     # 1% back on compliance → net 1.0%
+    ip_patent: 1.0      # 1% back on IP/Patent → net 1.0%
+    real_estate: 1.0    # 1% back on real estate → net 1.0%
+    default: 1.0        # 1% back on all other → net 1.0%
+
+  # Marketing copy
+  tagline: "Consistent 1% net fee on all legal transactions"
+  best_for: "General legal work - predictable pricing"
+
+skills:
+  - id: "payment_processing"
+    name: "Payment Processing"
+    description: "Process payments for legal services"
+    tags: ["payment", "legal", "general"]
+    examples:
+      - "Process payment for contract review"
+
+aex:
+  enabled: true
+  gateway_url: "http://aex-gateway:8080"
+  auto_register: true
+  auto_bid: true
+  trust_tier: "VERIFIED"
+  trust_score: 0.78
+  pricing:
+    base_rate: 0.0  # Payment providers don't charge for registration
+    currency: "USD"

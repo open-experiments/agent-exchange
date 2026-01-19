@@ -39,6 +39,3 @@ func (s *MemoryContractStore) Get(ctx context.Context, contractID string) (*mode
 func (s *MemoryContractStore) Update(ctx context.Context, c model.Contract) error {
 	return s.Save(ctx, c)
 }
-
-
-

@@ -29,7 +29,7 @@ func TestTenantCreateAPIKeyAndValidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("expected %d got %d", http.StatusCreated, resp.StatusCode)
 	}
@@ -54,7 +54,7 @@ func TestTenantCreateAPIKeyAndValidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 	if resp2.StatusCode != http.StatusCreated {
 		t.Fatalf("expected %d got %d", http.StatusCreated, resp2.StatusCode)
 	}
@@ -74,7 +74,7 @@ func TestTenantCreateAPIKeyAndValidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp3.Body.Close()
+	defer func() { _ = resp3.Body.Close() }()
 	if resp3.StatusCode != http.StatusOK {
 		t.Fatalf("expected %d got %d", http.StatusOK, resp3.StatusCode)
 	}
@@ -86,11 +86,8 @@ func TestTenantCreateAPIKeyAndValidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp4.Body.Close()
+	defer func() { _ = resp4.Body.Close() }()
 	if resp4.StatusCode != http.StatusOK {
 		t.Fatalf("expected %d got %d", http.StatusOK, resp4.StatusCode)
 	}
 }
-
-
-

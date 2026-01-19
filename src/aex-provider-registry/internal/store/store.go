@@ -9,6 +9,7 @@ import (
 type Store interface {
 	CreateProvider(ctx context.Context, p model.Provider) error
 	GetProvider(ctx context.Context, providerID string) (*model.Provider, error)
+	GetProviderByName(ctx context.Context, name string) (*model.Provider, error)
 	GetProviderByAPIKeyHash(ctx context.Context, apiKeyHash string) (*model.Provider, error)
 	ListProviders(ctx context.Context, providerIDs []string) ([]model.Provider, error)
 	ListAllProviders(ctx context.Context) ([]model.Provider, error)

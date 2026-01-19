@@ -35,5 +35,3 @@ func NewRouter(svc *service.Service) http.Handler {
 
 	return mux
 }
-
-

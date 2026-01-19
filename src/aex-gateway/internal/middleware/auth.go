@@ -104,7 +104,7 @@ func (v *HTTPAPIKeyValidator) Validate(ctx context.Context, apiKey string) (*API
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil
@@ -203,4 +203,3 @@ func respondError(w http.ResponseWriter, status int, code, message string, r *ht
 		},
 	})
 }
-

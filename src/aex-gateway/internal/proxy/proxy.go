@@ -12,8 +12,8 @@ import (
 )
 
 type Router struct {
-	routes   map[string]string
-	proxies  map[string]*httputil.ReverseProxy
+	routes  map[string]string
+	proxies map[string]*httputil.ReverseProxy
 }
 
 func NewRouter(cfg *config.Config) *Router {
@@ -92,4 +92,3 @@ func respondError(w http.ResponseWriter, status int, code, message string, r *ht
 		},
 	})
 }
-

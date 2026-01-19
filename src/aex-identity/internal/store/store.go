@@ -18,6 +18,3 @@ type Store interface {
 
 	FindAPIKeyByHash(ctx context.Context, keyHash string) (*model.APIKey, error)
 }
-
-
-

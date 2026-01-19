@@ -115,6 +115,3 @@ type ValidateAPIKeyResponse struct {
 	Scopes       []string     `json:"scopes"`
 	Quotas       Quotas       `json:"quotas"`
 }
-
-
-

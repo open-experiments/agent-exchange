@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -377,7 +376,7 @@ func decodeJSON(r *http.Request, v any) error {
 	if err != nil {
 		return err
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	return json.Unmarshal(body, v)
 }
 
@@ -440,11 +439,3 @@ func lastPathSegment(path string) string {
 	}
 	return path
 }
-
-// used by handlers that need a cancellable context without importing extra deps in main
-func withTimeout(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, d)
-}
-
-
-

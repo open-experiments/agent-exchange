@@ -5,17 +5,17 @@ import "time"
 // AgentCard represents the A2A Agent Card structure
 // Based on https://google.github.io/A2A/specification/
 type AgentCard struct {
-	Name              string            `json:"name"`
-	Description       string            `json:"description"`
-	URL               string            `json:"url"`
-	Provider          *Provider         `json:"provider,omitempty"`
-	Version           string            `json:"version"`
-	DocumentationURL  string            `json:"documentationUrl,omitempty"`
-	Capabilities      Capabilities      `json:"capabilities"`
-	Authentication    *Authentication   `json:"authentication,omitempty"`
-	DefaultInputModes []string          `json:"defaultInputModes,omitempty"`
-	DefaultOutputModes []string         `json:"defaultOutputModes,omitempty"`
-	Skills            []Skill           `json:"skills"`
+	Name               string          `json:"name"`
+	Description        string          `json:"description"`
+	URL                string          `json:"url"`
+	Provider           *Provider       `json:"provider,omitempty"`
+	Version            string          `json:"version"`
+	DocumentationURL   string          `json:"documentationUrl,omitempty"`
+	Capabilities       Capabilities    `json:"capabilities"`
+	Authentication     *Authentication `json:"authentication,omitempty"`
+	DefaultInputModes  []string        `json:"defaultInputModes,omitempty"`
+	DefaultOutputModes []string        `json:"defaultOutputModes,omitempty"`
+	Skills             []Skill         `json:"skills"`
 }
 
 // Provider represents agent provider information
@@ -26,15 +26,36 @@ type Provider struct {
 
 // Capabilities represents agent capabilities
 type Capabilities struct {
-	Streaming              bool `json:"streaming,omitempty"`
-	PushNotifications      bool `json:"pushNotifications,omitempty"`
-	StateTransitionHistory bool `json:"stateTransitionHistory,omitempty"`
+	Streaming              bool        `json:"streaming,omitempty"`
+	PushNotifications      bool        `json:"pushNotifications,omitempty"`
+	StateTransitionHistory bool        `json:"stateTransitionHistory,omitempty"`
+	Extensions             []Extension `json:"extensions,omitempty"`
+}
+
+// Extension represents an A2A extension capability (e.g., AP2)
+type Extension struct {
+	URI         string `json:"uri"`
+	Description string `json:"description,omitempty"`
+	Required    bool   `json:"required,omitempty"`
+}
+
+// AP2 Extension URI constant
+const AP2ExtensionURI = "https://github.com/google-agentic-commerce/ap2/v1"
+
+// HasAP2Support checks if the agent card has AP2 extension
+func (c *Capabilities) HasAP2Support() bool {
+	for _, ext := range c.Extensions {
+		if ext.URI == AP2ExtensionURI {
+			return true
+		}
+	}
+	return false
 }
 
 // Authentication represents authentication requirements
 type Authentication struct {
-	Schemes []string `json:"schemes"`
-	Credentials string `json:"credentials,omitempty"`
+	Schemes     []string `json:"schemes"`
+	Credentials string   `json:"credentials,omitempty"`
 }
 
 // Skill represents an agent skill/capability
@@ -51,10 +72,10 @@ type Skill struct {
 // ResolvedAgentCard is the internal representation with additional metadata
 type ResolvedAgentCard struct {
 	AgentCard
-	SourceURL   string    `json:"source_url"`
-	ResolvedAt  time.Time `json:"resolved_at"`
-	ValidUntil  time.Time `json:"valid_until"`
-	ProviderID  string    `json:"provider_id,omitempty"`
+	SourceURL  string    `json:"source_url"`
+	ResolvedAt time.Time `json:"resolved_at"`
+	ValidUntil time.Time `json:"valid_until"`
+	ProviderID string    `json:"provider_id,omitempty"`
 }
 
 // SkillIndex represents searchable skill information

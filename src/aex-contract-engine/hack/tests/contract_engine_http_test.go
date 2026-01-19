@@ -55,7 +55,7 @@ func TestAwardProgressCompleteFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer awardResp.Body.Close()
+	defer func() { _ = awardResp.Body.Close() }()
 	if awardResp.StatusCode != 200 {
 		t.Fatalf("award expected 200, got %d", awardResp.StatusCode)
 	}
@@ -78,7 +78,7 @@ func TestAwardProgressCompleteFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("progress expected 200, got %d", resp.StatusCode)
 	}
@@ -93,10 +93,8 @@ func TestAwardProgressCompleteFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp2.Body.Close()
+	_ = resp2.Body.Close()
 	if resp2.StatusCode != 200 {
 		t.Fatalf("complete expected 200, got %d", resp2.StatusCode)
 	}
 }
-
-

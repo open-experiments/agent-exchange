@@ -69,6 +69,8 @@ aex:
   gateway_url: "http://aex-gateway:8080"
   auto_register: true
   auto_bid: true
+  trust_tier: "PREFERRED"
+  trust_score: 0.94
   pricing:
     base_rate: 30.00
     per_page_rate: 0.20

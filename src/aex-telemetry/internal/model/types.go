@@ -4,14 +4,14 @@ import "time"
 
 // LogEntry represents a log entry from a service
 type LogEntry struct {
-	ID        string            `json:"id"`
-	Timestamp time.Time         `json:"timestamp"`
-	Level     string            `json:"level"`
-	Service   string            `json:"service"`
-	Message   string            `json:"message"`
-	Fields    map[string]any    `json:"fields,omitempty"`
-	TraceID   string            `json:"trace_id,omitempty"`
-	SpanID    string            `json:"span_id,omitempty"`
+	ID        string         `json:"id"`
+	Timestamp time.Time      `json:"timestamp"`
+	Level     string         `json:"level"`
+	Service   string         `json:"service"`
+	Message   string         `json:"message"`
+	Fields    map[string]any `json:"fields,omitempty"`
+	TraceID   string         `json:"trace_id,omitempty"`
+	SpanID    string         `json:"span_id,omitempty"`
 }
 
 // MetricEntry represents a metric data point
@@ -65,4 +65,3 @@ type MetricQuery struct {
 	EndTime   time.Time `json:"end_time,omitempty"`
 	Limit     int       `json:"limit,omitempty"`
 }
-

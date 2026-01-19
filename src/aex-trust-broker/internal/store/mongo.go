@@ -79,7 +79,7 @@ func (s *MongoStore) ListOutcomes(ctx context.Context, providerID string, limit 
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var out []model.ContractOutcome
 	for cur.Next(ctx) {
@@ -94,6 +94,3 @@ func (s *MongoStore) ListOutcomes(ctx context.Context, providerID string, limit 
 	}
 	return out, nil
 }
-
-
-

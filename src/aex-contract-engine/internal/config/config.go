@@ -41,6 +41,3 @@ func getenv(k, def string) string {
 	}
 	return def
 }
-
-
-

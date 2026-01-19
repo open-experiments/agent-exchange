@@ -83,7 +83,7 @@ func main() {
 		workStore = store.NewMemoryStore()
 		slog.Info("using in-memory store (development mode)")
 	}
-	defer workStore.Close()
+	defer func() { _ = workStore.Close() }()
 	if mongoClient != nil {
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -135,6 +135,3 @@ func main() {
 
 	slog.Info("server stopped")
 }
-
-
-

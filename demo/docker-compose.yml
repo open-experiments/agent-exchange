@@ -190,13 +190,44 @@ services:
       ENVIRONMENT: "development"
       MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
       MONGO_DB: "aex"
+      AP2_ENABLED: "true"
+      CREDENTIALS_PROVIDER_URL: "http://aex-credentials-provider:8080"
+      # Payment Provider URLs
+      LEGALPAY_URL: "http://payment-legalpay:8200"
+      CONTRACTPAY_URL: "http://payment-contractpay:8201"
+      COMPLIANCEPAY_URL: "http://payment-compliancepay:8202"
     ports:
       - "8088:8080"
     depends_on:
       mongo:
         condition: service_healthy
+      aex-credentials-provider:
+        condition: service_started
     networks:
       - aex-network
+
+  aex-credentials-provider:
+    build:
+      context: ../src
+      dockerfile: aex-credentials-provider/Dockerfile
+    container_name: aex-credentials-provider
+    environment:
+      PORT: "8080"
+      ENVIRONMENT: "development"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8090:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   aex-telemetry:
     build:
@@ -319,20 +350,128 @@ services:
       timeout: 5s
       retries: 3
 
+  # ===========================================
+  # Payment Provider Agents (Competing Marketplaces)
+  # ===========================================
+
+  # LegalPay - General legal payment processor (2% fee, 1% reward = 1% net)
+  payment-legalpay:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: payment-legalpay
+    container_name: aex-payment-legalpay
+    ports:
+      - "8200:8200"
+    environment:
+      - CONFIG_PATH=config.yaml
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8200/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ContractPay - Contract specialist (2.5% fee, 3% reward on contracts = -0.5% net CASHBACK!)
+  payment-contractpay:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: payment-contractpay
+    container_name: aex-payment-contractpay
+    ports:
+      - "8201:8201"
+    environment:
+      - CONFIG_PATH=config.yaml
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8201/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # CompliancePay - Compliance specialist (3% fee, 4% reward on compliance = -1% net CASHBACK!)
+  payment-compliancepay:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: payment-compliancepay
+    container_name: aex-payment-compliancepay
+    ports:
+      - "8202:8202"
+    environment:
+      - CONFIG_PATH=config.yaml
+    networks:
+      - aex-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8202/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   demo-ui:
     build:
       context: ./ui
       dockerfile: Dockerfile
     container_name: aex-demo-ui
     ports:
-      - "8501:8501"
+      - "8501:8080"
     environment:
+      - PORT=8080
+      - AEX_GATEWAY_URL=http://aex-gateway:8080
+      - AEX_SETTLEMENT_URL=http://aex-settlement:8080
+      - AEX_PROVIDER_REGISTRY_URL=http://aex-provider-registry:8080
       - ORCHESTRATOR_URL=http://orchestrator:8103
       - LEGAL_AGENT_A_URL=http://legal-agent-a:8100
       - LEGAL_AGENT_B_URL=http://legal-agent-b:8101
       - LEGAL_AGENT_C_URL=http://legal-agent-c:8102
+      # Payment Provider URLs
+      - LEGALPAY_URL=http://payment-legalpay:8200
+      - CONTRACTPAY_URL=http://payment-contractpay:8201
+      - COMPLIANCEPAY_URL=http://payment-compliancepay:8202
     depends_on:
       - orchestrator
+      - aex-settlement
+      - aex-provider-registry
+      - payment-legalpay
+      - payment-contractpay
+      - payment-compliancepay
+    networks:
+      - aex-network
+
+  # ===========================================
+  # NiceGUI Demo UI (Real-Time WebSocket)
+  # ===========================================
+  demo-ui-nicegui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile.nicegui
+    container_name: aex-demo-ui-nicegui
+    ports:
+      - "8502:8502"
+    environment:
+      - PORT=8502
+      - AEX_GATEWAY_URL=http://aex-gateway:8080
+      - AEX_SETTLEMENT_URL=http://aex-settlement:8080
+      - AEX_PROVIDER_REGISTRY_URL=http://aex-provider-registry:8080
+      - LEGAL_AGENT_A_URL=http://legal-agent-a:8100
+      - LEGAL_AGENT_B_URL=http://legal-agent-b:8101
+      - LEGAL_AGENT_C_URL=http://legal-agent-c:8102
+      - LEGALPAY_URL=http://payment-legalpay:8200
+      - CONTRACTPAY_URL=http://payment-contractpay:8201
+      - COMPLIANCEPAY_URL=http://payment-compliancepay:8202
+    depends_on:
+      - orchestrator
+      - aex-settlement
+      - aex-provider-registry
+      - payment-legalpay
+      - payment-contractpay
+      - payment-compliancepay
     networks:
       - aex-network
 

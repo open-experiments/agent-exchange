@@ -71,6 +71,3 @@ type BatchTrustRequest struct {
 type BatchTrustResponse struct {
 	Scores map[string]float64 `json:"scores"`
 }
-
-
-

@@ -40,6 +40,3 @@ func (s *MemoryBidStore) ListByWorkID(ctx context.Context, workID string) ([]mod
 	copy(out, bids)
 	return out, nil
 }
-
-
-

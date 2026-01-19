@@ -10,14 +10,14 @@ import (
 
 func TestWeightsForStrategy(t *testing.T) {
 	tests := []struct {
-		name               string
-		strategy           string
-		wantPrice          float64
-		wantTrust          float64
-		wantConfidence     float64
-		wantMVPSample      float64
-		wantSLA            float64
-		wantSumToOne       bool
+		name           string
+		strategy       string
+		wantPrice      float64
+		wantTrust      float64
+		wantConfidence float64
+		wantMVPSample  float64
+		wantSLA        float64
+		wantSumToOne   bool
 	}{
 		{
 			name:           "lowest_price strategy",
@@ -96,11 +96,11 @@ func TestFilterValidBids(t *testing.T) {
 	maxLatency := int64(500)
 
 	tests := []struct {
-		name                string
-		bids                []model.BidPacket
-		work                model.WorkSpec
-		wantValidCount      int
-		wantDisqualified    map[string]string // bid_id -> reason
+		name             string
+		bids             []model.BidPacket
+		work             model.WorkSpec
+		wantValidCount   int
+		wantDisqualified map[string]string // bid_id -> reason
 	}{
 		{
 			name: "all bids valid",
@@ -297,12 +297,12 @@ func TestEvaluate(t *testing.T) {
 	st := store.NewMemoryEvaluationStore()
 
 	tests := []struct {
-		name               string
-		work               model.WorkSpec
-		bids               []model.BidPacket
-		wantValidCount     int
-		wantDisqualified   int
-		wantFirstRankBid   string
+		name             string
+		work             model.WorkSpec
+		bids             []model.BidPacket
+		wantValidCount   int
+		wantDisqualified int
+		wantFirstRankBid string
 	}{
 		{
 			name: "lowest_price strategy ranks cheapest bid first",

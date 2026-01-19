@@ -29,7 +29,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -64,7 +64,7 @@ func TestIngestAndQueryLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d", resp.StatusCode)
@@ -75,7 +75,7 @@ func TestIngestAndQueryLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Logs  []model.LogEntry `json:"logs"`
@@ -94,7 +94,7 @@ func TestIngestAndQueryLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestIngestAndQueryLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestIngestAndQueryMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d", resp.StatusCode)
@@ -164,7 +164,7 @@ func TestIngestAndQueryMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		Metrics []model.MetricEntry `json:"metrics"`
@@ -183,7 +183,7 @@ func TestIngestAndQueryMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestIngestAndQuerySpans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d", resp.StatusCode)
@@ -241,7 +241,7 @@ func TestIngestAndQuerySpans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		TraceID string            `json:"trace_id"`
@@ -268,14 +268,14 @@ func TestGetStats(t *testing.T) {
 	logs := []model.LogEntry{{Level: "info", Message: "test"}}
 	body, _ := json.Marshal(logs)
 	resp, _ := http.Post(ts.URL+"/v1/logs", "application/json", bytes.NewReader(body))
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Get stats
 	resp, err := http.Get(ts.URL + "/v1/stats")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var stats map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
@@ -286,4 +286,3 @@ func TestGetStats(t *testing.T) {
 		t.Fatalf("expected log_count=1, got %v", stats["log_count"])
 	}
 }
-

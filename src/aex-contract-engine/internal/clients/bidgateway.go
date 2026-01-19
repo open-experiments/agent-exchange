@@ -49,7 +49,7 @@ func (c *BidGatewayClient) ListBids(ctx context.Context, workID string) ([]Bid, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("bid-gateway returned %d", resp.StatusCode)
 	}
@@ -61,5 +61,3 @@ func (c *BidGatewayClient) ListBids(ctx context.Context, workID string) ([]Bid, 
 	}
 	return out.Bids, nil
 }
-
-

@@ -44,6 +44,7 @@ phases:
       - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:$IMAGE_TAG --build-arg AGENT_DIR=legal-agent-c -f demo/agents/Dockerfile demo/agents/
       - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:$IMAGE_TAG --build-arg AGENT_DIR=orchestrator -f demo/agents/Dockerfile demo/agents/
       - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:$IMAGE_TAG -f demo/ui/Dockerfile demo/ui/
+      - docker build -t $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui-nicegui:$IMAGE_TAG -f demo/ui/Dockerfile.nicegui demo/ui/
 
   post_build:
     commands:
@@ -68,6 +69,7 @@ phases:
       - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:$IMAGE_TAG
       - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:$IMAGE_TAG
       - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:$IMAGE_TAG
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui-nicegui:$IMAGE_TAG
 
       # Tag as latest
       - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-gateway:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-gateway:latest
@@ -85,6 +87,7 @@ phases:
       - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:latest
       - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:latest
       - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:latest
+      - docker tag $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui-nicegui:$IMAGE_TAG $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui-nicegui:latest
 
       # Push latest tags
       - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/aex-gateway:latest
@@ -102,6 +105,7 @@ phases:
       - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/legal-agent-c:latest
       - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/orchestrator:latest
       - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui:latest
+      - docker push $ECR_REGISTRY/$ENVIRONMENT_NAME/demo-ui-nicegui:latest
 
       - echo Writing image definitions file...
       - printf '{"ImageTag":"%s"}' $IMAGE_TAG > imageDefinitions.json

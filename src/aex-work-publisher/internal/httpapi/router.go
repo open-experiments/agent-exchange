@@ -64,8 +64,8 @@ func dispatchInternalWorkPOST(h *Handlers) http.HandlerFunc {
 	}
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"healthy","service":"aex-work-publisher"}`))
+	_, _ = w.Write([]byte(`{"status":"healthy","service":"aex-work-publisher"}`))
 }

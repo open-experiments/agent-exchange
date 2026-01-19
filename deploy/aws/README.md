@@ -10,7 +10,7 @@ This guide explains how to deploy Agent Exchange (AEX) and demo agents to AWS us
 4. **API Keys** for LLM providers:
    - Anthropic API Key (for Claude - used by all agents)
 
-## Architecture
+## Architecture8
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐

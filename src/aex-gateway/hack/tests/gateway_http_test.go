@@ -28,7 +28,7 @@ func TestHealthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -61,7 +61,7 @@ func TestReadyEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -85,7 +85,7 @@ func TestInfoEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -120,7 +120,7 @@ func TestAuthRequiredForAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", resp.StatusCode)
@@ -167,7 +167,7 @@ func TestAuthWithAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -209,7 +209,7 @@ func TestInvalidAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", resp.StatusCode)
@@ -245,7 +245,7 @@ func TestRateLimiting(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if resp.StatusCode == http.StatusTooManyRequests {
 			rateLimited = true
@@ -286,7 +286,7 @@ func TestCORS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", resp.StatusCode)
@@ -315,7 +315,7 @@ func TestRequestID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.Header.Get("X-Request-ID") == "" {
 		t.Error("X-Request-ID header not set")
@@ -329,10 +329,9 @@ func TestRequestID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 
 	if resp2.Header.Get("X-Request-ID") != "test-request-123" {
 		t.Errorf("expected X-Request-ID=test-request-123, got %s", resp2.Header.Get("X-Request-ID"))
 	}
 }
-

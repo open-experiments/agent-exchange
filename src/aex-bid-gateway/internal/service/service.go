@@ -67,7 +67,7 @@ func (s *Service) HandleSubmitBid(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	var req model.SubmitBidRequest
 	if err := json.Unmarshal(body, &req); err != nil {
