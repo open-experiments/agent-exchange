@@ -26,9 +26,30 @@ type Provider struct {
 
 // Capabilities represents agent capabilities
 type Capabilities struct {
-	Streaming              bool `json:"streaming,omitempty"`
-	PushNotifications      bool `json:"pushNotifications,omitempty"`
-	StateTransitionHistory bool `json:"stateTransitionHistory,omitempty"`
+	Streaming              bool        `json:"streaming,omitempty"`
+	PushNotifications      bool        `json:"pushNotifications,omitempty"`
+	StateTransitionHistory bool        `json:"stateTransitionHistory,omitempty"`
+	Extensions             []Extension `json:"extensions,omitempty"`
+}
+
+// Extension represents an A2A extension capability (e.g., AP2)
+type Extension struct {
+	URI         string `json:"uri"`
+	Description string `json:"description,omitempty"`
+	Required    bool   `json:"required,omitempty"`
+}
+
+// AP2 Extension URI constant
+const AP2ExtensionURI = "https://github.com/google-agentic-commerce/ap2/v1"
+
+// HasAP2Support checks if the agent card has AP2 extension
+func (c *Capabilities) HasAP2Support() bool {
+	for _, ext := range c.Extensions {
+		if ext.URI == AP2ExtensionURI {
+			return true
+		}
+	}
+	return false
 }
 
 // Authentication represents authentication requirements

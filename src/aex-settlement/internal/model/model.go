@@ -23,6 +23,21 @@ type Execution struct {
 	ProviderPayout string                 `json:"provider_payout" bson:"provider_payout"` // Decimal as string
 	Metadata       map[string]interface{} `json:"metadata,omitempty" bson:"metadata,omitempty"`
 	CreatedAt      time.Time              `json:"created_at" bson:"created_at"`
+
+	// AP2 Payment fields
+	AP2Enabled           bool   `json:"ap2_enabled,omitempty" bson:"ap2_enabled,omitempty"`
+	PaymentMandateID     string `json:"payment_mandate_id,omitempty" bson:"payment_mandate_id,omitempty"`
+	PaymentReceiptID     string `json:"payment_receipt_id,omitempty" bson:"payment_receipt_id,omitempty"`
+	PaymentTransactionID string `json:"payment_transaction_id,omitempty" bson:"payment_transaction_id,omitempty"`
+	PaymentMethod        string `json:"payment_method,omitempty" bson:"payment_method,omitempty"`
+
+	// Payment Provider fields (for payment provider marketplace)
+	PaymentProviderID   string  `json:"payment_provider_id,omitempty" bson:"payment_provider_id,omitempty"`
+	PaymentProviderName string  `json:"payment_provider_name,omitempty" bson:"payment_provider_name,omitempty"`
+	PaymentBaseFee      string  `json:"payment_base_fee,omitempty" bson:"payment_base_fee,omitempty"`
+	PaymentReward       string  `json:"payment_reward,omitempty" bson:"payment_reward,omitempty"`
+	PaymentNetCost      string  `json:"payment_net_cost,omitempty" bson:"payment_net_cost,omitempty"` // Can be negative (cashback)
+	WorkCategory        string  `json:"work_category,omitempty" bson:"work_category,omitempty"`
 }
 
 // LedgerEntry represents an immutable ledger entry
@@ -96,9 +111,57 @@ type ContractCompletedEvent struct {
 	ConsumerID  string                 `json:"consumer_id"`
 	ProviderID  string                 `json:"provider_id"`
 	Domain      string                 `json:"domain"`
+	Description string                 `json:"description,omitempty"`
 	StartedAt   time.Time              `json:"started_at"`
 	CompletedAt time.Time              `json:"completed_at"`
 	Success     bool                   `json:"success"`
 	AgreedPrice string                 `json:"agreed_price"`
+	Currency    string                 `json:"currency,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+
+	// AP2 Payment options
+	UseAP2         bool   `json:"use_ap2,omitempty"`
+	PaymentMethod  string `json:"payment_method,omitempty"`
+
+	// Work category for payment provider selection
+	WorkCategory string `json:"work_category,omitempty"` // "contracts", "compliance", "general"
+}
+
+// AP2PaymentResult contains the result of AP2 payment processing
+type AP2PaymentResult struct {
+	Success            bool   `json:"success"`
+	PaymentMandateID   string `json:"payment_mandate_id,omitempty"`
+	ReceiptID          string `json:"receipt_id,omitempty"`
+	TransactionID      string `json:"transaction_id,omitempty"`
+	PaymentMethod      string `json:"payment_method,omitempty"`
+	ErrorMessage       string `json:"error_message,omitempty"`
+}
+
+// PaymentProviderBid represents a bid from a payment provider
+type PaymentProviderBid struct {
+	ProviderID           string   `json:"provider_id"`
+	ProviderName         string   `json:"provider_name"`
+	BaseFeePercent       float64  `json:"base_fee_percent"`
+	RewardPercent        float64  `json:"reward_percent"`
+	NetFeePercent        float64  `json:"net_fee_percent"` // base_fee - reward (can be negative = cashback)
+	ProcessingTimeSeconds int     `json:"processing_time_seconds"`
+	SupportedMethods     []string `json:"supported_methods"`
+	FraudProtection      string   `json:"fraud_protection"` // "none", "basic", "standard", "advanced"
+}
+
+// PaymentProviderSelection represents the selected payment provider and its bid
+type PaymentProviderSelection struct {
+	SelectedProvider PaymentProviderBid   `json:"selected_provider"`
+	AllBids          []PaymentProviderBid `json:"all_bids"`
+	WorkCategory     string               `json:"work_category"`
+	SelectionReason  string               `json:"selection_reason"` // "lowest_fee", "fastest", "most_secure"
+}
+
+// PaymentBidRequest represents a request for payment provider bids
+type PaymentBidRequest struct {
+	Amount       float64 `json:"amount"`
+	Currency     string  `json:"currency"`
+	WorkCategory string  `json:"work_category"` // "contracts", "compliance", "general"
+	ConsumerID   string  `json:"consumer_id"`
+	ContractID   string  `json:"contract_id"`
 }

@@ -53,12 +53,70 @@ func (s *Service) HandleRegisterProvider(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// Check if provider with same name already exists - upsert behavior
+	existing, err := s.store.GetProviderByName(ctx, req.Name)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	now := time.Now().UTC()
+
+	if existing != nil {
+		// Update existing provider's info (keeps same provider_id and API keys)
+		existing.Description = req.Description
+		existing.Endpoint = req.Endpoint
+		existing.BidWebhook = req.BidWebhook
+		existing.Capabilities = req.Capabilities
+		existing.ContactEmail = req.ContactEmail
+		existing.Metadata = req.Metadata
+		existing.UpdatedAt = now
+
+		if err := s.store.UpdateProvider(ctx, *existing); err != nil {
+			http.Error(w, "failed to update provider", http.StatusInternalServerError)
+			return
+		}
+
+		// Return existing provider info (API keys masked since we only store hashes)
+		resp := model.ProviderRegistrationResponse{
+			ProviderID: existing.ProviderID,
+			APIKey:     "***existing***",
+			APISecret:  "***existing***",
+			Status:     existing.Status,
+			TrustTier:  existing.TrustTier,
+			CreatedAt:  existing.CreatedAt,
+		}
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
+	// Create new provider
 	apiKey := generateToken("aex_pk_live_")
 	apiSecret := generateToken("aex_sk_live_")
 	keyHash := sha256Hex(apiKey)
 	secretHash := sha256Hex(apiSecret)
 
-	now := time.Now().UTC()
+	// Default trust values
+	trustScore := 0.3
+	trustTier := model.TrustTierUnverified
+
+	// Allow trust tier/score to be specified via metadata (for demo purposes)
+	if req.Metadata != nil {
+		if ts, ok := req.Metadata["trust_score"].(float64); ok && ts > 0 && ts <= 1.0 {
+			trustScore = ts
+		}
+		if tt, ok := req.Metadata["trust_tier"].(string); ok {
+			switch tt {
+			case "VERIFIED":
+				trustTier = model.TrustTierVerified
+			case "TRUSTED":
+				trustTier = model.TrustTierTrusted
+			case "PREFERRED":
+				trustTier = model.TrustTierPreferred
+			}
+		}
+	}
+
 	p := model.Provider{
 		ProviderID:    generateToken("prov_"),
 		Name:          req.Name,
@@ -71,8 +129,8 @@ func (s *Service) HandleRegisterProvider(w http.ResponseWriter, r *http.Request)
 		APIKeyHash:    keyHash,
 		APISecretHash: secretHash,
 		Status:        model.ProviderStatusActive, // Option A: keep it usable immediately for local dev
-		TrustScore:    0.3,
-		TrustTier:     model.TrustTierUnverified,
+		TrustScore:    trustScore,
+		TrustTier:     trustTier,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}

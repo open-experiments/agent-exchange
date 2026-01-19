@@ -116,9 +116,30 @@ type AgentProvider struct {
 }
 
 type AgentCapabilities struct {
-	Streaming              bool `json:"streaming,omitempty" bson:"streaming,omitempty"`
-	PushNotifications      bool `json:"pushNotifications,omitempty" bson:"push_notifications,omitempty"`
-	StateTransitionHistory bool `json:"stateTransitionHistory,omitempty" bson:"state_transition_history,omitempty"`
+	Streaming              bool             `json:"streaming,omitempty" bson:"streaming,omitempty"`
+	PushNotifications      bool             `json:"pushNotifications,omitempty" bson:"push_notifications,omitempty"`
+	StateTransitionHistory bool             `json:"stateTransitionHistory,omitempty" bson:"state_transition_history,omitempty"`
+	Extensions             []AgentExtension `json:"extensions,omitempty" bson:"extensions,omitempty"`
+}
+
+// AgentExtension represents an A2A extension capability (e.g., AP2)
+type AgentExtension struct {
+	URI         string `json:"uri" bson:"uri"`
+	Description string `json:"description,omitempty" bson:"description,omitempty"`
+	Required    bool   `json:"required,omitempty" bson:"required,omitempty"`
+}
+
+// AP2 Extension URI constant
+const AP2ExtensionURI = "https://github.com/google-agentic-commerce/ap2/v1"
+
+// HasAP2Support checks if the capabilities include AP2 extension
+func (c *AgentCapabilities) HasAP2Support() bool {
+	for _, ext := range c.Extensions {
+		if ext.URI == AP2ExtensionURI {
+			return true
+		}
+	}
+	return false
 }
 
 type AgentSkill struct {
@@ -175,5 +196,15 @@ type ProviderSearchResult struct {
 	TrustTier   string   `json:"trust_tier"`
 	Skills      []string `json:"skills"`
 	MatchedTags []string `json:"matched_tags"`
+	AP2Enabled  bool     `json:"ap2_enabled"`
+}
+
+// SearchProvidersRequestV2 includes AP2 filter
+type SearchProvidersRequestV2 struct {
+	SkillTags   []string `json:"skill_tags,omitempty"`
+	Domain      string   `json:"domain,omitempty"`
+	MinTrust    float64  `json:"min_trust,omitempty"`
+	Limit       int      `json:"limit,omitempty"`
+	RequireAP2  bool     `json:"require_ap2,omitempty"`
 }
 

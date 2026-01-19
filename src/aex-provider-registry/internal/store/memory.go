@@ -60,6 +60,19 @@ func (s *MemoryStore) GetProviderByAPIKeyHash(ctx context.Context, apiKeyHash st
 	return nil, nil
 }
 
+func (s *MemoryStore) GetProviderByName(ctx context.Context, name string) (*model.Provider, error) {
+	_ = ctx
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, p := range s.providers {
+		if p.Name == name {
+			out := p
+			return &out, nil
+		}
+	}
+	return nil, nil
+}
+
 func (s *MemoryStore) ListProviders(ctx context.Context, providerIDs []string) ([]model.Provider, error) {
 	_ = ctx
 	s.mu.RLock()

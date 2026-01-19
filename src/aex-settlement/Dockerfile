@@ -10,6 +10,7 @@ WORKDIR /build
 COPY internal/events internal/events
 COPY internal/httpclient internal/httpclient
 COPY internal/testutil internal/testutil
+COPY internal/ap2 internal/ap2
 
 # Copy service files
 COPY aex-settlement aex-settlement

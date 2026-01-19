@@ -167,8 +167,35 @@ services:
       ENVIRONMENT: "development"
       MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
       MONGO_DB: "aex"
+      AP2_ENABLED: "true"
+      CREDENTIALS_PROVIDER_URL: "http://aex-credentials-provider:8080"
     ports:
       - "8088:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      aex-credentials-provider:
+        condition: service_started
+    networks:
+      - aex
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  aex-credentials-provider:
+    image: agent-exchange/aex-credentials-provider:local
+    container_name: aex-credentials-provider
+    environment:
+      PORT: "8080"
+      ENVIRONMENT: "development"
+      MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
+      MONGO_DB: "aex"
+    ports:
+      - "8090:8080"
     depends_on:
       mongo:
         condition: service_healthy

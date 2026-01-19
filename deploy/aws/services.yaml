@@ -241,6 +241,21 @@ Resources:
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 3
 
+  DemoUINiceGUITargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-demo-ui-ng-tg
+      Port: 8502
+      Protocol: HTTP
+      VpcId: !ImportValue
+        Fn::Sub: ${EnvironmentName}-VPCId
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
   # ALB Listener Rules
   GatewayListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -265,10 +280,24 @@ Resources:
       Conditions:
         - Field: path-pattern
           Values:
-            - /*
+            - /simple*
       Actions:
         - Type: forward
           TargetGroupArn: !Ref DemoUITargetGroup
+
+  DemoUINiceGUIListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ALBListenerArn
+      Priority: 15
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref DemoUINiceGUITargetGroup
 
   # MongoDB Task Definition
   MongoDBTaskDefinition:
@@ -841,6 +870,53 @@ Resources:
             - Name: ORCHESTRATOR_URL
               Value: !Sub http://orchestrator.${EnvironmentName}.local:8103
 
+  DemoUINiceGUITaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-demo-ui-nicegui
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskExecutionRoleArn
+      TaskRoleArn: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSTaskRoleArn
+      ContainerDefinitions:
+        - Name: demo-ui-nicegui
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}/demo-ui-nicegui:${ImageTag}
+          PortMappings:
+            - ContainerPort: 8502
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue
+                Fn::Sub: ${EnvironmentName}-ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: demo-ui-nicegui
+          Environment:
+            - Name: PORT
+              Value: '8502'
+            - Name: AEX_GATEWAY_URL
+              Value: !Sub http://gateway.${EnvironmentName}.local:8080
+            - Name: AEX_SETTLEMENT_URL
+              Value: !Sub http://settlement.${EnvironmentName}.local:8086
+            - Name: AEX_PROVIDER_REGISTRY_URL
+              Value: !Sub http://provider-registry.${EnvironmentName}.local:8085
+            - Name: LEGAL_AGENT_A_URL
+              Value: !Sub http://legal-agent-a.${EnvironmentName}.local:8100
+            - Name: LEGAL_AGENT_B_URL
+              Value: !Sub http://legal-agent-b.${EnvironmentName}.local:8101
+            - Name: LEGAL_AGENT_C_URL
+              Value: !Sub http://legal-agent-c.${EnvironmentName}.local:8102
+            - Name: LEGALPAY_URL
+              Value: !Sub http://payment-legalpay.${EnvironmentName}.local:8200
+            - Name: CONTRACTPAY_URL
+              Value: !Sub http://payment-contractpay.${EnvironmentName}.local:8201
+            - Name: COMPLIANCEPAY_URL
+              Value: !Sub http://payment-compliancepay.${EnvironmentName}.local:8202
+
   # ECS Services
   # MongoDB must start first - all other services depend on it
   MongoDBService:
@@ -1242,6 +1318,33 @@ Resources:
           ContainerPort: 8080
           TargetGroupArn: !Ref DemoUITargetGroup
 
+  DemoUINiceGUIService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - OrchestratorService
+      - DemoUINiceGUIListenerRule
+    Properties:
+      ServiceName: demo-ui-nicegui
+      Cluster: !ImportValue
+        Fn::Sub: ${EnvironmentName}-ECSCluster
+      TaskDefinition: !Ref DemoUINiceGUITaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet1
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-PrivateSubnet2
+          SecurityGroups:
+            - !ImportValue
+              Fn::Sub: ${EnvironmentName}-ECSSecurityGroup
+      LoadBalancers:
+        - ContainerName: demo-ui-nicegui
+          ContainerPort: 8502
+          TargetGroupArn: !Ref DemoUINiceGUITargetGroup
+
 Outputs:
   GatewayServiceName:
     Description: Gateway ECS Service Name
@@ -1250,6 +1353,10 @@ Outputs:
   DemoUIServiceName:
     Description: Demo UI ECS Service Name
     Value: !GetAtt DemoUIService.Name
+
+  DemoUINiceGUIServiceName:
+    Description: Demo UI NiceGUI ECS Service Name
+    Value: !GetAtt DemoUINiceGUIService.Name
 
   ALBDNSName:
     Description: Application Load Balancer DNS Name

@@ -76,6 +76,15 @@ class BaseAgent(A2AHandler, ABC):
             if part.get("type") == "text":
                 text_content += part.get("text", "")
 
+        # Check if this is a bid request
+        bid_response = await self._handle_bid_request_message(text_content)
+        if bid_response:
+            yield {
+                "type": "result",
+                "parts": [{"type": "text", "text": bid_response}],
+            }
+            return
+
         # Build initial state
         state: AgentState = {
             "messages": [{"role": message.role, "content": text_content}],
@@ -112,6 +121,88 @@ class BaseAgent(A2AHandler, ABC):
                 "type": "result",
                 "parts": [{"type": "text", "text": f"Error: {str(e)}"}],
             }
+
+    async def _handle_bid_request_message(self, text_content: str) -> Optional[str]:
+        """
+        Handle bid request message via A2A.
+        Returns JSON string if this is a bid request, None otherwise.
+        """
+        import json
+        import yaml
+        import os
+
+        try:
+            request = json.loads(text_content)
+            if request.get("action") != "get_bid":
+                return None
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+        # This is a bid request - calculate and return bid
+        document_pages = request.get("document_pages", 5)
+
+        # Load pricing from config.yaml if available
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.yaml")
+        base_rate = self.config.aex.base_rate
+        per_page_rate = 0.5  # default
+        confidence = 0.85
+        estimated_minutes = 10
+        tier = "VERIFIED"
+
+        # Try to load from current agent's config
+        agent_config_paths = [
+            os.path.join(os.getcwd(), "config.yaml"),
+            config_path,
+        ]
+
+        for path in agent_config_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r') as f:
+                        cfg = yaml.safe_load(f)
+                    if cfg:
+                        pricing = cfg.get("aex", {}).get("pricing", {})
+                        bidding = cfg.get("aex", {}).get("bidding", {})
+                        chars = cfg.get("characteristics", {})
+
+                        base_rate = pricing.get("base_rate", base_rate)
+                        per_page_rate = pricing.get("per_page_rate", per_page_rate)
+                        confidence = bidding.get("confidence", confidence)
+                        estimated_minutes = bidding.get("estimated_time_minutes", estimated_minutes)
+
+                        # Map tier from characteristics
+                        tier_map = {
+                            "budget": "VERIFIED",
+                            "standard": "TRUSTED",
+                            "premium": "PREFERRED",
+                        }
+                        tier = tier_map.get(chars.get("tier", ""), tier)
+                    break
+                except Exception as e:
+                    logger.debug(f"Could not load config from {path}: {e}")
+
+        # Calculate price based on document pages
+        price = base_rate + (per_page_rate * document_pages)
+
+        # Use actual trust tier and score from config
+        actual_trust_tier = self.config.aex.trust_tier
+        actual_trust_score = self.config.aex.trust_score
+
+        bid_response = {
+            "action": "bid_response",
+            "bid": {
+                "provider_id": self.config.name.lower().replace(" ", "-"),
+                "provider_name": self.config.name,
+                "price": round(price, 2),
+                "confidence": confidence,
+                "estimated_minutes": estimated_minutes,
+                "trust_score": actual_trust_score,
+                "tier": actual_trust_tier,
+                "currency": self.config.aex.currency,
+            }
+        }
+
+        return json.dumps(bid_response)
 
     async def calculate_bid(self, work_id: str, requirements: dict, budget: dict) -> Optional[BidResponse]:
         """
@@ -150,13 +241,17 @@ class BaseAgent(A2AHandler, ABC):
             return
 
         try:
-            # Register provider
+            # Register provider with trust tier/score in metadata
             await self.aex_client.register_provider(
                 name=self.config.name,
                 description=self.config.description,
                 endpoint=base_url,
                 bid_webhook=f"{base_url}/webhook/bid",
                 capabilities=[s.id for s in self.config.skills],
+                metadata={
+                    "trust_tier": self.config.aex.trust_tier,
+                    "trust_score": self.config.aex.trust_score,
+                },
             )
 
             # Subscribe to categories based on skill tags

@@ -1,0 +1,60 @@
+agent:
+  name: "CompliancePay"
+  description: "Compliance & Regulatory payment specialist - highest rewards on compliance work"
+  version: "1.0.0"
+  provider:
+    organization: "CompliancePay Secure"
+    url: "https://github.com/open-experiments/agent-exchange"
+
+server:
+  host: "0.0.0.0"
+  port: 8202
+
+# Payment provider characteristics
+payment:
+  base_fee_percent: 3.0
+  processing_time_seconds: 8
+  fraud_protection: "advanced"  # Advanced fraud detection for compliance work
+  supported_methods:
+    - "card"
+    - "bank_transfer"
+    - "wire"
+    - "aex_balance"
+
+  # Category-specific rewards (cashback percentages)
+  # Specializes in compliance and regulatory work
+  rewards:
+    compliance: 4.0       # 4% back on compliance → net -1.0% (CASHBACK!)
+    compliance_check: 4.0
+    ip_patent: 3.5        # 3.5% back on IP/Patent → net -0.5% (CASHBACK!)
+    regulatory: 4.0       # 4% back on regulatory → net -1.0%
+    contracts: 1.5        # 1.5% back on contracts → net 1.5%
+    contract_review: 1.5
+    real_estate: 1.0      # 1% back on real estate → net 2.0%
+    legal_research: 2.0   # 2% back on research → net 1.0%
+    negotiation: 1.0
+    default: 1.0          # 1% back on other → net 2.0%
+
+  # Marketing copy
+  tagline: "Earn up to 1% CASHBACK on compliance and regulatory work!"
+  best_for: "Compliance checks, regulatory filings, IP/Patent work"
+
+skills:
+  - id: "payment_processing"
+    name: "Payment Processing"
+    description: "Secure payment processing with advanced fraud protection"
+    tags: ["payment", "compliance", "regulatory", "secure"]
+    examples:
+      - "Process payment for compliance audit"
+      - "Process payment for patent filing"
+
+aex:
+  enabled: true
+  gateway_url: "http://aex-gateway:8080"
+  auto_register: true
+  auto_bid: true
+  trust_tier: "PREFERRED"
+  trust_score: 0.92
+  pricing:
+    base_rate: 0.0
+    currency: "USD"

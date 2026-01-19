@@ -7,10 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/parlakisik/agent-exchange/aex-settlement/internal/model"
+	"github.com/parlakisik/agent-exchange/aex-settlement/internal/payment"
 	"github.com/parlakisik/agent-exchange/aex-settlement/internal/store"
+	"github.com/parlakisik/agent-exchange/internal/ap2"
 	"github.com/parlakisik/agent-exchange/internal/events"
 	"github.com/shopspring/decimal"
 )
@@ -19,18 +23,40 @@ var (
 	ErrExecutionExists   = errors.New("execution already recorded")
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrInvalidAmount     = errors.New("invalid amount")
+	ErrAP2PaymentFailed  = errors.New("AP2 payment failed")
 	PlatformFeeRate      = decimal.RequireFromString("0.15") // 15% platform fee
 )
 
 type Service struct {
-	store  store.SettlementStore
-	events *events.Publisher
+	store           store.SettlementStore
+	events          *events.Publisher
+	ap2Handler      *ap2.PaymentHandler
+	ap2Enabled      bool
+	paymentProvider *payment.ProviderClient
 }
 
 func New(st store.SettlementStore) *Service {
+	// Initialize AP2 with mock credentials provider
+	credentials := ap2.NewMockCredentialsProvider()
+	ap2Handler := ap2.NewPaymentHandler(credentials)
+
+	// Check if AP2 is enabled via environment (default: true)
+	ap2Enabled := os.Getenv("AP2_ENABLED") != "false"
+
+	// Initialize payment provider client for payment provider marketplace
+	paymentProviderClient := payment.NewProviderClient()
+
+	slog.Info("settlement service initialized",
+		"ap2_enabled", ap2Enabled,
+		"payment_provider_marketplace", true,
+	)
+
 	return &Service{
-		store:  st,
-		events: events.NewPublisher("aex-settlement"),
+		store:           st,
+		events:          events.NewPublisher("aex-settlement"),
+		ap2Handler:      ap2Handler,
+		ap2Enabled:      ap2Enabled,
+		paymentProvider: paymentProviderClient,
 	}
 }
 
@@ -54,6 +80,18 @@ func (s *Service) ProcessContractCompletion(ctx context.Context, event model.Con
 	// Calculate duration
 	durationMs := event.CompletedAt.Sub(event.StartedAt).Milliseconds()
 
+	// Determine currency
+	currency := event.Currency
+	if currency == "" {
+		currency = "USD"
+	}
+
+	// Determine work category for payment provider selection
+	workCategory := event.WorkCategory
+	if workCategory == "" {
+		workCategory = s.detectWorkCategory(event.Domain, event.Description)
+	}
+
 	// Create execution record
 	execution := model.Execution{
 		ID:             generateID("exec"),
@@ -73,6 +111,75 @@ func (s *Service) ProcessContractCompletion(ctx context.Context, event model.Con
 		ProviderPayout: breakdown.ProviderPayout,
 		Metadata:       event.Metadata,
 		CreatedAt:      time.Now().UTC(),
+		WorkCategory:   workCategory,
+	}
+
+	// Get bids from payment providers and select best one
+	paymentBidReq := model.PaymentBidRequest{
+		Amount:       agreedPrice.InexactFloat64(),
+		Currency:     currency,
+		WorkCategory: workCategory,
+		ConsumerID:   event.ConsumerID,
+		ContractID:   event.ContractID,
+	}
+
+	bids, err := s.paymentProvider.GetPaymentBids(ctx, paymentBidReq)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to get payment provider bids", "error", err)
+	}
+
+	if len(bids) > 0 {
+		// Select best provider (lowest fee by default)
+		selection := s.paymentProvider.SelectBestProvider(bids, "lowest_fee")
+		selectedBid := selection.SelectedProvider
+
+		// Calculate payment costs based on selected provider
+		baseFee := agreedPrice.Mul(decimal.NewFromFloat(selectedBid.BaseFeePercent / 100)).Round(2)
+		reward := agreedPrice.Mul(decimal.NewFromFloat(selectedBid.RewardPercent / 100)).Round(2)
+		netCost := baseFee.Sub(reward).Round(2)
+
+		execution.PaymentProviderID = selectedBid.ProviderID
+		execution.PaymentProviderName = selectedBid.ProviderName
+		execution.PaymentBaseFee = baseFee.String()
+		execution.PaymentReward = reward.String()
+		execution.PaymentNetCost = netCost.String()
+
+		slog.InfoContext(ctx, "payment provider selected",
+			"contract_id", event.ContractID,
+			"work_category", workCategory,
+			"provider_id", selectedBid.ProviderID,
+			"provider_name", selectedBid.ProviderName,
+			"base_fee", baseFee.String(),
+			"reward", reward.String(),
+			"net_cost", netCost.String(),
+			"all_bids", len(bids),
+		)
+	}
+
+	// Process AP2 payment if enabled
+	useAP2 := s.ap2Enabled && (event.UseAP2 || s.ap2Enabled)
+	if useAP2 {
+		ap2Result, err := s.processAP2Payment(ctx, event, agreedPrice.InexactFloat64(), currency)
+		if err != nil {
+			slog.ErrorContext(ctx, "AP2 payment failed, falling back to internal settlement",
+				"error", err,
+				"contract_id", event.ContractID,
+			)
+		} else if ap2Result != nil && ap2Result.Success {
+			// Update execution with AP2 payment info
+			execution.AP2Enabled = true
+			execution.PaymentMandateID = ap2Result.PaymentMandateID
+			execution.PaymentReceiptID = ap2Result.ReceiptID
+			execution.PaymentTransactionID = ap2Result.TransactionID
+			execution.PaymentMethod = ap2Result.PaymentMethod
+
+			slog.InfoContext(ctx, "AP2 payment successful",
+				"contract_id", event.ContractID,
+				"mandate_id", ap2Result.PaymentMandateID,
+				"receipt_id", ap2Result.ReceiptID,
+				"transaction_id", ap2Result.TransactionID,
+			)
+		}
 	}
 
 	// Save execution
@@ -80,7 +187,7 @@ func (s *Service) ProcessContractCompletion(ctx context.Context, event model.Con
 		return fmt.Errorf("save execution: %w", err)
 	}
 
-	// Process settlement (update ledgers and balances)
+	// Process internal settlement (update ledgers and balances)
 	if err := s.settleExecution(ctx, execution); err != nil {
 		return fmt.Errorf("settle execution: %w", err)
 	}
@@ -92,10 +199,11 @@ func (s *Service) ProcessContractCompletion(ctx context.Context, event model.Con
 		"provider_id", execution.ProviderID,
 		"agreed_price", execution.AgreedPrice,
 		"provider_payout", execution.ProviderPayout,
+		"ap2_enabled", execution.AP2Enabled,
 	)
 
 	// Publish settlement completed event
-	_ = s.events.Publish(ctx, events.EventSettlementCompleted, map[string]any{
+	eventData := map[string]any{
 		"execution_id":    execution.ID,
 		"contract_id":     execution.ContractID,
 		"consumer_id":     execution.ConsumerID,
@@ -103,9 +211,70 @@ func (s *Service) ProcessContractCompletion(ctx context.Context, event model.Con
 		"agreed_price":    execution.AgreedPrice,
 		"platform_fee":    execution.PlatformFee,
 		"provider_payout": execution.ProviderPayout,
-	})
+		"ap2_enabled":     execution.AP2Enabled,
+	}
+	if execution.AP2Enabled {
+		eventData["payment_mandate_id"] = execution.PaymentMandateID
+		eventData["payment_receipt_id"] = execution.PaymentReceiptID
+		eventData["payment_transaction_id"] = execution.PaymentTransactionID
+	}
+	_ = s.events.Publish(ctx, events.EventSettlementCompleted, eventData)
 
 	return nil
+}
+
+// processAP2Payment handles AP2 payment processing
+func (s *Service) processAP2Payment(ctx context.Context, event model.ContractCompletedEvent, amount float64, currency string) (*model.AP2PaymentResult, error) {
+	description := event.Description
+	if description == "" {
+		description = fmt.Sprintf("Payment for contract %s in domain %s", event.ContractID, event.Domain)
+	}
+
+	req := ap2.ProcessPaymentRequest{
+		ContractID:    event.ContractID,
+		WorkID:        event.WorkID,
+		ConsumerID:    event.ConsumerID,
+		ProviderID:    event.ProviderID,
+		Description:   description,
+		Amount:        amount,
+		Currency:      currency,
+		Domain:        event.Domain,
+		PaymentMethod: event.PaymentMethod,
+	}
+
+	result, err := s.ap2Handler.ProcessPayment(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("AP2 payment processing error: %w", err)
+	}
+
+	if result == nil {
+		return nil, fmt.Errorf("AP2 returned nil result")
+	}
+
+	ap2Result := &model.AP2PaymentResult{
+		Success:      result.Success,
+		ErrorMessage: result.ErrorMessage,
+	}
+
+	if result.PaymentMandate != nil {
+		ap2Result.PaymentMandateID = result.PaymentMandate.PaymentMandateContents.PaymentMandateID
+		ap2Result.PaymentMethod = result.PaymentMandate.PaymentMandateContents.PaymentResponse.MethodName
+	}
+
+	if result.Receipt != nil {
+		ap2Result.ReceiptID = result.Receipt.ReceiptID
+		ap2Result.TransactionID = result.Receipt.TransactionID
+	}
+
+	return ap2Result, nil
+}
+
+// GetPaymentMethods returns available AP2 payment methods for a user
+func (s *Service) GetPaymentMethods(ctx context.Context, userID string) ([]ap2.PaymentMethod, error) {
+	if !s.ap2Enabled {
+		return nil, fmt.Errorf("AP2 is not enabled")
+	}
+	return s.ap2Handler.GetPaymentMethods(ctx, userID)
 }
 
 // settleExecution updates ledgers and balances for an execution
@@ -316,4 +485,64 @@ func generateID(prefix string) string {
 	var b [8]byte
 	rand.Read(b[:])
 	return prefix + "_" + hex.EncodeToString(b[:])
+}
+
+// detectWorkCategory determines the work category from domain and description
+func (s *Service) detectWorkCategory(domain, description string) string {
+	// Check domain first
+	switch domain {
+	case "compliance", "regulatory":
+		return "compliance"
+	case "contracts", "contract":
+		return "contracts"
+	case "ip", "patent", "trademark":
+		return "ip_patent"
+	case "real_estate", "property":
+		return "real_estate"
+	}
+
+	// Check description for keywords
+	desc := strings.ToLower(description)
+
+	// Contract keywords
+	if strings.Contains(desc, "contract") || strings.Contains(desc, "nda") ||
+		strings.Contains(desc, "agreement") || strings.Contains(desc, "terms") {
+		return "contracts"
+	}
+
+	// Compliance keywords
+	if strings.Contains(desc, "compliance") || strings.Contains(desc, "regulatory") ||
+		strings.Contains(desc, "audit") || strings.Contains(desc, "gdpr") ||
+		strings.Contains(desc, "hipaa") || strings.Contains(desc, "sox") {
+		return "compliance"
+	}
+
+	// IP/Patent keywords
+	if strings.Contains(desc, "patent") || strings.Contains(desc, "trademark") ||
+		strings.Contains(desc, "copyright") || strings.Contains(desc, "intellectual property") {
+		return "ip_patent"
+	}
+
+	// Real estate keywords
+	if strings.Contains(desc, "real estate") || strings.Contains(desc, "property") ||
+		strings.Contains(desc, "lease") || strings.Contains(desc, "mortgage") {
+		return "real_estate"
+	}
+
+	// Default to general legal
+	return "legal_research"
+}
+
+// GetPaymentProviderBids returns payment provider bids for a given request
+func (s *Service) GetPaymentProviderBids(ctx context.Context, req model.PaymentBidRequest) (model.PaymentProviderSelection, error) {
+	bids, err := s.paymentProvider.GetPaymentBids(ctx, req)
+	if err != nil {
+		return model.PaymentProviderSelection{}, err
+	}
+
+	// Select best provider
+	selection := s.paymentProvider.SelectBestProvider(bids, "lowest_fee")
+	selection.WorkCategory = req.WorkCategory
+
+	return selection, nil
 }

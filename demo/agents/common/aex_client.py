@@ -81,8 +81,19 @@ class AEXClient:
         bid_webhook: str,
         capabilities: list[str],
         contact_email: str = "",
+        metadata: Optional[dict] = None,
     ) -> dict:
-        """Register as a provider with AEX."""
+        """Register as a provider with AEX.
+
+        Args:
+            name: Provider name
+            description: Provider description
+            endpoint: A2A endpoint URL
+            bid_webhook: Webhook for bid notifications
+            capabilities: List of capabilities (e.g., ["payment", "ap2_mandates"])
+            contact_email: Contact email
+            metadata: Additional metadata (e.g., AP2 extensions, fee info)
+        """
         session = await self._get_session()
         payload = {
             "name": name,
@@ -92,6 +103,8 @@ class AEXClient:
             "capabilities": capabilities,
             "contact_email": contact_email,
         }
+        if metadata:
+            payload["metadata"] = metadata
 
         async with session.post(
             f"{self.gateway_url}/v1/providers",

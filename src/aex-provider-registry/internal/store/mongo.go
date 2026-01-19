@@ -110,6 +110,23 @@ func (s *MongoStore) GetProviderByAPIKeyHash(ctx context.Context, apiKeyHash str
 	return &p, nil
 }
 
+func (s *MongoStore) GetProviderByName(ctx context.Context, name string) (*model.Provider, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	res := s.providers.FindOne(ctx, bson.M{"name": name})
+	if res.Err() == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	if res.Err() != nil {
+		return nil, res.Err()
+	}
+	var p model.Provider
+	if err := res.Decode(&p); err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (s *MongoStore) ListProviders(ctx context.Context, providerIDs []string) ([]model.Provider, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

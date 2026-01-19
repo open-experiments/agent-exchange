@@ -13,11 +13,37 @@ class Provider:
 
 
 @dataclass
+class Extension:
+    """A2A Extension (e.g., AP2 for payments)."""
+    uri: str
+    description: Optional[str] = None
+    required: bool = False
+
+
+# AP2 Extension constants
+AP2_EXTENSION_URI = "https://github.com/google-agentic-commerce/ap2/v1"
+
+
+def ap2_extension(required: bool = True) -> Extension:
+    """Create an AP2 extension for agent cards."""
+    return Extension(
+        uri=AP2_EXTENSION_URI,
+        description="Supports the Agent Payments Protocol for agent-to-agent payments.",
+        required=required,
+    )
+
+
+@dataclass
 class Capabilities:
     """Agent capabilities."""
     streaming: bool = False
     pushNotifications: bool = False
     stateTransitionHistory: bool = False
+    extensions: list[Extension] = field(default_factory=list)
+
+    def has_ap2_support(self) -> bool:
+        """Check if agent supports AP2."""
+        return any(ext.uri == AP2_EXTENSION_URI for ext in self.extensions)
 
 
 @dataclass
@@ -97,10 +123,18 @@ class AgentCard:
         capabilities = Capabilities()
         if "capabilities" in data:
             caps = data["capabilities"]
+            extensions = []
+            for ext in caps.get("extensions", []):
+                extensions.append(Extension(
+                    uri=ext["uri"],
+                    description=ext.get("description"),
+                    required=ext.get("required", False),
+                ))
             capabilities = Capabilities(
                 streaming=caps.get("streaming", False),
                 pushNotifications=caps.get("pushNotifications", False),
                 stateTransitionHistory=caps.get("stateTransitionHistory", False),
+                extensions=extensions,
             )
 
         return cls(

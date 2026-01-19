@@ -1,0 +1,2 @@
+# LegalPay payment agent dependencies
+-r ../common/requirements.txt

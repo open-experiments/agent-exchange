@@ -1,336 +1,392 @@
-# Agent Exchange - A2A Integration Demo
+# Agent Exchange (AEX) Demo
 
-This directory contains demo agents and a UI showcasing the integration between Agent Exchange (AEX) and the A2A Protocol. The demo features **three legal agents with tiered pricing** to demonstrate AEX's intelligent bid evaluation and selection.
+A complete demonstration of the Agent Exchange platform showcasing **A2A Protocol** (Agent-to-Agent communication) and **AP2 Protocol** (Agent Payments Protocol) integration.
 
-## Overview
-
-```
-demo/
-├── agents/
-│   ├── common/              # Shared utilities for all agents
-│   ├── legal-agent-a/       # Budget tier - Claude (fast, basic analysis)
-│   ├── legal-agent-b/       # Standard tier - Claude (thorough analysis)
-│   ├── legal-agent-c/       # Premium tier - Claude (exhaustive expert analysis)
-│   └── orchestrator/        # Consumer agent that coordinates work
-├── ui/                      # Mesop web interface
-├── docker-compose.yml       # Run all demo components
-└── README.md
-```
-
-## Architecture
+## What This Demo Shows
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              DEMO FLOW                                      │
-│                                                                             │
-│  User ──► Mesop UI ──► Orchestrator ──► Agent Exchange ──► Provider Agents  │
-│                              │                                   │          │
-│                              │         (Discovery, Bidding)      │          │
-│                              │                                   │          │
-│                              └───────────── A2A ─────────────────┘          │
-│                                      (Direct Execution)                     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+User Request: "Review this NDA for potential risks"
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  7-STEP WORKFLOW                                                        │
+│                                                                         │
+│  1. COLLECT BIDS      Legal agents compete with pricing offers          │
+│         │                                                               │
+│         ▼                                                               │
+│  2. EVALUATE BIDS     Score bids by price, trust, confidence            │
+│         │                                                               │
+│         ▼                                                               │
+│  3. AWARD CONTRACT    Best agent wins, contract created                 │
+│         │                                                               │
+│         ▼                                                               │
+│  4. EXECUTE (A2A)     Winner processes request via JSON-RPC             │
+│         │                                                               │
+│         ▼                                                               │
+│  5. AP2 SELECT        Payment providers bid on transaction              │
+│         │                                                               │
+│         ▼                                                               │
+│  6. AP2 PAYMENT       Process payment with rewards/cashback             │
+│         │                                                               │
+│         ▼                                                               │
+│  7. SETTLEMENT        Platform fee, provider payout, ledger update      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
-
-## Agents
-
-### Legal Agents with Tiered Pricing
-
-| Agent | Tier | LLM | Pricing | Best For | Port |
-|-------|------|-----|---------|----------|------|
-| **Legal Agent A** | Budget | Claude | $5 + $2/page | Short docs (1-5 pages) | 8100 |
-| **Legal Agent B** | Standard | Claude | $15 + $0.50/page | Medium docs (5-30 pages) | 8101 |
-| **Legal Agent C** | Premium | Claude | $30 + $0.20/page | Large docs (30+ pages) | 8102 |
-
-### Pricing Examples
-
-| Document Size | Agent A (Budget) | Agent B (Standard) | Agent C (Premium) | Best Choice |
-|---------------|------------------|--------------------|--------------------|-------------|
-| 3 pages | $11 | $16.50 | $30.60 | **Agent A** |
-| 10 pages | $25 | $20 | $32 | **Agent B** |
-| 20 pages | $45 | $25 | $34 | **Agent B** |
-| 50 pages | $105 | $40 | $40 | **Agent B/C** |
-| 100 pages | $205 | $65 | $50 | **Agent C** |
-
-### Other Services
-
-| Agent | LLM | Framework | Purpose | Port |
-|-------|-----|-----------|---------|------|
-| **Orchestrator** | Claude | LangGraph | Task decomposition, AEX integration | 8103 |
-| **Demo UI** | - | Mesop | Web interface | 8501 |
 
 ## Quick Start
 
 ### Prerequisites
 
 - Docker & Docker Compose
-- Python 3.11+
-- API Key: `ANTHROPIC_API_KEY`
+- Anthropic API Key (for LLM-powered agents)
 
-> **Note**: No GPU required! All agents use Anthropic Claude API. Your machine only runs lightweight Python servers that make API calls.
-
-### Run the Demo
+### 1. Configure Environment
 
 ```bash
-# From project root
 cd demo
-
-# Set your API key
 cp .env.example .env
-# Edit .env with your Anthropic API key
-
-# Start everything (AEX system + Demo agents + UI)
-docker-compose up --build
-
-# Access the demo
-open http://localhost:8501
+# Edit .env and add your ANTHROPIC_API_KEY
 ```
 
-This single command builds and starts:
-- All AEX core services (Gateway, Provider Registry, Bid Gateway, etc.)
-- MongoDB database
-- 3 Legal Agents (Budget, Standard, Premium)
-- Orchestrator
-- Demo UI
+### 2. Start Everything
 
-### Run Locally (Development)
+```bash
+docker-compose up -d --build
+```
+
+### 3. Open the Demo UI
+
+**NiceGUI (Recommended)**: http://localhost:8502
+Mesop (Legacy): http://localhost:8501
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                 DEMO COMPONENTS                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                           AEX CORE SERVICES                           │   │
+│  │                                                                       │   │
+│  │   Gateway ─── Work Publisher ─── Bid Gateway ─── Bid Evaluator       │   │
+│  │     :8080         :8081            :8082           :8083             │   │
+│  │                                                                       │   │
+│  │   Contract Engine ─── Provider Registry ─── Trust Broker ─── Identity │   │
+│  │       :8084              :8085               :8086          :8087    │   │
+│  │                                                                       │   │
+│  │              Settlement ─── Credentials Provider (AP2)                │   │
+│  │                :8088              :8090                               │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                        LEGAL AGENTS (Providers)                       │   │
+│  │                                                                       │   │
+│  │   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐      │   │
+│  │   │  Budget Legal   │  │ Standard Legal  │  │  Premium Legal  │      │   │
+│  │   │   $5 + $2/pg    │  │  $15 + $0.50/pg │  │  $30 + $0.20/pg │      │   │
+│  │   │     :8100       │  │      :8101      │  │      :8102      │      │   │
+│  │   └─────────────────┘  └─────────────────┘  └─────────────────┘      │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                      PAYMENT AGENTS (AP2 Providers)                   │   │
+│  │                                                                       │   │
+│  │   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐      │   │
+│  │   │    LegalPay     │  │   ContractPay   │  │  CompliancePay  │      │   │
+│  │   │   2% - 1% = 1%  │  │  2.5% - 3% = -  │  │   3% - 4% = -1% │      │   │
+│  │   │     :8200       │  │      :8201      │  │      :8202      │      │   │
+│  │   └─────────────────┘  └─────────────────┘  └─────────────────┘      │   │
+│  │         fee             0.5% CASHBACK         1% CASHBACK            │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────────────┐    │
+│  │   Orchestrator   │  │  Demo UI (Mesop) │  │  Demo UI (NiceGUI)     │    │
+│  │      :8103       │  │      :8501       │  │  :8502 (Recommended)   │    │
+│  └──────────────────┘  └──────────────────┘  └────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Demo Workflow Explained
+
+### Step 1: Collect Bids
+
+Legal agents receive the work request and submit bids based on their pricing model:
+
+| Agent | Tier | Pricing Formula | 10-page doc |
+|-------|------|-----------------|-------------|
+| Budget Legal AI | VERIFIED | $5 + $2/page | **$25** |
+| Standard Legal AI | TRUSTED | $15 + $0.50/page | **$20** |
+| Premium Legal AI | PREFERRED | $30 + $0.20/page | **$32** |
+
+### Step 2: Evaluate Bids
+
+Bids are scored using the selected strategy:
+
+| Strategy | Price | Trust | Confidence | Best For |
+|----------|-------|-------|------------|----------|
+| **Balanced** | 40% | 35% | 25% | General use |
+| **Lowest Price** | 70% | 20% | 10% | Budget-conscious |
+| **Best Quality** | 20% | 50% | 30% | Critical documents |
+
+### Step 3: Award Contract
+
+The highest-scoring agent wins:
+- Contract ID generated
+- Price locked in
+- Provider notified
+
+### Step 4: Execute via A2A
+
+Direct agent-to-agent call using JSON-RPC 2.0:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "message/send",
+  "params": {
+    "message": {
+      "role": "user",
+      "parts": [{"type": "text", "text": "Review this NDA..."}]
+    }
+  }
+}
+```
+
+### Step 5: AP2 Payment Provider Selection
+
+Payment agents compete for the transaction:
+
+| Provider | Base Fee | Reward | Net Fee | Specialization |
+|----------|----------|--------|---------|----------------|
+| LegalPay | 2.0% | 1.0% | **1.0%** | General legal |
+| ContractPay | 2.5% | 3.0% | **-0.5%** | Contracts/Real Estate |
+| CompliancePay | 3.0% | 4.0% | **-1.0%** | Compliance/Regulatory |
+
+**Negative net fee = You earn CASHBACK!**
+
+### Step 6: AP2 Payment Processing
+
+The AP2 protocol processes the payment:
+
+1. **Cart Mandate** - Items and total amount
+2. **Payment Mandate** - Selected payment method
+3. **Payment Receipt** - Transaction confirmation
+
+### Step 7: Settlement
+
+Final distribution:
+- **Platform Fee**: 10% of agreed price
+- **Provider Payout**: 90% to winning agent
+- **Ledger Updated**: All transactions recorded
+
+## Port Reference
+
+| Service | Port | Description |
+|---------|------|-------------|
+| AEX Gateway | 8080 | Main API endpoint |
+| Work Publisher | 8081 | Work specification publishing |
+| Bid Gateway | 8082 | Bid submission |
+| Bid Evaluator | 8083 | Bid evaluation |
+| Contract Engine | 8084 | Contract management |
+| Provider Registry | 8085 | Agent registration & discovery |
+| Trust Broker | 8086 | Trust scoring |
+| Identity | 8087 | Identity management |
+| Settlement | 8088 | Payment settlement with AP2 |
+| Telemetry | 8089 | Platform telemetry |
+| Credentials Provider | 8090 | AP2 payment methods |
+| Legal Agent A | 8100 | Budget tier |
+| Legal Agent B | 8101 | Standard tier |
+| Legal Agent C | 8102 | Premium tier |
+| LegalPay | 8200 | Payment provider |
+| ContractPay | 8201 | Payment provider |
+| CompliancePay | 8202 | Payment provider |
+| Orchestrator | 8103 | Consumer orchestrator |
+| Demo UI (Mesop) | 8501 | Legacy interface |
+| **Demo UI (NiceGUI)** | **8502** | **Real-time WebSocket UI** |
+
+## API Examples
+
+### Check Registered Agents
+
+```bash
+curl http://localhost:8085/v1/providers | jq
+```
+
+### Get Agent Card (A2A Standard)
+
+```bash
+curl http://localhost:8100/.well-known/agent.json | jq
+```
+
+### Direct A2A Call
+
+```bash
+curl -X POST http://localhost:8100/a2a \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "id": "demo-1",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"type": "text", "text": "Review this NDA clause..."}]
+      }
+    }
+  }' | jq
+```
+
+### Request Bid from Agent
+
+```bash
+curl -X POST http://localhost:8100/a2a \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "id": "bid-request",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"type": "text", "text": "{\"action\": \"get_bid\", \"document_pages\": 10}"}]
+      }
+    }
+  }' | jq
+```
+
+### Request Payment Bid (AP2)
+
+```bash
+curl -X POST http://localhost:8200/a2a \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "id": "payment-bid",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"type": "text", "text": "{\"action\": \"bid\", \"amount\": 25.00, \"work_category\": \"contracts\"}"}]
+      }
+    }
+  }' | jq
+```
+
+## Project Structure
+
+```
+demo/
+├── agents/
+│   ├── common/                    # Shared utilities
+│   │   ├── aex_client.py         # AEX integration client
+│   │   ├── agent_card.py         # A2A agent card generation
+│   │   └── config.py             # Configuration management
+│   ├── legal-agent-a/            # Budget tier ($5 + $2/page)
+│   ├── legal-agent-b/            # Standard tier ($15 + $0.50/page)
+│   ├── legal-agent-c/            # Premium tier ($30 + $0.20/page)
+│   ├── payment-legalpay/         # Payment provider (1% fee)
+│   ├── payment-contractpay/      # Payment provider (0.5% cashback)
+│   ├── payment-compliancepay/    # Payment provider (1% cashback)
+│   └── orchestrator/             # Consumer orchestrator
+├── ui/
+│   ├── main.py                   # Mesop UI (legacy)
+│   ├── nicegui_app.py           # NiceGUI UI (recommended)
+│   ├── Dockerfile               # Mesop container
+│   └── Dockerfile.nicegui       # NiceGUI container
+├── docker-compose.yml            # All services
+└── README.md                     # This file
+```
+
+## Troubleshooting
+
+### Services Not Starting
+
+```bash
+# Check container status
+docker-compose ps
+
+# View logs for a specific service
+docker logs aex-gateway
+docker logs aex-legal-agent-a
+```
+
+### No Agents Showing in UI
+
+```bash
+# Check provider registry
+curl http://localhost:8085/v1/providers | jq
+
+# Check agent health
+curl http://localhost:8100/health
+curl http://localhost:8200/health
+```
+
+### Payment Agents Show 0 Count
+
+The UI infers agent type from capabilities. Payment agents must have `payment` or `payment_processing` in their capabilities array.
+
+### AP2 Payment Not Working
+
+```bash
+# Check credentials provider
+curl http://localhost:8090/health
+
+# Check settlement service
+docker logs aex-settlement | grep -i ap2
+```
+
+## Development
+
+### Adding a New Legal Agent
+
+1. Copy existing agent: `cp -r agents/legal-agent-a agents/legal-agent-d`
+2. Update `config.yaml` with new pricing/capabilities
+3. Add to `docker-compose.yml`
+4. Agent auto-registers with AEX on startup
+
+### Adding a New Payment Agent
+
+1. Copy existing: `cp -r agents/payment-legalpay agents/payment-newpay`
+2. Update `config.yaml` with fee structure
+3. Add to `docker-compose.yml`
+4. Ensure capabilities include `payment`
+
+### Running Locally (Development)
 
 ```bash
 # Terminal 1: Start AEX services
 cd .. && make docker-up
 
-# Terminal 2: Start Legal Agent A (Budget)
+# Terminal 2: Start a legal agent
 cd agents/legal-agent-a
 pip install -r requirements.txt
 python main.py
 
-# Terminal 3: Start Legal Agent B (Standard)
-cd agents/legal-agent-b
-pip install -r requirements.txt
-python main.py
-
-# Terminal 4: Start Legal Agent C (Premium)
-cd agents/legal-agent-c
-pip install -r requirements.txt
-python main.py
-
-# Terminal 5: Start Demo UI
+# Terminal 3: Start the NiceGUI UI
 cd ui
 pip install -r requirements.txt
-mesop main.py
+python nicegui_app.py
 ```
 
-## Demo Scenario
+## Key Protocols
 
-**User Request**:
-> "Review this 15-page partnership agreement and identify all risks and obligations."
+### A2A Protocol (Agent-to-Agent)
 
-**What Happens**:
+- **Standard**: JSON-RPC 2.0 over HTTP
+- **Agent Card**: `/.well-known/agent.json` describes capabilities
+- **Methods**: `message/send`, `tasks/create`, `tasks/get`
 
-1. **Orchestrator** analyzes request, identifies task:
-   - Contract Review → requires `contract_review` skill
-   - Document: 15 pages
+### AP2 Protocol (Agent Payments)
 
-2. **AEX Discovery**:
-   ```
-   GET /v1/providers/search?skill_tag=contract_review
-   → Found: Legal Agent A (Budget), Legal Agent B (Standard), Legal Agent C (Premium)
-   ```
-
-3. **Bidding** (document-aware pricing):
-   ```
-   Legal Agent A (Budget):   $5 + (15 × $2)    = $35, confidence 75%
-   Legal Agent B (Standard): $15 + (15 × $0.50) = $22.50, confidence 88%
-   Legal Agent C (Premium):  $30 + (15 × $0.20) = $33, confidence 95%
-   ```
-
-4. **Evaluation** (balanced strategy):
-   ```
-   Score = 0.3×price + 0.3×trust + 0.15×confidence + 0.15×quality + 0.1×SLA
-
-   Agent A: Low price but lower confidence → Score: 0.72
-   Agent B: Best price/quality balance    → Score: 0.85 ← Winner
-   Agent C: High confidence but pricier   → Score: 0.81
-   ```
-
-5. **A2A Execution**:
-   ```
-   POST https://legal-agent-b:8101/a2a
-   Authorization: Bearer {contract_token}
-   {"jsonrpc":"2.0","method":"message/send",...}
-   ```
-
-6. **Settlement**:
-   ```
-   Total: $22.50
-   Platform Fee (15%): $3.38
-   Provider Payout: $19.12
-   ```
-
-### Document Size Impact
-
-For a **100-page contract**, selection would differ:
-```
-Legal Agent A: $5 + (100 × $2)    = $205 ← Too expensive
-Legal Agent B: $15 + (100 × $0.50) = $65
-Legal Agent C: $30 + (100 × $0.20) = $50  ← Best value
-```
-
-## Configuration
-
-### Agent Configuration
-
-Each agent has a `config.yaml` with tiered pricing:
-
-```yaml
-# agents/legal-agent-a/config.yaml (Budget Tier)
-agent:
-  name: "Budget Legal AI"
-  description: "Fast, affordable contract review - basic analysis at low cost"
-  version: "1.0.0"
-
-server:
-  host: "0.0.0.0"
-  port: 8100
-
-llm:
-  provider: "anthropic"
-  model: "claude-sonnet-4-20250514"
-  temperature: 0.5
-
-characteristics:
-  tier: "budget"
-  response_style: "concise"
-  detail_level: "basic"
-  turnaround: "fast"
-
-skills:
-  - id: "contract_review"
-    name: "Contract Review"
-    description: "Quick contract review highlighting major issues"
-    tags: ["legal", "contracts", "review"]
-
-aex:
-  enabled: true
-  gateway_url: "http://localhost:8080"
-  auto_register: true
-  auto_bid: true
-  pricing:
-    base_rate: 5.00
-    per_page_rate: 2.00
-    max_pages_optimal: 5
-    currency: "USD"
-    description: "Best for quick reviews of short documents (1-5 pages)"
-  bidding:
-    confidence: 0.75
-    estimated_time_minutes: 3
-    max_document_pages: 10
-```
-
-### Environment Variables
-
-```bash
-# .env
-# Claude - used by all agents
-ANTHROPIC_API_KEY=sk-ant-...
-
-# AEX Configuration
-AEX_GATEWAY_URL=http://localhost:8080
-
-# Agent Ports
-LEGAL_AGENT_A_PORT=8100  # Budget: $5 + $2/page
-LEGAL_AGENT_B_PORT=8101  # Standard: $15 + $0.50/page
-LEGAL_AGENT_C_PORT=8102  # Premium: $30 + $0.20/page
-ORCHESTRATOR_PORT=8103
-```
-
-## API Endpoints
-
-### Agent Card (A2A Standard)
-
-```bash
-# Get agent capabilities
-curl http://localhost:8100/.well-known/agent-card.json
-```
-
-### A2A JSON-RPC
-
-```bash
-# Send message to agent
-curl -X POST http://localhost:8100/a2a \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer {token}" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "message/send",
-    "id": "1",
-    "params": {
-      "message": {
-        "role": "user",
-        "parts": [{"type": "text", "text": "Review this contract..."}]
-      }
-    }
-  }'
-```
-
-## Development
-
-### Adding a New Agent
-
-1. Copy an existing agent folder:
-   ```bash
-   cp -r agents/legal-agent-a agents/my-new-agent
-   ```
-
-2. Update `config.yaml` with new skills
-
-3. Implement skill handlers in `skills/`
-
-4. Update `docker-compose.yml`
-
-5. Register with AEX
-
-### Testing
-
-```bash
-# Test individual agent
-cd agents/legal-agent-a
-pytest tests/ -v
-
-# Test full demo flow
-cd demo
-python scripts/test_e2e.py
-```
-
-## Troubleshooting
-
-### Agent not discovered by AEX
-
-1. Check agent is registered:
-   ```bash
-   curl http://localhost:8080/v1/providers
-   ```
-
-2. Verify agent card is accessible:
-   ```bash
-   curl http://localhost:8100/.well-known/agent-card.json
-   ```
-
-### Bidding not working
-
-1. Check agent has `auto_bid: true` in config
-2. Verify AEX gateway URL is correct
-3. Check agent logs for errors
-
-### A2A execution fails
-
-1. Verify contract token is valid
-2. Check agent is accepting the token
-3. Review agent logs for authentication errors
+- **Standard**: Google's Agent Payments Protocol
+- **Mandates**: Intent -> Cart -> Payment -> Receipt
+- **Extension URI**: `https://github.com/google-agentic-commerce/ap2/v1`
 
 ## Related Documentation
 
-- [A2A Integration Roadmap](../docs/a2a-integration/AEX_A2A_INTEGRATION_ROADMAP.md)
-- [Value Proposition](../docs/a2a-integration/AEX_A2A_VALUE_PROPOSITION.md)
-- [Call Flow Diagrams](../docs/a2a-integration/diagrams/)
+- [AEX A2A Integration](../docs/a2a-integration/)
+- [AP2 Integration](../docs/AP2_INTEGRATION.md)
+- [AWS Deployment](../deploy/aws/README.md)
