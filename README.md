@@ -76,8 +76,8 @@ cp .env.example .env
 # Start everything (AEX services + Demo agents + UI)
 docker-compose up --build
 
-# Access the demo UI
-open http://localhost:8501
+# Access the demo UI (NiceGUI)
+open http://localhost:8502
 ```
 
 ### Build Services Locally

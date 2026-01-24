@@ -4,39 +4,66 @@ This document tracks the gaps between Phase A specifications and current impleme
 
 ## Current State Summary
 
-**Status: Core business logic implemented, infrastructure and completeness gaps remain**
+**Status: Core business logic implemented with AP2 payment integration complete**
 
 ### What's Working
 
 The end-to-end marketplace flow works via HTTP calls:
 ```
 Tenant creation → Provider registration → Work submission → Bidding →
-Evaluation → Contract award → A2A execution → Settlement → Trust updates
+Evaluation → Contract award → A2A execution → AP2 Payment → Settlement → Trust updates
 ```
 
 ### Service Implementation Status
 
-| Service | Core API | Store | Events | Status |
-|---------|----------|-------|--------|--------|
-| aex-gateway | ✅ Proxy, rate limit | N/A | N/A | ✅ Working |
-| aex-work-publisher | ✅ CRUD | MongoDB/Firestore | ⚠️ Logged | ✅ Working |
-| aex-bid-gateway | ✅ Submit, list | MongoDB | ⚠️ Logged | ✅ Working |
-| aex-bid-evaluator | ✅ Evaluate | Memory | ⚠️ Logged | ✅ Working |
-| aex-contract-engine | ✅ Award, complete | MongoDB | ⚠️ Logged | ✅ Working |
-| aex-provider-registry | ✅ Register, subscribe | MongoDB | ⚠️ Logged | ✅ Working |
-| aex-trust-broker | ✅ Get/record | MongoDB | ⚠️ Logged | ✅ Working |
-| aex-identity | ✅ Tenants, keys | MongoDB | ⚠️ Logged | ✅ Working |
-| aex-settlement | ✅ Balance, settle | MongoDB | ⚠️ Logged | ✅ Working |
-| aex-telemetry | ✅ Ingest, query | Memory only | N/A | ⚠️ MVP |
+| Service | Port | Core API | Store | Events | Status |
+|---------|------|----------|-------|--------|--------|
+| aex-gateway | 8080 | ✅ Proxy, rate limit | N/A | N/A | ✅ Working |
+| aex-work-publisher | 8081 | ✅ CRUD | MongoDB/Firestore | ⚠️ Logged | ✅ Working |
+| aex-bid-gateway | 8082 | ✅ Submit, list | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-bid-evaluator | 8083 | ✅ Evaluate | Memory | ⚠️ Logged | ✅ Working |
+| aex-contract-engine | 8084 | ✅ Award, complete | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-provider-registry | 8085 | ✅ Register, subscribe | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-trust-broker | 8086 | ✅ Get/record | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-identity | 8087 | ✅ Tenants, keys | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-settlement | 8088 | ✅ Balance, settle, AP2 | MongoDB | ⚠️ Logged | ✅ Working |
+| aex-telemetry | 8089 | ✅ Ingest, query | Memory only | N/A | ⚠️ MVP |
+| **aex-credentials-provider** | **8090** | **✅ AP2 payment methods** | **MongoDB** | **N/A** | **✅ NEW** |
+
+### AP2 Integration Status (NEW)
+
+| Component | Status |
+|-----------|--------|
+| AP2 Types (Intent, Cart, Payment Mandates) | ✅ Implemented |
+| AP2 Payment Handler | ✅ Implemented |
+| AP2 Mandate Generator | ✅ Implemented |
+| AP2 Credentials Provider Service | ✅ Implemented |
+| Settlement AP2 Integration | ✅ Implemented |
+| Mock Payment Methods (Demo) | ✅ Working |
 
 ### Demo Status
 
 | Component | Status |
 |-----------|--------|
 | 3 Legal Provider Agents (LangGraph) | ✅ Working |
+| 3 Payment Provider Agents (AP2) | ✅ NEW - Working |
 | Orchestrator Consumer Agent | ✅ Working |
-| Streamlit UI Dashboard | ✅ Working |
+| **NiceGUI Real-Time UI (Recommended)** | ✅ NEW - Working (Port 8502) |
+| ~~Mesop UI Dashboard~~ | ⚠️ DEPRECATED (Port 8501) |
 | A2A Protocol Integration | ✅ Working |
+| AP2 Payment Flow | ✅ NEW - Working |
+
+### Demo Agents
+
+| Agent | Port | Type | Description |
+|-------|------|------|-------------|
+| Budget Legal | 8100 | Legal | $5 base + $2/page |
+| Standard Legal | 8101 | Legal | $15 base + $0.50/page |
+| Premium Legal | 8102 | Legal | $30 base + $0.20/page |
+| Orchestrator | 8103 | Consumer | Demo coordinator |
+| LegalPay | 8200 | Payment | 2% fee, 1% reward |
+| ContractPay | 8201 | Payment | 2.5% fee, 3% reward (cashback!) |
+| CompliancePay | 8202 | Payment | 3% fee, 4% reward (cashback!) |
 
 However, the following categories of work remain to achieve full Phase A spec compliance.
 
