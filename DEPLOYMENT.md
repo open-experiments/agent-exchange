@@ -34,7 +34,7 @@ This guide covers deploying Agent Exchange to cloud platforms. Choose your prefe
 
 ### Architecture
 
-Agent Exchange consists of 10 microservices:
+Agent Exchange consists of 11 microservices:
 
 | Service | Port | Description |
 |---------|------|-------------|
@@ -46,17 +46,34 @@ Agent Exchange consists of 10 microservices:
 | `aex-provider-registry` | 8085 | Provider registration |
 | `aex-trust-broker` | 8086 | Trust score management |
 | `aex-identity` | 8087 | Tenant and API key management |
-| `aex-settlement` | 8088 | Financial transactions |
+| `aex-settlement` | 8088 | Financial transactions + AP2 integration |
 | `aex-telemetry` | 8089 | Metrics and events |
+| `aex-credentials-provider` | 8090 | **NEW:** AP2 payment methods management |
+
+### Demo Components (Optional)
+
+| Component | Port | Description |
+|-----------|------|-------------|
+| `legal-agent-a` | 8100 | Budget Legal Agent ($5 + $2/page) |
+| `legal-agent-b` | 8101 | Standard Legal Agent ($15 + $0.50/page) |
+| `legal-agent-c` | 8102 | Premium Legal Agent ($30 + $0.20/page) |
+| `orchestrator` | 8103 | Consumer orchestrator agent |
+| `payment-legalpay` | 8200 | Payment processor (2% fee, 1% reward) |
+| `payment-contractpay` | 8201 | Payment processor (2.5% fee, 3% reward) |
+| `payment-compliancepay` | 8202 | Payment processor (3% fee, 4% reward) |
+| `demo-ui-nicegui` | 8502 | **Recommended:** Real-time NiceGUI dashboard |
+| `demo-ui` | 8501 | Legacy Mesop dashboard (deprecated) |
 
 ### Deployment Order
 
 Deploy services in this order due to dependencies:
 
-1. **Infrastructure services**: aex-identity, aex-telemetry
-2. **Core services**: aex-provider-registry, aex-trust-broker, aex-settlement
-3. **Business services**: aex-bid-gateway, aex-bid-evaluator, aex-work-publisher, aex-contract-engine
-4. **Gateway**: aex-gateway
+1. **Database**: MongoDB
+2. **Infrastructure services**: aex-identity, aex-telemetry
+3. **Core services**: aex-provider-registry, aex-trust-broker, aex-credentials-provider
+4. **Business services**: aex-bid-gateway, aex-bid-evaluator, aex-work-publisher, aex-contract-engine, aex-settlement
+5. **Gateway**: aex-gateway
+6. **Demo (optional)**: legal-agents, payment-agents, orchestrator, demo-ui-nicegui
 
 ---
 
@@ -755,6 +772,85 @@ make gcp-teardown
 # AWS
 make aws-teardown
 ```
+
+---
+
+## Demo Deployment (Local Development)
+
+The demo showcases the complete AEX + A2A + AP2 flow with legal agents and payment processors.
+
+### Quick Start Demo
+
+```bash
+cd demo
+
+# Start everything
+docker-compose up -d
+
+# Access UI
+open http://localhost:8502
+```
+
+### Step-by-Step Demo (for presentations)
+
+```bash
+cd demo
+
+# 1. Stop everything and clean up
+docker-compose down -v
+
+# 2. Start AEX infrastructure only (no agents)
+docker-compose up -d mongo aex-identity aex-provider-registry aex-trust-broker \
+  aex-bid-gateway aex-bid-evaluator aex-contract-engine aex-work-publisher \
+  aex-settlement aex-credentials-provider aex-telemetry aex-gateway
+
+# 3. Start UI without dependencies
+docker-compose up -d --no-deps demo-ui-nicegui
+
+# 4. Verify empty marketplace
+curl -s http://localhost:8085/providers | jq '.total'  # Should be 0
+
+# 5. Add agents one by one (during presentation)
+docker-compose up -d legal-agent-a      # Budget Legal
+docker-compose up -d legal-agent-b      # Standard Legal
+docker-compose up -d legal-agent-c      # Premium Legal
+
+# 6. Add payment agents
+docker-compose up -d payment-legalpay payment-contractpay payment-compliancepay
+
+# 7. Add orchestrator
+docker-compose up -d orchestrator
+
+# 8. Open browser and run the demo
+open http://localhost:8502
+```
+
+### Demo Verification Commands
+
+```bash
+# Check AEX health
+curl http://localhost:8080/health
+
+# Count registered providers
+curl -s http://localhost:8085/providers | jq '.total'
+
+# List provider names
+curl -s http://localhost:8085/providers | jq '.providers[].name'
+
+# Check agent card
+curl -s http://localhost:8100/.well-known/agent.json | jq '{name, description}'
+```
+
+### Demo UI Features
+
+The NiceGUI demo interface (port 8502) provides:
+- Real-time agent registration display (auto-refreshes every 5 seconds)
+- Work submission form
+- Live bid collection and comparison
+- Contract award with configurable strategies (balanced, lowest price, best quality)
+- A2A execution visualization
+- AP2 payment processing with cashback rewards
+- Settlement summary with ledger updates
 
 ---
 

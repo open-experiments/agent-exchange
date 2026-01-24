@@ -61,6 +61,8 @@ make dev-settlement
 
 Once running, services are available at:
 
+### Core Services
+
 | Service | URL | Status |
 |---------|-----|--------|
 | **Gateway** | http://localhost:8080 | ✅ Ready |
@@ -73,6 +75,20 @@ Once running, services are available at:
 | **Identity** | http://localhost:8087 | ✅ Ready |
 | **Settlement** | http://localhost:8088 | ✅ Ready |
 | **Telemetry** | http://localhost:8089 | ⚠️ MVP |
+| **Credentials Provider (AP2)** | http://localhost:8090 | ✅ NEW |
+
+### Demo Components
+
+| Component | URL | Description |
+|-----------|-----|-------------|
+| **NiceGUI UI (Recommended)** | http://localhost:8502 | Real-time demo dashboard |
+| Budget Legal Agent | http://localhost:8100 | $5 + $2/page |
+| Standard Legal Agent | http://localhost:8101 | $15 + $0.50/page |
+| Premium Legal Agent | http://localhost:8102 | $30 + $0.20/page |
+| Orchestrator | http://localhost:8103 | Consumer agent |
+| LegalPay | http://localhost:8200 | Payment processor |
+| ContractPay | http://localhost:8201 | Payment processor |
+| CompliancePay | http://localhost:8202 | Payment processor |
 
 **MongoDB:** `mongodb://root:root@localhost:27017`
 
@@ -309,37 +325,111 @@ Key variables:
 - `WORK_PUBLISHER_STORE_TYPE` - mongo | firestore | memory
 - `PLATFORM_FEE_RATE` - Settlement platform fee (default: 0.15)
 
+## Run the Demo
+
+The demo showcases the complete AEX + A2A + AP2 integration with legal agents and payment processors.
+
+### Quick Demo Start
+
+```bash
+cd demo
+docker-compose up -d
+open http://localhost:8502
+```
+
+### Step-by-Step Demo (for presentations)
+
+```bash
+cd demo
+
+# Clean start
+docker-compose down -v
+
+# Start AEX only (no agents)
+docker-compose up -d mongo aex-identity aex-provider-registry aex-trust-broker \
+  aex-bid-gateway aex-bid-evaluator aex-contract-engine aex-work-publisher \
+  aex-settlement aex-credentials-provider aex-telemetry aex-gateway
+
+# Start UI
+docker-compose up -d --no-deps demo-ui-nicegui
+open http://localhost:8502
+
+# Add agents one by one (agents auto-appear in UI)
+docker-compose up -d legal-agent-a
+docker-compose up -d legal-agent-b
+docker-compose up -d legal-agent-c
+docker-compose up -d payment-legalpay payment-contractpay payment-compliancepay
+docker-compose up -d orchestrator
+```
+
+### Demo Flow
+
+1. **Submit Work** - Enter contract text in UI
+2. **Watch Bids** - See legal agents compete
+3. **Award Contract** - Best bid wins based on strategy
+4. **A2A Execution** - Direct agent-to-agent communication
+5. **AP2 Payment** - Payment agents bid for transaction
+6. **Settlement** - Platform fee + provider payout
+
 ## Next Steps
 
-1. **Run the Demo** - See `demo/README.md` for the full demo with UI
+1. **Run the Demo** - See instructions above or `demo/README.md`
 2. **Run Integration Tests** - `make test`
 3. **Explore the Code** - Start with `src/aex-work-publisher`
 4. **Check the Roadmap** - See `src/development-roadmap.md` for gaps and next steps
 5. **Read Phase A Specs** - See `phase-a/readme.md` for architecture details
+6. **AP2 Integration** - See `AP2_INTEGRATION.md` for payment protocol details
+7. **Presentation Materials** - See `PRESENTATION.md` and `PRESENTATION_SLIDES.md`
 
 ## Architecture
 
 ```
-┌─────────────┐
-│ aex-gateway │ (8080) - API Gateway
-└──────┬──────┘
-       │
-   ┌───┴────────────────────┐
-   │                        │
-┌──▼───────────┐   ┌────────▼───────┐
-│work-publisher│   │   settlement   │
-│   (8081)     │   │     (8088)     │
-└──┬───────────┘   └────────┬───────┘
-   │                        │
-   │  ┌─────────────────┐   │
-   └─▶│  bid-gateway    │◀──┘
-      │    (8082)       │
-      └────────┬────────┘
-               │
-      ┌────────▼────────┐
-      │ bid-evaluator   │
-      │    (8083)       │
-      └─────────────────┘
+                    ┌─────────────────┐
+                    │   aex-gateway   │ (8080) - API Gateway
+                    └────────┬────────┘
+                             │
+    ┌────────────────────────┼────────────────────────┐
+    │                        │                        │
+┌───▼──────────┐    ┌────────▼────────┐    ┌─────────▼────────┐
+│work-publisher│    │  bid-gateway    │    │provider-registry │
+│   (8081)     │    │    (8082)       │    │     (8085)       │
+└───┬──────────┘    └────────┬────────┘    └──────────────────┘
+    │                        │
+    │               ┌────────▼────────┐
+    └──────────────►│ bid-evaluator   │
+                    │    (8083)       │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │contract-engine  │
+                    │    (8084)       │
+                    └────────┬────────┘
+                             │
+    ┌────────────────────────┼────────────────────────┐
+    │                        │                        │
+┌───▼──────────┐    ┌────────▼────────┐    ┌─────────▼────────┐
+│ trust-broker │    │   settlement    │    │credentials-prov. │
+│   (8086)     │    │(8088) + AP2     │    │(8090) - AP2 NEW  │
+└──────────────┘    └─────────────────┘    └──────────────────┘
+```
+
+### Demo Architecture (A2A + AP2)
+
+```
+┌─────────────┐         ┌─────────────────────────────────────┐
+│   Consumer  │         │         AEX Marketplace             │
+│ Orchestrator│◄───────►│  (Discovery, Bidding, Settlement)   │
+│   (8103)    │         └─────────────────────────────────────┘
+└──────┬──────┘                         │
+       │ A2A                            │ AP2
+       │ JSON-RPC                       │
+       ▼                                ▼
+┌─────────────────────┐    ┌─────────────────────────────┐
+│   Legal Agents      │    │    Payment Agents (AP2)     │
+│ Budget    (8100)    │    │ LegalPay      (8200)        │
+│ Standard  (8101)    │    │ ContractPay   (8201)        │
+│ Premium   (8102)    │    │ CompliancePay (8202)        │
+└─────────────────────┘    └─────────────────────────────┘
 ```
 
 ## Getting Help

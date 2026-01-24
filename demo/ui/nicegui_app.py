@@ -168,6 +168,10 @@ async def fetch_registered_agents() -> list[dict]:
                 health_resp = await client.get(f"{agent['url']}/health")
                 is_healthy = health_resp.status_code == 200
 
+                # Skip unhealthy/offline agents
+                if not is_healthy:
+                    continue
+
                 # Try to get agent card
                 agent_card = {}
                 try:
@@ -182,7 +186,7 @@ async def fetch_registered_agents() -> list[dict]:
                     "name": agent_card.get("name", agent["name"]),
                     "description": agent_card.get("description", ""),
                     "endpoint": agent["url"],
-                    "status": "ACTIVE" if is_healthy else "OFFLINE",
+                    "status": "ACTIVE",
                     "tier": "VERIFIED",  # Default, will be updated from actual config
                     "trust_score": 0.5,
                     "capabilities": [s.get("id", "") for s in agent_card.get("skills", [])],
@@ -190,17 +194,8 @@ async def fetch_registered_agents() -> list[dict]:
                     "skills": agent_card.get("skills", []),
                 })
             except Exception as e:
-                agents.append({
-                    "id": agent["name"].lower().replace(" ", "-"),
-                    "name": agent["name"],
-                    "description": "",
-                    "endpoint": agent["url"],
-                    "status": "OFFLINE",
-                    "tier": "UNVERIFIED",
-                    "trust_score": 0.0,
-                    "capabilities": [],
-                    "type": agent["type"],
-                })
+                # Skip offline agents - don't add them to the list
+                pass
 
     return agents
 
@@ -608,6 +603,19 @@ async def main_page():
                             ui.label(f"🔴 {offline} Offline").classes('text-xs text-red-400')
 
                     agents_container()
+
+                    # Auto-refresh agents every 5 seconds
+                    async def auto_refresh_agents():
+                        nonlocal agents_data
+                        while True:
+                            await asyncio.sleep(5)
+                            try:
+                                agents_data = await fetch_registered_agents()
+                                agents_container.refresh()
+                            except Exception as e:
+                                print(f"Auto-refresh error: {e}")
+
+                    ui.timer(0.1, lambda: asyncio.create_task(auto_refresh_agents()), once=True)
 
             # Middle column - Task submission
             with ui.column().classes('w-80'):
