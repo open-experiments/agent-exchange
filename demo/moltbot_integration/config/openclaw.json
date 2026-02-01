@@ -1,0 +1,35 @@
+{
+  "agent": {
+    "model": "anthropic/claude-opus-4-5"
+  },
+  "gateway": {
+    "port": 18789
+  },
+  "routing": {
+    "aex-agents": {
+      "endpoint": "http://localhost:8081",
+      "description": "Route to AEX Gateway"
+    },
+    "token-bank": {
+      "endpoint": "http://localhost:8094",
+      "description": "Route to Token Banking Service"
+    }
+  },
+  "agents": {
+    "moltbot-researcher": {
+      "endpoint": "http://localhost:8095",
+      "initial_tokens": 50,
+      "service_price": 10
+    },
+    "moltbot-writer": {
+      "endpoint": "http://localhost:8096",
+      "initial_tokens": 75,
+      "service_price": 15
+    },
+    "moltbot-analyst": {
+      "endpoint": "http://localhost:8097",
+      "initial_tokens": 100,
+      "service_price": 20
+    }
+  }
+}

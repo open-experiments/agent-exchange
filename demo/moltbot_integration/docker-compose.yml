@@ -1,0 +1,304 @@
+version: '3.8'
+
+services:
+  # ===========================================
+  # AEX Provider Registry (for payment service discovery)
+  # ===========================================
+  aex-provider-registry:
+    build:
+      context: ../../src
+      dockerfile: aex-provider-registry/Dockerfile
+    container_name: aex-provider-registry
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      ENVIRONMENT: "development"
+    networks:
+      - moltbot-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================
+  # Token Banking Service (with AP2 support)
+  # ===========================================
+  aex-token-bank:
+    build:
+      context: ../../src
+      dockerfile: aex-token-bank/Dockerfile
+    container_name: aex-token-bank
+    hostname: aex-token-bank
+    environment:
+      PORT: "8094"
+      ENVIRONMENT: "development"
+      AP2_ENABLED: "true"
+      # Hostname for AEX registration (must match Docker service name)
+      HOSTNAME: "aex-token-bank"
+      # Register with AEX Registry
+      AEX_REGISTRY_URL: "http://aex-provider-registry:8080"
+      AEX_REGISTER_ENABLED: "true"
+      # Phase 7: Load agent registry for secure banking
+      AGENT_REGISTRY_FILE: "/config/agent_registry.json"
+    volumes:
+      - ./config/agent_registry.json:/config/agent_registry.json:ro
+    ports:
+      - "8094:8094"
+    networks:
+      - moltbot-network
+    depends_on:
+      aex-provider-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8094/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================
+  # Mock Moltbook Server (for demo without real moltbook.com)
+  # ===========================================
+  mock-moltbook:
+    build:
+      context: ./mock-moltbook
+      dockerfile: Dockerfile
+    container_name: mock-moltbook
+    ports:
+      - "8100:8100"
+    environment:
+      PORT: "8100"
+    networks:
+      - moltbot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================
+  # Moltbot Demo Agents
+  # ===========================================
+
+  # Researcher Agent - 50 AEX allocated, 10 AEX per query
+  moltbot-researcher:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: moltbot-researcher
+    container_name: moltbot-researcher
+    ports:
+      - "8095:8095"
+    environment:
+      - PORT=8095
+      - INITIAL_TOKENS=50
+      - SERVICE_PRICE=10
+      - TOKEN_BANK_URL=http://aex-token-bank:8094
+      - AEX_REGISTRY_URL=http://aex-provider-registry:8080
+      - AGENT_HOSTNAME=moltbot-researcher
+      # OpenClaw Gateway - set to host.docker.internal to connect to local gateway
+      - OPENCLAW_GATEWAY_URL=ws://host.docker.internal:18789
+      - ENABLE_GATEWAY=true
+      # AP2 Payment Protocol
+      - ENABLE_AP2=true
+      # Phase 7: Secret token for bank authentication
+      - BANK_TOKEN=res_secret_def456
+      # Moltbook integration (uses mock server for demo)
+      - ENABLE_MOLTBOOK=${ENABLE_MOLTBOOK:-true}
+      - MOLTBOOK_API_KEY=${MOLTBOOK_API_KEY:-}
+      - MOLTBOOK_BASE_URL=http://mock-moltbook:8100/api/v1
+      # Claude LLM integration (REQUIRED - set ANTHROPIC_API_KEY in .env)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      - LLM_MODEL=${LLM_MODEL:-claude-sonnet-4-20250514}
+    depends_on:
+      aex-token-bank:
+        condition: service_healthy
+      aex-provider-registry:
+        condition: service_healthy
+      mock-moltbook:
+        condition: service_healthy
+    networks:
+      - moltbot-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Writer Agent - 75 AEX allocated, 15 AEX per document
+  moltbot-writer:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: moltbot-writer
+    container_name: moltbot-writer
+    ports:
+      - "8096:8096"
+    environment:
+      - PORT=8096
+      - INITIAL_TOKENS=75
+      - SERVICE_PRICE=15
+      - TOKEN_BANK_URL=http://aex-token-bank:8094
+      - AEX_REGISTRY_URL=http://aex-provider-registry:8080
+      - AGENT_HOSTNAME=moltbot-writer
+      # OpenClaw Gateway
+      - OPENCLAW_GATEWAY_URL=ws://host.docker.internal:18789
+      - ENABLE_GATEWAY=true
+      # AP2 Payment Protocol
+      - ENABLE_AP2=true
+      # Phase 7: Secret token for bank authentication
+      - BANK_TOKEN=wrt_secret_ghi789
+      # Moltbook integration (uses mock server for demo)
+      - ENABLE_MOLTBOOK=${ENABLE_MOLTBOOK:-true}
+      - MOLTBOOK_API_KEY=${MOLTBOOK_API_KEY:-}
+      - MOLTBOOK_BASE_URL=http://mock-moltbook:8100/api/v1
+      # Claude LLM integration (REQUIRED - set ANTHROPIC_API_KEY in .env)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      - LLM_MODEL=${LLM_MODEL:-claude-sonnet-4-20250514}
+    depends_on:
+      aex-token-bank:
+        condition: service_healthy
+      aex-provider-registry:
+        condition: service_healthy
+      mock-moltbook:
+        condition: service_healthy
+    networks:
+      - moltbot-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Analyst Agent - 100 AEX allocated, 20 AEX per analysis
+  moltbot-analyst:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: moltbot-analyst
+    container_name: moltbot-analyst
+    ports:
+      - "8097:8097"
+    environment:
+      - PORT=8097
+      - INITIAL_TOKENS=100
+      - SERVICE_PRICE=20
+      - TOKEN_BANK_URL=http://aex-token-bank:8094
+      - AEX_REGISTRY_URL=http://aex-provider-registry:8080
+      - AGENT_HOSTNAME=moltbot-analyst
+      # OpenClaw Gateway
+      - OPENCLAW_GATEWAY_URL=ws://host.docker.internal:18789
+      - ENABLE_GATEWAY=true
+      # AP2 Payment Protocol
+      - ENABLE_AP2=true
+      # Phase 7: Secret token for bank authentication
+      - BANK_TOKEN=ana_secret_jkl012
+      # Moltbook integration (uses mock server for demo)
+      - ENABLE_MOLTBOOK=${ENABLE_MOLTBOOK:-true}
+      - MOLTBOOK_API_KEY=${MOLTBOOK_API_KEY:-}
+      - MOLTBOOK_BASE_URL=http://mock-moltbook:8100/api/v1
+      # Claude LLM integration (REQUIRED - set ANTHROPIC_API_KEY in .env)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      - LLM_MODEL=${LLM_MODEL:-claude-sonnet-4-20250514}
+    depends_on:
+      aex-token-bank:
+        condition: service_healthy
+      aex-provider-registry:
+        condition: service_healthy
+      mock-moltbook:
+        condition: service_healthy
+    networks:
+      - moltbot-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8097/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================
+  # Customer Agent - 200 AEX allocated, consumer role
+  # ===========================================
+  moltbot-customer:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+      args:
+        AGENT_DIR: moltbot-customer
+    container_name: moltbot-customer
+    ports:
+      - "8099:8099"
+    environment:
+      - PORT=8099
+      - INITIAL_TOKENS=200
+      - SERVICE_PRICE=0
+      - TOKEN_BANK_URL=http://aex-token-bank:8094
+      - AEX_REGISTRY_URL=http://aex-provider-registry:8080
+      - AGENT_HOSTNAME=moltbot-customer
+      # OpenClaw Gateway
+      - OPENCLAW_GATEWAY_URL=ws://host.docker.internal:18789
+      - ENABLE_GATEWAY=true
+      # AP2 Payment Protocol
+      - ENABLE_AP2=true
+      # Phase 7: Secret token for bank authentication
+      - BANK_TOKEN=cust_secret_abc123
+      # Moltbook integration (uses mock server for demo)
+      - ENABLE_MOLTBOOK=${ENABLE_MOLTBOOK:-true}
+      - MOLTBOOK_API_KEY=${MOLTBOOK_API_KEY:-}
+      - MOLTBOOK_BASE_URL=http://mock-moltbook:8100/api/v1
+    depends_on:
+      aex-token-bank:
+        condition: service_healthy
+      aex-provider-registry:
+        condition: service_healthy
+      mock-moltbook:
+        condition: service_healthy
+    networks:
+      - moltbot-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8099/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ===========================================
+  # Token Banking Dashboard UI
+  # ===========================================
+  demo-ui-nicegui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: moltbot-demo-ui
+    ports:
+      - "8503:8503"
+    environment:
+      - PORT=8503
+      - TOKEN_BANK_URL=http://aex-token-bank:8094
+      - AEX_REGISTRY_URL=http://aex-provider-registry:8080
+      - RESEARCHER_URL=http://moltbot-researcher:8095
+      - WRITER_URL=http://moltbot-writer:8096
+      - ANALYST_URL=http://moltbot-analyst:8097
+      - CUSTOMER_URL=http://moltbot-customer:8099
+    depends_on:
+      - aex-token-bank
+      - aex-provider-registry
+    networks:
+      - moltbot-network
+
+networks:
+  moltbot-network:
+    driver: bridge
+    # Connect to AEX network if running alongside AEX demo
+    # external: true
+    # name: aex_aex-network
