@@ -26,7 +26,7 @@ services:
 
   aex-gateway:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-gateway/Dockerfile
     container_name: aex-gateway
     environment:
@@ -54,7 +54,7 @@ services:
 
   aex-work-publisher:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-work-publisher/Dockerfile
     container_name: aex-work-publisher
     environment:
@@ -77,7 +77,7 @@ services:
 
   aex-bid-gateway:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-bid-gateway/Dockerfile
     container_name: aex-bid-gateway
     environment:
@@ -95,7 +95,7 @@ services:
 
   aex-bid-evaluator:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-bid-evaluator/Dockerfile
     container_name: aex-bid-evaluator
     environment:
@@ -115,7 +115,7 @@ services:
 
   aex-contract-engine:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-contract-engine/Dockerfile
     container_name: aex-contract-engine
     environment:
@@ -133,7 +133,7 @@ services:
 
   aex-provider-registry:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-provider-registry/Dockerfile
     container_name: aex-provider-registry
     environment:
@@ -150,7 +150,7 @@ services:
 
   aex-trust-broker:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-trust-broker/Dockerfile
     container_name: aex-trust-broker
     environment:
@@ -166,7 +166,7 @@ services:
 
   aex-identity:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-identity/Dockerfile
     container_name: aex-identity
     environment:
@@ -182,7 +182,7 @@ services:
 
   aex-settlement:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-settlement/Dockerfile
     container_name: aex-settlement
     environment:
@@ -208,7 +208,7 @@ services:
 
   aex-credentials-provider:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-credentials-provider/Dockerfile
     container_name: aex-credentials-provider
     environment:
@@ -231,7 +231,7 @@ services:
 
   aex-telemetry:
     build:
-      context: ../src
+      context: ../../src
       dockerfile: aex-telemetry/Dockerfile
     container_name: aex-telemetry
     environment:

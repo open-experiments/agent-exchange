@@ -1,0 +1,32 @@
+{
+  "treasury": {
+    "total_supply": 10000,
+    "token_type": "AEX"
+  },
+  "agents": [
+    {
+      "agent_id": "moltbot-customer",
+      "agent_name": "Moltbot Customer",
+      "allocation": 200,
+      "token": "cust_secret_abc123"
+    },
+    {
+      "agent_id": "moltbot-researcher",
+      "agent_name": "Moltbot Researcher",
+      "allocation": 50,
+      "token": "res_secret_def456"
+    },
+    {
+      "agent_id": "moltbot-writer",
+      "agent_name": "Moltbot Writer",
+      "allocation": 75,
+      "token": "wrt_secret_ghi789"
+    },
+    {
+      "agent_id": "moltbot-analyst",
+      "agent_name": "Moltbot Analyst",
+      "allocation": 100,
+      "token": "ana_secret_jkl012"
+    }
+  ]
+}
