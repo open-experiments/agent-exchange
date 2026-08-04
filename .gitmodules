@@ -1,0 +1,4 @@
+[submodule "AP2"]
+	path = AP2
+	url = https://github.com/google-agentic-commerce/AP2.git
+	branch = main

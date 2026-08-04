@@ -28,7 +28,6 @@ vendor/
 # Test output
 *.test
 coverage.out
-AP2/
 
 # MkDocs build output
 site/

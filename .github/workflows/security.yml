@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: '1.26'
+  GO_VERSION: '1.26.5'
 
 jobs:
   # ── Go vulnerability check ─────────────────────────────────────
