@@ -2,7 +2,7 @@ module github.com/parlakisik/agent-exchange/aex-work-publisher
 
 go 1.25.0
 
-toolchain go1.26.5
+toolchain go1.26.7
 
 require (
 	cloud.google.com/go/firestore v1.21.0

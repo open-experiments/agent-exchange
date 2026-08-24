@@ -2,7 +2,7 @@ module github.com/parlakisik/agent-exchange/aex-gateway
 
 go 1.25.0
 
-toolchain go1.26.5
+toolchain go1.26.7
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1

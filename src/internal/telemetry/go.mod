@@ -2,7 +2,7 @@ module github.com/parlakisik/agent-exchange/internal/telemetry
 
 go 1.25.0
 
-toolchain go1.26.5
+toolchain go1.26.7
 
 require (
 	github.com/prometheus/client_golang v1.19.0

@@ -2,7 +2,7 @@ module github.com/parlakisik/agent-exchange/internal/nats
 
 go 1.25.0
 
-toolchain go1.26.5
+toolchain go1.26.7
 
 require github.com/nats-io/nats.go v1.37.0
 

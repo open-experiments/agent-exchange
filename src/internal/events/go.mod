@@ -2,7 +2,7 @@ module github.com/parlakisik/agent-exchange/internal/events
 
 go 1.25.0
 
-toolchain go1.26.5
+toolchain go1.26.7
 
 require github.com/parlakisik/agent-exchange/internal/nats v0.0.0
 

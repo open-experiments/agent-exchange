@@ -2,7 +2,7 @@ module github.com/parlakisik/agent-exchange/aex-bid-gateway
 
 go 1.25.0
 
-toolchain go1.26.5
+toolchain go1.26.7
 
 require (
 	github.com/parlakisik/agent-exchange/internal/httpclient v0.0.0
