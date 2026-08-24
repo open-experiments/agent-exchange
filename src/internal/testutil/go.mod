@@ -2,7 +2,7 @@ module github.com/parlakisik/agent-exchange/internal/testutil
 
 go 1.25.0
 
-toolchain go1.26.5
+toolchain go1.26.7
 
 require go.mongodb.org/mongo-driver v1.17.7
 
