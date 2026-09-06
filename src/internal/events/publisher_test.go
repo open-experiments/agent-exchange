@@ -269,3 +269,14 @@ func TestGenerateEventID(t *testing.T) {
 		ids[id] = true
 	}
 }
+
+func TestIdempotencyKey_CallerSupplied(t *testing.T) {
+	data := map[string]any{"idempotency_key": "toolcall.decided_prov_abc123"}
+	if got := idempotencyKey("toolcall.decided", data); got != "toolcall.decided_prov_abc123" {
+		t.Errorf("idempotencyKey() = %q, want the caller's key", got)
+	}
+	legacy := map[string]any{"work_id": "work_123"}
+	if got := idempotencyKey(EventWorkSubmitted, legacy); len(got) == 0 || got[:len(EventWorkSubmitted)] != EventWorkSubmitted {
+		t.Errorf("idempotencyKey() legacy format lost: %q", got)
+	}
+}

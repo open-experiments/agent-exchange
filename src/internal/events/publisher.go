@@ -69,6 +69,18 @@ func (p *Publisher) WithNATS(nc *aexnats.Client) {
 	p.natsClient = nc
 }
 
+// idempotencyKey returns the caller's key when the payload carries one under
+// "idempotency_key" (publishers whose events have no work_id, such as the
+// tool-call gate, set it so that events published within the same second are
+// not deduplicated by JetStream). Otherwise it keeps the historical format
+// built from the event type, the work id and the current second.
+func idempotencyKey(eventType string, data map[string]any) string {
+	if k, ok := data["idempotency_key"].(string); ok && k != "" {
+		return k
+	}
+	return fmt.Sprintf("%s_%s_%d", eventType, data["work_id"], time.Now().Unix())
+}
+
 // RegisterEndpoint registers a webhook endpoint for an event type.
 func (p *Publisher) RegisterEndpoint(eventType, webhookURL string) {
 	p.endpoints[eventType] = webhookURL
@@ -86,7 +98,7 @@ func (p *Publisher) Publish(ctx context.Context, eventType string, data map[stri
 		EventID:        generateEventID(),
 		EventType:      eventType,
 		SchemaVersion:  "1.0",
-		IdempotencyKey: fmt.Sprintf("%s_%s_%d", eventType, data["work_id"], time.Now().Unix()),
+		IdempotencyKey: idempotencyKey(eventType, data),
 		Timestamp:      time.Now().UTC(),
 		Source:         p.source,
 		Data:           data,

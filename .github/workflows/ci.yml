@@ -27,6 +27,7 @@ jobs:
           - internal/certauth
           - internal/ap2
           - internal/testutil
+          - internal/toolgate
           # Services
           - aex-gateway
           - aex-work-publisher
@@ -39,6 +40,7 @@ jobs:
           - aex-settlement
           - aex-telemetry
           - aex-certauth
+          - aex-toolgate
           - aex-credentials-provider
           - aex-token-bank
     steps:
@@ -76,6 +78,7 @@ jobs:
           - aex-settlement
           - aex-telemetry
           - aex-certauth
+          - aex-toolgate
           - aex-credentials-provider
           - aex-token-bank
     steps:

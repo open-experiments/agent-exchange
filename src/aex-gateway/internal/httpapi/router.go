@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/parlakisik/agent-exchange/aex-gateway/internal/config"
@@ -12,8 +13,18 @@ import (
 func NewRouter(cfg *config.Config) http.Handler {
 	mux := http.NewServeMux()
 
-	// Create dependencies
-	apiKeyValidator := middleware.NewInMemoryAPIKeyValidator()
+	// Create dependencies. API keys are validated against the identity
+	// service unless the config asks for the in-memory table (tests).
+	var apiKeyValidator middleware.APIKeyValidator
+	if cfg.APIKeyValidator == "memory" {
+		apiKeyValidator = middleware.NewInMemoryAPIKeyValidator()
+	} else {
+		apiKeyValidator = middleware.NewHTTPAPIKeyValidator(cfg.IdentityURL)
+	}
+	routeScopes, err := middleware.LoadRouteScopes(cfg.RouteScopesFile)
+	if err != nil {
+		log.Fatalf("aex-gateway: %v", err)
+	}
 	rateLimiter := middleware.NewRateLimiter(cfg.RedisURL, cfg.RateLimitPerMinute)
 	proxyRouter := proxy.NewRouter(cfg)
 
@@ -31,10 +42,12 @@ func NewRouter(cfg *config.Config) http.Handler {
 	)
 	mux.Handle("GET /v1/info", infoHandler)
 
-	// API routes with middleware stack
+	// API routes with middleware stack: rate limit, authenticate, then check
+	// the route's scope against the grant before anything is proxied.
 	apiHandler := applyMiddleware(proxyRouter,
 		middleware.RateLimit(rateLimiter),
 		middleware.Auth(apiKeyValidator, cfg.JWTSecret),
+		middleware.RequireScope(routeScopes),
 	)
 
 	// Mount API handler for all /v1/* paths

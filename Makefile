@@ -19,7 +19,7 @@ help:
 # Service directories
 SERVICES := aex-work-publisher aex-settlement aex-bid-gateway aex-bid-evaluator \
             aex-contract-engine aex-provider-registry aex-trust-broker aex-identity \
-            aex-gateway aex-telemetry aex-certauth
+            aex-gateway aex-telemetry aex-certauth aex-toolgate
 
 # Build all services
 build:
@@ -109,6 +109,7 @@ docker-build:
 	@docker build -f src/aex-certauth/Dockerfile -t agent-exchange/aex-certauth:local src/
 	@docker build -f src/aex-credentials-provider/Dockerfile -t agent-exchange/aex-credentials-provider:local src/
 	@docker build -f src/aex-token-bank/Dockerfile -t agent-exchange/aex-token-bank:local src/
+	@docker build -f src/aex-toolgate/Dockerfile -t agent-exchange/aex-toolgate:local src/
 	@echo "Docker build complete!"
 
 # Build specific Docker image

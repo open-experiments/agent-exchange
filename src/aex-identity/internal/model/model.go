@@ -110,6 +110,9 @@ type ValidateAPIKeyRequest struct {
 }
 
 type ValidateAPIKeyResponse struct {
+	// Valid is always true on a 200; an invalid key is answered with 401. It is
+	// spelled out because the gateway's validator reads it (docs/AUTHENTICATION.md).
+	Valid        bool         `json:"valid"`
 	TenantID     string       `json:"tenant_id"`
 	TenantStatus TenantStatus `json:"tenant_status"`
 	Scopes       []string     `json:"scopes"`

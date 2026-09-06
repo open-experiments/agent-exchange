@@ -20,6 +20,18 @@ type Config struct {
 	TrustBrokerURL      string
 	IdentityURL         string
 	CertAuthURL         string
+	// ToolsURL is the provider tool endpoint behind /v1/tools/; empty leaves
+	// the route unmounted.
+	ToolsURL string
+
+	// APIKeyValidator selects how X-API-Key is checked: "identity" (call the
+	// identity service at IdentityURL, the production path) or "memory" (an
+	// empty in-memory table, for tests that add keys explicitly).
+	APIKeyValidator string
+
+	// RouteScopesFile is an optional JSON file merged over the default route
+	// scope map ({"METHOD /prefix": "scope"}).
+	RouteScopesFile string
 
 	// Rate limiting
 	RateLimitPerMinute int
@@ -55,6 +67,9 @@ func Load() *Config {
 		TrustBrokerURL:      getEnv("TRUST_BROKER_URL", "http://localhost:8086"),
 		IdentityURL:         getEnv("IDENTITY_URL", "http://localhost:8087"),
 		CertAuthURL:         getEnv("CERTAUTH_URL", "http://localhost:8089"),
+		ToolsURL:            getEnv("TOOLS_URL", ""),
+		APIKeyValidator:     getEnv("API_KEY_VALIDATOR", "identity"),
+		RouteScopesFile:     getEnv("ROUTE_SCOPES_FILE", ""),
 		RateLimitPerMinute:  getEnvInt("RATE_LIMIT_PER_MINUTE", 1000),
 		RateLimitBurstSize:  getEnvInt("RATE_LIMIT_BURST_SIZE", 50),
 		RequestTimeout:      time.Duration(getEnvInt("REQUEST_TIMEOUT_SECONDS", 30)) * time.Second,
