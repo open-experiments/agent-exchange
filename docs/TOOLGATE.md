@@ -13,6 +13,16 @@ The study behind the component compared three configurations over the same twelv
 ## What the gate does
 
 1. **Scope.** The tool's required scope (from the policy's `tool_scopes`) must be in the session's `granted_scopes`. Unknown tools fail closed. A caller's `X-Scopes` intersects with the policy's grant and can only narrow it, never widen it: the header is caller-controlled, so `*` there leaves the policy's grant as it stands rather than granting everything.
+
+    **Provisioning a key.** The gateway and the gate use different scope vocabularies. The gateway's route map decides whether a key may reach the tool surface at all (`tools:invoke`); the policy decides which tools (`payments:send`, `invoices:read`). A working least-privilege key carries **both**:
+
+    | Key scopes | Result |
+    |---|---|
+    | `["tools:invoke"]` | passes the gateway, denied every tool |
+    | `["tools:invoke", "invoices:read"]` | `list_invoices` allowed, `send_payment` denied |
+    | `["*"]` | passes the gateway; the policy's own grant then applies unchanged |
+
+2. **Values that cannot be checked are refused.** A rule whose argument is absent, is not a number where a number is required, or carries more than one value in one argument (`"a@evil.example,b@corp.example"`) fails closed rather than being skipped. Such a decision reports `cannot verify: ...` rather than the rule's own message, so an approver is not told a bank account changed when the call never mentioned one.
 2. **Rules.** In `ModeFull`, argument-value rules are evaluated in policy order and the first that fires decides: `ceiling` (numeric maximum), `allowlist`, `lookup` (the value must match what a table maps another argument to, such as the vendor account on file for this invoice), `sensitive_field` (escalate to a person), `suffix` (email domains), `prefix` (storage destinations). A rule's `effect` is `deny` or `escalate`.
 3. **Execution.** Allowed calls run through the caller's executor; refused calls do not run; escalated calls are held until `Resolve` records a human decision under the approver's identity.
 4. **Artifact.** One record per decision, chained to the previous record for the provider.

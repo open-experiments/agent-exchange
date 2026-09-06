@@ -1,6 +1,7 @@
 package toolgate
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -121,6 +122,13 @@ func (a Artifact) FieldsPresent() map[string]bool {
 func (a Artifact) ToEventData() map[string]any {
 	b, _ := json.Marshal(a)
 	var m map[string]any
-	_ = json.Unmarshal(b, &m)
+	// UseNumber keeps large integers exact. The published event is the only
+	// copy of this record that survives a restart, so decoding through
+	// float64 here would leave the durable copy disagreeing with the call
+	// that was actually made (an account number past 2^53 comes back
+	// rounded).
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	_ = dec.Decode(&m)
 	return m
 }

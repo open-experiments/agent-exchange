@@ -92,6 +92,7 @@ type Gate struct {
 	held      map[string]held
 
 	publishFailures int
+	recordsDropped  bool
 }
 
 type held struct {
@@ -141,19 +142,26 @@ func (g *Gate) Decide(call Call) Decision {
 	}
 	for _, r := range g.policy.Rules {
 		var fired bool
-		var effect string
+		var effect, reason string
 		if r.Kind == KindLookup {
-			fired, effect = g.policy.evaluateLookup(r, call)
+			fired, effect, reason = g.policy.evaluateLookup(r, call)
 		} else {
-			fired, effect = r.evaluate(call)
+			fired, effect, reason = r.evaluate(call)
 		}
 		if !fired {
 			continue
 		}
-		if effect == EffectEscalate {
-			return Decision{Outcome: DecisionEscalate, Rule: r.ID, Scope: scope, Approval: ApprovalPendingHuman, Message: r.Message}
+		// A rule that fired because the gate could not check it reports that,
+		// rather than the rule's own message, which would describe a breach
+		// that may not have happened.
+		msg := r.Message
+		if reason != "" {
+			msg = reason
 		}
-		return Decision{Outcome: DecisionDeny, Rule: r.ID, Scope: scope, Approval: ApprovalAutomatic, Message: r.Message}
+		if effect == EffectEscalate {
+			return Decision{Outcome: DecisionEscalate, Rule: r.ID, Scope: scope, Approval: ApprovalPendingHuman, Message: msg}
+		}
+		return Decision{Outcome: DecisionDeny, Rule: r.ID, Scope: scope, Approval: ApprovalAutomatic, Message: msg}
 	}
 	return Decision{Outcome: DecisionAllow, Rule: ScopeRuleID, Scope: scope, Approval: ApprovalAutomatic}
 }
@@ -185,7 +193,12 @@ func (g *Gate) Authorize(ctx context.Context, call Call, exec Executor) (Artifac
 	a = g.commit(a)
 	if d.Outcome == DecisionEscalate {
 		g.mu.Lock()
-		g.held[a.Hash] = held{call: call, artifact: a, exec: exec}
+		if len(g.held) < MaxHeld {
+			g.held[a.Hash] = held{call: call, artifact: a, exec: exec}
+		} else {
+			slog.Warn("toolgate: hold table full, escalated call cannot be settled",
+				"provider", a.Provider, "hash", a.Hash, "max_held", MaxHeld)
+		}
 		g.mu.Unlock()
 	}
 	g.publish(ctx, EventRequested, a)
@@ -268,6 +281,15 @@ func (g *Gate) newArtifact(call Call, d Decision) Artifact {
 }
 
 // commit appends the artifact to the provider's chain.
+// MaxRecords caps the in-memory chain. The gated agent drives how many
+// artifacts are created, so an unbounded slice is a denial of service it can
+// trigger on its own. Older entries are dropped once the cap is reached; the
+// durable copy is the published event stream, not this slice.
+const MaxRecords = 10000
+
+// MaxHeld caps calls awaiting human approval, for the same reason.
+const MaxHeld = 1000
+
 func (g *Gate) commit(a Artifact) Artifact {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -275,6 +297,10 @@ func (g *Gate) commit(a Artifact) Artifact {
 	a.Hash = computeHash(g.prevHash, a)
 	g.prevHash = a.Hash
 	g.records = append(g.records, a)
+	if len(g.records) > MaxRecords {
+		g.records = g.records[len(g.records)-MaxRecords:]
+		g.recordsDropped = true
+	}
 	return a
 }
 
@@ -313,6 +339,14 @@ func newChainID() string {
 // a restarted gate is indistinguishable from one whose history was discarded,
 // because VerifyChain reports ok over any self-consistent chain.
 func (g *Gate) ChainID() string { return g.chainID }
+
+// RecordsDropped reports whether the in-memory chain has been truncated at
+// MaxRecords, in which case VerifyChain covers only the surviving tail.
+func (g *Gate) RecordsDropped() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.recordsDropped
+}
 
 // PublishFailures is the number of audit events the gate could not publish.
 // Non-zero means the durable record is incomplete.

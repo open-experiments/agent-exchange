@@ -42,9 +42,16 @@ func DefaultRouteScopes() RouteScopes {
 		"POST /v1/certificates":  "certs:issue",
 		"POST /v1/reputation":    "certs:issue",
 		// Tool calls proxied to a provider's toolgate. Without an entry here
-		// the route falls through to the "*" default, which means only "*"
-		// keys can reach it -- and "*" is the one grant that leaves a
-		// downstream gate's own scope check with nothing to narrow.
+		// the route falls through to the "*" default, so the only key that
+		// could reach a tool was one granted "*" -- no narrowing at all.
+		//
+		// This scope authorizes reaching the tool surface, nothing more. The
+		// gate behind it enforces a scope PER TOOL from its own policy, and
+		// those names come from a different vocabulary (payments:send,
+		// invoices:read). A working least-privilege key therefore carries
+		// both: "tools:invoke" to pass this check, plus the per-tool scopes
+		// the provider's policy grants. A key holding only "tools:invoke"
+		// passes here and is denied every individual tool downstream.
 		"POST /v1/tools": "tools:invoke",
 	}
 }
@@ -76,7 +83,10 @@ func (rs RouteScopes) Required(method, path string) string {
 	best, bestLen := "*", -1
 	for key, scope := range rs {
 		m, prefix, ok := strings.Cut(key, " ")
-		if !ok {
+		if !ok || prefix == "" {
+			// An entry with an empty path ("POST ") would match every path and
+			// outrank the fail-closed default, silently opening the whole
+			// unmapped surface. Operators author these files by hand.
 			continue
 		}
 		if m != "*" && m != method {

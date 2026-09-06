@@ -209,8 +209,11 @@ func (s *Server) requireOperator(w http.ResponseWriter, r *http.Request) bool {
 			"this endpoint needs OPERATOR_TOKEN set on the gate")
 		return false
 	}
-	got := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-	if subtle.ConstantTimeCompare([]byte(got), []byte(s.operatorToken)) != 1 {
+	// Require the scheme explicitly. TrimPrefix is a no-op when the prefix is
+	// absent, so trimming alone would accept a bare token with no scheme.
+	authz := r.Header.Get("Authorization")
+	got, ok := strings.CutPrefix(authz, "Bearer ")
+	if !ok || subtle.ConstantTimeCompare([]byte(strings.TrimSpace(got)), []byte(s.operatorToken)) != 1 {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "operator credential required")
 		return false
 	}
@@ -250,10 +253,27 @@ func (s *Server) records(w http.ResponseWriter, r *http.Request) {
 	recs := s.gate.Records()
 	if !s.exposeArgs {
 		for i := range recs {
+			// Args are the call's inputs; Outcome carries the first 120
+			// characters of the tool's response, which for a read-shaped tool
+			// is where the sensitive data actually lives (an invoice lookup
+			// returns the vendor's account number). Redacting one without the
+			// other is half a control.
 			recs[i].Args = nil
+			recs[i].Outcome = redactOutcome(recs[i].Outcome)
 		}
 	}
 	writeJSON(w, http.StatusOK, recs)
+}
+
+// redactOutcome keeps the shape of an outcome ("executed: http 200: ...")
+// while dropping the response body it quotes.
+func redactOutcome(o string) string {
+	for _, p := range []string{"executed: ", "failed: "} {
+		if strings.HasPrefix(o, p) {
+			return p + "[redacted; set EXPOSE_ARGS=true to serve response bodies]"
+		}
+	}
+	return o
 }
 
 func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
@@ -267,7 +287,8 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 	// started over at genesis. publish_failures being non-zero means the
 	// durable copy of this chain is incomplete.
 	writeJSON(w, http.StatusOK, map[string]any{"ok": ok, "records": len(recs), "failed_at": at,
-		"chain_id": s.gate.ChainID(), "publish_failures": s.gate.PublishFailures()})
+		"chain_id": s.gate.ChainID(), "publish_failures": s.gate.PublishFailures(),
+		"records_dropped": s.gate.RecordsDropped()})
 }
 
 func callFromRequest(r *http.Request, tool string, args map[string]any) toolgate.Call {

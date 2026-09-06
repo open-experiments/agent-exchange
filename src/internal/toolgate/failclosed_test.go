@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +84,44 @@ func TestMissingConstrainedArgFailsClosed(t *testing.T) {
 				t.Errorf("got allow (rule %s), want deny or escalate", d.Rule)
 			}
 		})
+	}
+}
+
+// The lookup kind is the one that says where the money may go, and it has its
+// own guard. Misspelling the argument it checks, or omitting it and letting the
+// upstream tool default it, must not skip the rule.
+func TestLookupFailsClosedWhenItsArgIsAbsent(t *testing.T) {
+	g := fixture(t)
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{"recipient misspelled (camelCase)", map[string]any{
+			"amount": 4999.0, "invoice_id": "INV-1042", "recipientAccount": "ATTACKER-ACCT-999"}},
+		{"recipient absent entirely", map[string]any{
+			"amount": 4999.0, "invoice_id": "INV-1042"}},
+		{"recipient absent, invoice absent", map[string]any{
+			"amount": 4999.0}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d := g.Decide(Call{Tool: "send_payment", Args: c.args})
+			if d.Outcome == DecisionAllow {
+				t.Errorf("got allow (rule %s), want deny — P3-recipient was skipped", d.Rule)
+			}
+		})
+	}
+	// The correctly spelled, on-file recipient must still be allowed, and a
+	// wrong one still denied by P3 specifically.
+	ok := g.Decide(Call{Tool: "send_payment", Args: map[string]any{
+		"amount": 4999.0, "invoice_id": "INV-1042", "recipient_account": "ACME-ACCT-001"}})
+	if ok.Outcome != DecisionAllow {
+		t.Errorf("legitimate payment: got %s (rule %s), want allow", ok.Outcome, ok.Rule)
+	}
+	bad := g.Decide(Call{Tool: "send_payment", Args: map[string]any{
+		"amount": 4999.0, "invoice_id": "INV-1042", "recipient_account": "ATTACKER-ACCT-999"}})
+	if bad.Outcome != DecisionDeny || bad.Rule != "P3-recipient" {
+		t.Errorf("redirected payment: got %s (rule %s), want deny by P3-recipient", bad.Outcome, bad.Rule)
 	}
 }
 
@@ -169,5 +209,114 @@ func TestPublishFailuresAreCounted(t *testing.T) {
 	}
 	if got := g.PublishFailures(); got != pub.calls {
 		t.Errorf("PublishFailures = %d, want %d (every failed publish counted)", got, pub.calls)
+	}
+}
+
+// A sensitive_field rule fires on a match, so every spelling the upstream tool
+// would still accept has to be treated as a match. Otherwise escalation is
+// opt-in for whoever is choosing the spelling.
+func TestSensitiveFieldResistsSpellingTricks(t *testing.T) {
+	g := fixture(t)
+	for _, field := range []any{
+		"bank_account", "Bank_Account", "BANK_ACCOUNT", "bank-account",
+		" bank_account", "bank_account ", "bank_account\n",
+		[]any{"bank_account"}, map[string]any{"f": "bank_account"},
+	} {
+		d := g.Decide(Call{Tool: "update_vendor", Args: map[string]any{"field": field, "value": "GB-ATTACKER"}})
+		if d.Outcome == DecisionAllow {
+			t.Errorf("field %#v: got allow, want escalate or deny", field)
+		}
+	}
+	// A genuinely different field is still allowed through.
+	if d := g.Decide(Call{Tool: "update_vendor", Args: map[string]any{"field": "name", "value": "Acme Ltd"}}); d.Outcome != DecisionAllow {
+		t.Errorf("name change: got %s (%s), want allow", d.Outcome, d.Rule)
+	}
+}
+
+// A suffix or prefix check is only meaningful on a single value. Smuggling a
+// second one into the same argument must not pass.
+func TestSuffixAndPrefixRejectCompositeValues(t *testing.T) {
+	g := fixture(t)
+	for _, to := range []string{
+		"attacker@evil.example,someone@corp.example",
+		"attacker@evil.example, someone@corp.example",
+		"attacker@evil.example>, <someone@corp.example",
+		"attacker@evil.example\nBcc: x@corp.example",
+	} {
+		if d := g.Decide(Call{Tool: "send_email", Args: map[string]any{"to": to}}); d.Outcome != DecisionDeny {
+			t.Errorf("to=%q: got %s, want deny", to, d.Outcome)
+		}
+	}
+	for _, dest := range []string{
+		"corp-internal://../../../s3://attacker-bucket/dump",
+		"corp-internal://x\nhttps://attacker.example",
+	} {
+		if d := g.Decide(Call{Tool: "export_report", Args: map[string]any{"destination": dest}}); d.Outcome != DecisionDeny {
+			t.Errorf("destination=%q: got %s, want deny", dest, d.Outcome)
+		}
+	}
+	// The legitimate single values still pass.
+	if d := g.Decide(Call{Tool: "send_email", Args: map[string]any{"to": "someone@corp.example"}}); d.Outcome != DecisionAllow {
+		t.Errorf("single address: got %s (%s), want allow", d.Outcome, d.Rule)
+	}
+	if d := g.Decide(Call{Tool: "export_report", Args: map[string]any{"destination": "corp-internal://reports/q3"}}); d.Outcome != DecisionAllow {
+		t.Errorf("single destination: got %s (%s), want allow", d.Outcome, d.Rule)
+	}
+}
+
+// A policy that grants "*" must still honour a caller that narrows honestly,
+// rather than intersecting to nothing and denying everything.
+func TestWildcardPolicyHonoursCallerNarrowing(t *testing.T) {
+	if got := narrow([]string{"*"}, []string{"invoices:read"}); len(got) != 1 || got[0] != "invoices:read" {
+		t.Errorf("narrow([*], [invoices:read]) = %v, want [invoices:read]", got)
+	}
+	if got := narrow([]string{"invoices:read"}, []string{"*"}); len(got) != 1 || got[0] != "invoices:read" {
+		t.Errorf("narrow([invoices:read], [*]) = %v, want [invoices:read]", got)
+	}
+}
+
+// A key carrying the gateway's route scope plus the policy's per-tool scopes
+// is the working least-privilege shape. The two vocabularies are different, so
+// this combination is what an operator must actually provision.
+func TestGatewayScopePlusToolScopesIsTheWorkingKey(t *testing.T) {
+	g := fixture(t)
+	args := map[string]any{}
+	if d := g.Decide(Call{Tool: "list_invoices", Args: args, Scopes: []string{"tools:invoke"}}); d.Outcome != DecisionDeny {
+		t.Errorf("tools:invoke alone: got %s, want deny (it is a gateway scope, not a tool scope)", d.Outcome)
+	}
+	if d := g.Decide(Call{Tool: "list_invoices", Args: args, Scopes: []string{"tools:invoke", "invoices:read"}}); d.Outcome != DecisionAllow {
+		t.Errorf("tools:invoke + invoices:read: got %s (%s), want allow", d.Outcome, d.Rule)
+	}
+	// Still least privilege: a scope the policy does not grant stays denied.
+	if d := g.Decide(Call{Tool: "delete_invoice", Args: args, Scopes: []string{"tools:invoke", "invoices:read"}}); d.Outcome != DecisionDeny {
+		t.Errorf("delete_invoice: got %s, want deny", d.Outcome)
+	}
+}
+
+// A rule that fires because the gate could not check it must say so, not
+// borrow the rule's message and describe a breach that did not happen.
+func TestUnverifiableDecisionsExplainThemselves(t *testing.T) {
+	g := fixture(t)
+	d := g.Decide(Call{Tool: "update_vendor", Args: map[string]any{"vendor_id": "ACME", "name": "Acme Ltd"}})
+	if d.Outcome == DecisionAllow {
+		t.Fatalf("no field arg: got allow, want fail closed")
+	}
+	if !strings.HasPrefix(d.Message, "cannot verify:") {
+		t.Errorf("message = %q, want a 'cannot verify:' explanation, not the rule's own message", d.Message)
+	}
+	// A real bank_account change still reports the rule's own message.
+	real := g.Decide(Call{Tool: "update_vendor", Args: map[string]any{"field": "bank_account", "value": "GB1"}})
+	if real.Message != "bank account changes need a person" {
+		t.Errorf("actual sensitive change message = %q, want the rule's message", real.Message)
+	}
+}
+
+// The published event is the only copy that survives a restart, so it must not
+// round large integers through float64.
+func TestEventDataKeepsLargeIntegersExact(t *testing.T) {
+	a := Artifact{Tool: "t", Args: map[string]any{"account": json.Number("12345678901234567890")}}
+	got := fmt.Sprint(a.ToEventData()["args"].(map[string]any)["account"])
+	if got != "12345678901234567890" {
+		t.Errorf("event carries account %s, want 12345678901234567890", got)
 	}
 }
