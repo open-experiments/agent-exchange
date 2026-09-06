@@ -344,6 +344,7 @@ func (s *Service) HandleValidateAPIKey(w http.ResponseWriter, r *http.Request) {
 	_ = s.store.UpdateAPIKey(ctx, *k)
 
 	resp := model.ValidateAPIKeyResponse{
+		Valid:        true,
 		TenantID:     t.ID,
 		TenantStatus: t.Status,
 		Scopes:       k.Scopes,

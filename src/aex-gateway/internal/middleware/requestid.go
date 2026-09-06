@@ -19,6 +19,9 @@ func RequestID(next http.Handler) http.Handler {
 		}
 
 		w.Header().Set("X-Request-ID", requestID)
+		if ri := GetRequestInfo(r.Context()); ri != nil {
+			ri.RequestID = requestID
+		}
 		ctx := context.WithValue(r.Context(), RequestIDKey, requestID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

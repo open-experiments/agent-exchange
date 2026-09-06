@@ -64,11 +64,11 @@ type HTTPAPIKeyValidator struct {
 	cacheTTL    time.Duration
 
 	// Circuit breaker state
-	cbMu                 sync.Mutex
-	consecutiveFailures  int
-	cbOpenUntil          time.Time
-	cbFailureThreshold   int
-	cbOpenDuration       time.Duration
+	cbMu                sync.Mutex
+	consecutiveFailures int
+	cbOpenUntil         time.Time
+	cbFailureThreshold  int
+	cbOpenDuration      time.Duration
 }
 
 type cachedKey struct {
@@ -128,8 +128,11 @@ func (v *HTTPAPIKeyValidator) Validate(ctx context.Context, apiKey string) (*API
 		return nil, nil
 	}
 
+	// The identity service answers 401 for an invalid key and 200 with the
+	// tenant for a valid one; "valid" is optional in the body so either shape
+	// of the contract (docs/AUTHENTICATION.md) is accepted.
 	var result struct {
-		Valid    bool     `json:"valid"`
+		Valid    *bool    `json:"valid"`
 		TenantID string   `json:"tenant_id"`
 		Scopes   []string `json:"scopes"`
 	}
@@ -137,7 +140,7 @@ func (v *HTTPAPIKeyValidator) Validate(ctx context.Context, apiKey string) (*API
 		return nil, err
 	}
 
-	if !result.Valid {
+	if (result.Valid != nil && !*result.Valid) || result.TenantID == "" {
 		return nil, nil
 	}
 
@@ -211,6 +214,9 @@ func Auth(validator APIKeyValidator, jwtSecret string) func(http.Handler) http.H
 					respondError(w, http.StatusUnauthorized, "invalid_api_key", "Invalid API key", r)
 					return
 				}
+				if ri := GetRequestInfo(r.Context()); ri != nil {
+					ri.TenantID = info.TenantID
+				}
 				ctx := context.WithValue(r.Context(), TenantIDKey, info.TenantID)
 				ctx = context.WithValue(ctx, RolesKey, info.Scopes)
 				next.ServeHTTP(w, r.WithContext(ctx))
@@ -231,6 +237,9 @@ func Auth(validator APIKeyValidator, jwtSecret string) func(http.Handler) http.H
 					return
 				}
 
+				if ri := GetRequestInfo(r.Context()); ri != nil {
+					ri.TenantID = claims.TenantID
+				}
 				ctx := context.WithValue(r.Context(), TenantIDKey, claims.TenantID)
 				ctx = context.WithValue(ctx, RolesKey, claims.Scopes)
 				next.ServeHTTP(w, r.WithContext(ctx))
