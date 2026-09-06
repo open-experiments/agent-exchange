@@ -1,0 +1,105 @@
+@startuml Architecture_Overview
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+
+title Agent Exchange + A2A Integration - Architecture Overview
+
+package "User Layer" {
+    [Demo UI (Mesop)] as ui #LightBlue
+}
+
+package "Consumer Layer" {
+    [Orchestrator Agent\n(LangGraph + Claude)] as orch #LightGreen
+    note right of orch
+        Responsibilities:
+        • Task decomposition
+        • AEX client integration
+        • A2A client for execution
+        • Result aggregation
+    end note
+}
+
+package "Agent Exchange (Existing Implementation)" #LightYellow {
+    [AEX Gateway\n:8080] as gw
+
+    package "Core Services" {
+        [Work Publisher\n:8081] as wp
+        [Bid Gateway\n:8082] as bg
+        [Bid Evaluator\n:8083] as be
+        [Contract Engine\n:8084] as ce
+        [Provider Registry\n:8085] as pr
+        [Trust Broker\n:8086] as tb
+        [Identity\n:8087] as id
+        [Settlement\n:8088] as st
+        [Telemetry\n:8089] as tel
+    }
+
+    package "New A2A Components" #LightGreen {
+        [Agent Card\nResolver] as acr
+        [Token\nService] as ts
+    }
+
+    database "MongoDB" as db
+}
+
+package "Provider Layer (A2A Servers)" #LightPink {
+    [Legal Agent A\n(Claude)] as la
+    [Travel Agent\n(GPT-4)] as ta
+    [Legal Agent B\n(Gemini)] as lb
+
+    note bottom of la
+        All providers:
+        • Expose /.well-known/agent-card.json
+        • Implement A2A JSON-RPC server
+        • Accept AEX contract tokens
+        • Use LangGraph framework
+    end note
+}
+
+cloud "LLM APIs" as llm {
+    [Anthropic API] as claude
+    [OpenAI API] as openai
+    [Google AI API] as gemini
+}
+
+' User flow
+ui --> orch : User request
+
+' AEX flow
+orch --> gw : REST API calls
+gw --> wp : Work submission
+gw --> bg : Bid queries
+gw --> ce : Contract award
+gw --> st : Settlement
+
+wp --> pr : Get subscribed providers
+pr --> acr : Fetch Agent Cards
+acr --> la : GET /.well-known/agent-card.json
+acr --> ta : GET /.well-known/agent-card.json
+acr --> lb : GET /.well-known/agent-card.json
+
+be --> tb : Get trust scores
+ce --> ts : Generate contract token
+
+wp --> db
+bg --> db
+be --> db
+ce --> db
+pr --> db
+tb --> db
+st --> db
+
+' A2A execution (direct)
+orch --> la : **A2A: message/send**\n(with contract token)
+orch --> ta : **A2A: message/send**\n(with contract token)
+orch --> lb : **A2A: message/send**\n(with contract token)
+
+' LLM connections
+la --> claude
+ta --> openai
+lb --> gemini
+orch --> claude
+
+@enduml

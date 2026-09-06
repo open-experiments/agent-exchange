@@ -1,0 +1,68 @@
+@startuml Settlement Flow
+skinparam backgroundColor #FEFEFE
+
+title Settlement Flow
+
+participant "Contract-Engine" as CE
+participant "Settlement" as ST
+participant "Trust-Broker" as TB
+database "Database" as DB
+
+CE -> ST : POST /internal/settlement/complete\n{contract_id, consumer_id,\nprovider_id, agreed_price: 100}
+activate ST
+
+note right of ST
+  **Cost Calculation**
+  Platform Fee Rate: 15%
+end note
+
+ST -> ST : Calculate costs:\nplatform_fee = 100 × 0.15 = $15.00\nprovider_payout = 100 - 15 = $85.00
+
+note right of ST
+  **Create Ledger Entries**
+  Immutable audit trail
+end note
+
+ST -> ST : Entry 1: DEBIT\nconsumer: -$100.00
+
+ST -> ST : Entry 2: CREDIT\nprovider: +$85.00
+
+ST -> ST : Entry 3: CREDIT\nplatform: +$15.00
+
+ST -> DB : Store ledger entries
+activate DB
+DB --> ST : OK
+deactivate DB
+
+note right of ST
+  **Update Balances**
+end note
+
+ST -> ST : consumer.balance -= 100
+ST -> ST : provider.balance += 85
+
+ST -> DB : Update balances
+activate DB
+DB --> ST : OK
+deactivate DB
+
+note right of ST
+  **Report Outcome**
+  Update provider trust score
+end note
+
+ST -> TB : POST /internal/v1/outcomes\n{provider_id, contract_id,\noutcome: SUCCESS}
+activate TB
+TB -> TB : Record outcome
+TB -> TB : Recalculate trust score
+TB -> TB : Update tier if needed
+TB -> DB : Save trust record
+TB --> ST : {ok}
+deactivate TB
+
+ST --> CE : {settlement_id,\nstatus: SETTLED,\ncost_breakdown}
+deactivate ST
+
+@enduml
+
+

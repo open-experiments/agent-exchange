@@ -1,0 +1,190 @@
+---
+title: AEX Provider Lifecycle — Register, Update, Unregister
+---
+flowchart TB
+    subgraph NewProvider["New Provider: IPAnalyzer (wants to join AEX)"]
+        NP["""
+        🆕 IPAnalyzer Legal AI
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Endpoint: https://ip.analyzer.ai/a2a
+        Capabilities: IP, Patents, Licensing
+        Capacity: 500 docs/day
+        """]
+    end
+
+    subgraph AEX["AEX BROKER PLATFORM"]
+        subgraph Registration["1️⃣ REGISTRATION FLOW"]
+            REG_API[POST /v1/providers]
+            REG_VAL{Validate<br/>Credentials}
+            REG_TEST[Capability Test<br/>Sample Work]
+            REG_SCORE[Initial Trust<br/>Score: NEW]
+        end
+
+        subgraph Registry["aex-provider-registry"]
+            PR[(Provider<br/>Database)]
+            CAP[(Capability<br/>Index)]
+            CERT[(Certifications<br/>& Compliance)]
+        end
+
+        subgraph Update["2️⃣ UPDATE FLOW"]
+            UPD_API[PATCH /v1/providers/:id]
+            UPD_VAL{Validate<br/>Changes}
+            UPD_RETEST[Re-test if<br/>New Capabilities]
+        end
+
+        subgraph Monitoring["3️⃣ CONTINUOUS MONITORING"]
+            HEALTH[Health Checks<br/>Every 60s]
+            PERF[Performance<br/>Tracking]
+            TRUST[Trust Score<br/>Updates]
+        end
+
+        subgraph Unregister["4️⃣ UNREGISTRATION FLOW"]
+            UNREG_API[DELETE /v1/providers/:id]
+            DRAIN[Drain Active<br/>Contracts]
+            SETTLE[Final<br/>Settlement]
+            ARCHIVE[Archive<br/>History]
+        end
+
+        subgraph TrustBroker["aex-trust-broker"]
+            TB[Trust Score<br/>Calculator]
+        end
+    end
+
+    subgraph ExternalWorld["External Provider Infrastructure"]
+        EP_A2A[A2A Endpoint]
+        EP_HEALTH[Health Endpoint]
+        EP_MCP[MCP Toolbox]
+    end
+
+    %% Registration Flow
+    NP -->|1. Register| REG_API
+    REG_API --> REG_VAL
+    REG_VAL -->|Valid| REG_TEST
+    REG_VAL -->|Invalid| REJ[❌ Rejected]
+    REG_TEST -->|Pass| REG_SCORE
+    REG_TEST -->|Fail| REJ
+    REG_SCORE --> PR
+    REG_SCORE --> CAP
+    REG_SCORE --> TB
+
+    %% Update Flow
+    EP_A2A -->|2. Update Capabilities| UPD_API
+    UPD_API --> UPD_VAL
+    UPD_VAL -->|Valid| UPD_RETEST
+    UPD_RETEST --> PR
+    UPD_RETEST --> CAP
+
+    %% Monitoring Flow
+    HEALTH -->|Ping| EP_HEALTH
+    EP_HEALTH -->|Status| HEALTH
+    HEALTH --> PERF
+    PERF --> TRUST
+    TRUST --> TB
+    TB --> PR
+
+    %% Unregister Flow
+    EP_A2A -->|4. Unregister| UNREG_API
+    UNREG_API --> DRAIN
+    DRAIN --> SETTLE
+    SETTLE --> ARCHIVE
+
+    %% Provider infrastructure
+    PR -.-> EP_A2A
+    PR -.-> EP_HEALTH
+
+    %% ========================================
+    %% DETAILED REGISTRATION SEQUENCE
+    %% ========================================
+
+    subgraph RegDetails["📋 Registration Details"]
+        direction TB
+        RD1["""
+        POST /v1/providers
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        {
+          "name": "IPAnalyzer",
+          "endpoint": "https://ip.analyzer.ai/a2a",
+          "health_endpoint": "/health",
+          "capabilities": [
+            "intellectual_property",
+            "patents",
+            "licensing",
+            "trademark"
+          ],
+          "certifications": ["iso27001"],
+          "capacity": {
+            "max_concurrent": 50,
+            "daily_limit": 500
+          },
+          "pricing": {
+            "min_bid": 10.00,
+            "max_bid": 25.00,
+            "currency": "USD"
+          },
+          "sla": {
+            "response_time_ms": 5000,
+            "availability": 0.99
+          }
+        }
+        """]
+    end
+
+    subgraph UpdDetails["🔄 Update Examples"]
+        direction TB
+        UD1["""
+        PATCH /v1/providers/:id/capabilities
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Add new SME:
+        { "add": ["trade_secrets", "gdpr"] }
+
+        Remove SME:
+        { "remove": ["trademark"] }
+        """]
+        UD2["""
+        PATCH /v1/providers/:id/capacity
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Scale up for high demand:
+        { "daily_limit": 1000 }
+
+        Reduce during maintenance:
+        { "daily_limit": 100 }
+        """]
+        UD3["""
+        PATCH /v1/providers/:id/status
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Temporary pause:
+        { "status": "paused" }
+
+        Resume:
+        { "status": "active" }
+        """]
+    end
+
+    subgraph UnregDetails["🚪 Unregistration Process"]
+        direction TB
+        URD1["""
+        DELETE /v1/providers/:id
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        1. Stop accepting new work
+        2. Complete in-flight contracts
+        3. Settle pending payments
+        4. Archive performance history
+        5. Remove from capability index
+        6. Retain audit trail (7 years)
+        """]
+    end
+
+    %% Styling
+    classDef new fill:#00BCD4,stroke:#0097A7,color:#fff
+    classDef aex fill:#4285F4,stroke:#1967D2,color:#fff
+    classDef registry fill:#34A853,stroke:#188038,color:#fff
+    classDef external fill:#607D8B,stroke:#455A64,color:#fff
+    classDef details fill:#F5F5F5,stroke:#9E9E9E,color:#000
+    classDef rejected fill:#EA4335,stroke:#C5221F,color:#fff
+
+    class NP new
+    class REG_API,REG_VAL,REG_TEST,REG_SCORE,UPD_API,UPD_VAL,UPD_RETEST,HEALTH,PERF,TRUST,UNREG_API,DRAIN,SETTLE,ARCHIVE aex
+    class PR,CAP,CERT,TB registry
+    class EP_A2A,EP_HEALTH,EP_MCP external
+    class RD1,UD1,UD2,UD3,URD1 details
+    class REJ rejected

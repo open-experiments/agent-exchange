@@ -1,0 +1,104 @@
+@startuml End-to-End Flow
+skinparam backgroundColor #FEFEFE
+
+title Complete End-to-End Workflow
+
+actor Consumer as C
+actor Provider as P
+participant "Gateway" as GW
+participant "Work-Publisher" as WP
+participant "Provider-Registry" as PR
+participant "Bid-Gateway" as BG
+participant "Bid-Evaluator" as BE
+participant "Contract-Engine" as CE
+participant "Settlement" as ST
+participant "Trust-Broker" as TB
+
+== Phase 1: Setup ==
+
+C -> GW : Create tenant
+GW -> GW : Store tenant
+GW --> C : {tenant_id, api_key}
+
+P -> GW : Register provider
+GW -> PR : Store provider
+PR --> P : {provider_id, api_key}
+
+P -> GW : Subscribe to category
+GW -> PR : Store subscription
+PR --> P : {subscription_id}
+
+C -> GW : Deposit funds
+GW -> ST : Store balance
+ST --> C : {balance: $1000}
+
+== Phase 2: Work Submission ==
+
+C -> GW : POST /v1/work\n{category, budget: $100}
+GW -> WP : Create work
+WP -> PR : Get subscribers
+PR --> WP : [providers]
+WP --> C : {work_id}
+WP -> P : Notify (webhook)
+
+note over WP : Bid window starts (30s)
+
+== Phase 3: Bidding ==
+
+P -> GW : POST /v1/bids\n{work_id, price: $45}
+GW -> BG : Submit bid
+BG -> PR : Validate API key
+PR --> BG : {valid: true}
+BG --> P : {bid_id}
+
+note over BG : More providers submit bids...
+
+note over WP : Bid window closes
+
+== Phase 4: Evaluation ==
+
+BE -> BG : Get bids
+BG --> BE : [bid1, bid2, bid3]
+
+BE -> TB : Get trust scores
+TB --> BE : {scores}
+
+BE -> BE : Score & rank bids
+BE --> BE : {winner: bid2}
+
+== Phase 5: Contract Award ==
+
+C -> GW : POST /v1/work/{id}/award\n{bid_id: bid2}
+GW -> CE : Award contract
+CE -> BG : Verify bid
+CE --> C : {contract_id,\nexecution_token,\na2a_endpoint}
+
+== Phase 6: Execution ==
+
+C <-> P : A2A: Work execution
+
+P -> CE : Progress: 25%
+P -> CE : Progress: 50%
+P -> CE : Progress: 75%
+P -> CE : Complete
+
+== Phase 7: Settlement ==
+
+CE -> ST : Trigger settlement
+ST -> ST : Platform fee: $6.75\nProvider: $38.25
+ST -> ST : Update balances
+ST -> TB : Report: SUCCESS
+TB -> TB : Update trust score
+ST --> CE : {settled}
+
+note over C, TB
+  **Final State**
+  Consumer: $955 (paid $45)
+  Provider: $38.25 (earned 85%)
+  Platform: $6.75 (15% fee)
+  Trust: Updated
+end note
+
+@enduml
+
+

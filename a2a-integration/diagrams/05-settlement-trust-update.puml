@@ -1,0 +1,138 @@
+@startuml Settlement_Trust_Update
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+title 5. Settlement & Trust Update
+
+participant "Legal Agent A\n(Provider)" as la #LightPink
+participant "Orchestrator Agent\n(Consumer)" as orch #LightGreen
+participant "AEX Gateway\n:8080" as gw #LightYellow
+participant "AEX Contract Engine\n:8084" as ce #LightYellow
+participant "AEX Settlement\n:8088" as st #LightYellow
+participant "AEX Trust Broker\n:8086" as tb #LightYellow
+database "MongoDB" as db #LightBlue
+
+== Task Completion (A2A) ==
+
+note over la, orch
+  A2A task execution completed
+  Provider has delivered results
+end note
+
+== Report Completion to AEX ==
+
+la -> gw : POST /v1/contracts/{contract_id}/complete\n{\n  "success": true,\n  "result_summary": "Contract reviewed, 3 risks identified",\n  "metrics": {\n    "processing_time_ms": 12500,\n    "tokens_used": 4500\n  },\n  "a2a_task_id": "task_456"\n}
+activate gw
+
+gw -> ce : Forward completion
+activate ce
+
+ce -> db : Get contract
+activate db
+db --> ce : Contract details
+deactivate db
+
+ce -> ce : Validate:\n- Contract exists\n- Status is AWARDED/EXECUTING\n- Provider matches
+
+ce -> ce : Set status = "COMPLETED"
+ce -> ce : Record outcome
+
+ce -> db : Update contract
+activate db
+db --> ce : Updated
+deactivate db
+
+== Trigger Settlement ==
+
+ce -> st : POST /internal/settlement/complete\n{\n  "contract_id": "contract_123",\n  "work_id": "work_xyz",\n  "consumer_id": "orch_001",\n  "provider_id": "prov_A",\n  "agreed_price": "30.00",\n  "outcome": "SUCCESS"\n}
+activate st
+
+st -> st : Calculate cost breakdown
+note right of st
+  **Cost Calculation:**
+  Agreed Price: $30.00
+  Platform Fee (15%): $4.50
+  Provider Payout: $25.50
+end note
+
+st -> db : Create ledger entries
+activate db
+note right of db
+  **Ledger Entries:**
+  1. DEBIT consumer: $30.00
+  2. CREDIT provider: $25.50
+  3. CREDIT platform: $4.50
+end note
+db --> st : Entries created
+deactivate db
+
+st -> db : Update balances
+activate db
+note right of db
+  - consumer_balance -= $30.00
+  - provider_balance += $25.50
+  - platform_balance += $4.50
+end note
+db --> st : Balances updated
+deactivate db
+
+st -> db : Create execution record
+db --> st : Created
+
+st -> st : Publish event:\n"settlement.completed"
+
+st --> ce : Settlement result\n{\n  settlement_id,\n  platform_fee: "4.50",\n  provider_payout: "25.50"\n}
+deactivate st
+
+== Update Trust Score ==
+
+ce -> tb : POST /internal/outcomes\n{\n  "provider_id": "prov_A",\n  "contract_id": "contract_123",\n  "outcome": "SUCCESS",\n  "metrics": {\n    "response_time_ms": 12500,\n    "consumer_rating": null\n  }\n}
+activate tb
+
+tb -> db : Get provider trust record
+activate db
+db --> tb : Current trust data\n{score: 0.92, contracts: 47, outcomes: [...]}
+deactivate db
+
+tb -> tb : Add outcome to history
+tb -> tb : Recalculate weighted score
+note right of tb
+  **Trust Score Update:**
+  - Add SUCCESS (1.0) to outcomes
+  - Recent 10 contracts: weight 1.0
+  - Contracts 11-50: weight 0.5
+  - New score: 0.925
+  - Total contracts: 48
+  - Success rate: 94.8%
+  - Tier: TRUSTED (unchanged)
+end note
+
+tb -> db : Update trust record
+activate db
+db --> tb : Updated
+deactivate db
+
+tb --> ce : Trust updated\n{new_score: 0.925, tier: "TRUSTED"}
+deactivate tb
+
+ce -> ce : Publish event:\n"contract.completed"
+
+ce --> gw : 200 OK\n{\n  "contract_id": "contract_123",\n  "status": "COMPLETED",\n  "settlement": {\n    "settlement_id": "settle_789",\n    "agreed_price": "30.00",\n    "platform_fee": "4.50",\n    "provider_payout": "25.50"\n  },\n  "trust_update": {\n    "new_score": 0.925,\n    "tier": "TRUSTED"\n  }\n}
+deactivate ce
+
+gw --> la : Completion acknowledged
+deactivate gw
+
+== Consumer Notification (Optional) ==
+
+orch -> gw : GET /v1/contracts/{contract_id}
+activate gw
+gw -> ce : Get contract
+ce --> gw : Contract with settlement info
+gw --> orch : Contract details\n(status: COMPLETED, settlement info)
+deactivate gw
+
+@enduml

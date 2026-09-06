@@ -1,0 +1,65 @@
+@startuml Bid Evaluation Flow
+skinparam backgroundColor #FEFEFE
+
+title Bid Evaluation Flow
+
+participant "Bid-Evaluator" as BE
+participant "Bid-Gateway" as BG
+participant "Trust-Broker" as TB
+
+note over BE
+  Triggered by:
+  1. Bid window close
+  2. Manual evaluation request
+end note
+
+BE -> BG : GET /internal/v1/bids\n?work_id={work_id}
+activate BG
+BG --> BE : [bid1, bid2, bid3, ...]
+deactivate BG
+
+loop For each unique provider
+    BE -> TB : GET /v1/providers/{id}/trust
+    activate TB
+    TB --> BE : {trust_score, trust_tier}
+    deactivate TB
+end
+
+BE -> BE : Calculate scores\nfor each bid
+
+note right of BE
+  **Scoring Components:**
+  1. price_score = 1 - (price / max_price)
+  2. trust_score = from Trust-Broker
+  3. confidence_score = bid.confidence
+  4. mvp_score = evaluate sample (0-1)
+  5. sla_score = SLA match (0-1)
+end note
+
+BE -> BE : Apply strategy weights
+
+note right of BE
+  **Strategy Weights:**
+  
+  lowest_price:
+    0.5*price + 0.2*trust + 
+    0.1*conf + 0.1*mvp + 0.1*sla
+  
+  best_quality:
+    0.1*price + 0.4*trust + 
+    0.2*conf + 0.2*mvp + 0.1*sla
+  
+  balanced (default):
+    0.3*price + 0.3*trust + 
+    0.15*conf + 0.15*mvp + 0.1*sla
+end note
+
+BE -> BE : Filter out:\n- Expired bids\n- Over-budget bids\n- SLA violations
+
+BE -> BE : Sort by total_score DESC
+
+BE --> BE : Return:\n{ranked_bids: [...],\nwinner: {...},\ndisqualified: [...]}
+
+@enduml
+
+

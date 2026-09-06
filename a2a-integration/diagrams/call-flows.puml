@@ -1,0 +1,35 @@
+@startuml AEX_A2A_Integration_Overview
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+
+title Agent Exchange + A2A Integration - System Overview
+
+actor "User" as user
+participant "Demo UI\n(Mesop)" as ui #LightBlue
+participant "Orchestrator Agent\n(Consumer)" as orch #LightGreen
+box "Agent Exchange (Existing)" #LightYellow
+    participant "AEX Gateway" as gw
+    participant "AEX Work Publisher" as wp
+    participant "AEX Provider Registry" as pr
+    participant "AEX Bid Gateway" as bg
+    participant "AEX Bid Evaluator" as be
+    participant "AEX Contract Engine" as ce
+    participant "AEX Settlement" as st
+    participant "AEX Trust Broker" as tb
+end box
+box "Provider Agents (A2A)" #LightPink
+    participant "Legal Agent A\n(Claude)" as la
+    participant "Travel Agent\n(GPT-4)" as ta
+    participant "Legal Agent B\n(Gemini)" as lb
+end box
+
+user -> ui : "Plan my Berlin trip,\nreview contract,\ncheck regulations"
+ui -> orch : Forward request
+
+note over orch : Task Decomposition\n(LangGraph + Claude)
+
+orch -> orch : Identify subtasks:\n1. Contract Review\n2. Travel Booking\n3. Compliance Check
+
+@enduml

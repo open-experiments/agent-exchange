@@ -1,0 +1,116 @@
+@startuml Bidding_Evaluation
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+title 3. Bidding & Evaluation
+
+participant "Legal Agent A\n(Claude)" as la #LightPink
+participant "Legal Agent B\n(Gemini)" as lb #LightPink
+participant "AEX Gateway\n:8080" as gw #LightYellow
+participant "AEX Bid Gateway\n:8082" as bg #LightYellow
+participant "AEX Work Publisher\n:8081" as wp #LightYellow
+participant "AEX Bid Evaluator\n:8083" as be #LightYellow
+participant "AEX Trust Broker\n:8086" as tb #LightYellow
+database "MongoDB" as db #LightBlue
+
+== Providers Submit Bids ==
+
+la -> gw : POST /v1/bids\n{\n  "work_id": "work_xyz",\n  "provider_id": "prov_A",\n  "price": 30.00,\n  "confidence": 0.95,\n  "estimated_duration_ms": 15000,\n  "sla": {"max_latency_ms": 20000},\n  "mvp_sample": "I will analyze key clauses..."\n}
+activate gw
+gw -> bg : Forward bid
+activate bg
+bg -> db : Store bid
+bg -> wp : POST /internal/work/{id}/bids\n{bid_id}
+activate wp
+wp -> wp : Increment bid_count
+wp --> bg : OK
+deactivate wp
+bg --> gw : 201 Created {bid_id}
+deactivate bg
+gw --> la : Bid accepted
+deactivate gw
+
+lb -> gw : POST /v1/bids\n{\n  "work_id": "work_xyz",\n  "provider_id": "prov_B",\n  "price": 25.00,\n  "confidence": 0.85,\n  "estimated_duration_ms": 25000,\n  "sla": {"max_latency_ms": 30000}\n}
+activate gw
+gw -> bg : Forward bid
+activate bg
+bg -> db : Store bid
+bg --> gw : 201 Created {bid_id}
+deactivate bg
+gw --> lb : Bid accepted
+deactivate gw
+
+== Bid Window Closes ==
+
+wp -> wp : Timer: bid_window_end reached
+wp -> wp : Set work state = "EVALUATING"
+wp -> wp : Publish event:\n"work.bid_window_closed"
+
+== Bid Evaluation ==
+
+wp -> be : POST /internal/evaluate\n{"work_id": "work_xyz", "strategy": "balanced"}
+activate be
+
+be -> bg : GET /internal/bids/work/{work_id}
+activate bg
+bg -> db : Query bids for work_id
+db --> bg : [Bid A, Bid B]
+bg --> be : Bids list
+deactivate bg
+
+be -> wp : GET /v1/work/{work_id}
+activate wp
+wp --> be : Work spec (budget, constraints)
+deactivate wp
+
+== Get Trust Scores ==
+
+be -> tb : POST /internal/trust/batch\n{"provider_ids": ["prov_A", "prov_B"]}
+activate tb
+tb -> db : Query trust scores
+db --> tb : Trust data
+tb --> be : {\n  "prov_A": {"score": 0.92, "tier": "TRUSTED"},\n  "prov_B": {"score": 0.78, "tier": "VERIFIED"}\n}
+deactivate tb
+
+== Calculate Scores ==
+
+note over be
+  **Balanced Strategy Weights:**
+  - Price: 0.30
+  - Trust: 0.30
+  - Confidence: 0.15
+  - MVP Sample: 0.15
+  - SLA: 0.10
+
+  **Bid A (Legal Agent A - Claude):**
+  - Price Score: 0.40 (higher price)
+  - Trust Score: 0.92
+  - Confidence: 0.95
+  - SLA Score: 1.0 (meets requirement)
+  - **Total: 0.30×0.40 + 0.30×0.92 + 0.15×0.95 + 0.15×0.80 + 0.10×1.0 = 0.76**
+
+  **Bid B (Legal Agent B - Gemini):**
+  - Price Score: 0.50 (lower price)
+  - Trust Score: 0.78
+  - Confidence: 0.85
+  - SLA Score: 1.0
+  - **Total: 0.30×0.50 + 0.30×0.78 + 0.15×0.85 + 0.15×0.70 + 0.10×1.0 = 0.72**
+
+  **Winner: Bid A (Legal Agent A)**
+end note
+
+be -> be : Filter invalid bids\n(price > budget, expired, SLA mismatch)
+be -> be : Calculate scores per strategy
+be -> be : Rank bids by total score
+
+be -> db : Store evaluation result
+be --> wp : EvaluationResult\n{\n  ranked_bids: [Bid_A, Bid_B],\n  winner: "bid_A",\n  scores: {...}\n}
+deactivate be
+
+wp -> wp : Set work state = "EVALUATED"
+wp -> wp : Publish event:\n"bids.evaluated"
+
+@enduml

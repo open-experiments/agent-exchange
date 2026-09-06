@@ -1,0 +1,191 @@
+---
+title: AEX Use Case — Spain Vacation Booking
+---
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4285F4', 'secondaryColor': '#34A853', 'tertiaryColor': '#EA4335'}}}%%
+
+flowchart TB
+    subgraph Consumer["Consumer Agent (Travel Planner)"]
+        REQ["""
+        🏖️ VACATION REQUEST
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Destination: Spain
+        Dates: 7 nights
+        Budget: Best price/performance
+
+        Requirements:
+        ✈️ Flights (max 1 stop, direct preferred)
+        🏨 4-star hotel, city center, <$350/night
+        🚗 Airport transfers (round trip)
+        🍽️ Restaurant reservations (2 nights)
+        """]
+    end
+
+    subgraph AEX["AEX BROKER PLATFORM"]
+        subgraph WorkDecomposition["Work Decomposition"]
+            WP[aex-work-publisher]
+            WP --> W1[Work 1: Flights]
+            WP --> W2[Work 2: Hotel]
+            WP --> W3[Work 3: Transfers]
+            WP --> W4[Work 4: Dining]
+        end
+
+        subgraph BidCollection["Bid Collection (parallel)"]
+            direction LR
+            BG[aex-bid-gateway]
+        end
+
+        subgraph Evaluation["Bid Evaluation"]
+            BE[aex-bid-evaluator]
+            TB[aex-trust-broker]
+        end
+
+        subgraph Contracting["Contract Award"]
+            CE[aex-contract-engine]
+        end
+    end
+
+    subgraph FlightProviders["✈️ Flight Providers"]
+        AA["""American Airlines Agent
+        ━━━━━━━━━━━━━━━━━━━━
+        Bid: $847 round trip
+        Route: JFK→MAD (direct)
+        Trust: ⭐⭐⭐⭐ PREFERRED
+        """]
+        UA["""United Agent
+        ━━━━━━━━━━━━━━━━━━━━
+        Bid: $792 round trip
+        Route: JFK→MAD (1 stop)
+        Trust: ⭐⭐⭐⭐ PREFERRED
+        """]
+        SW["""Southwest Agent
+        ━━━━━━━━━━━━━━━━━━━━
+        No bid (no Spain routes)
+        """]
+    end
+
+    subgraph HotelProviders["🏨 Hotel Providers"]
+        MR["""Marriott Agent
+        ━━━━━━━━━━━━━━━━━━━━
+        Bid: $289/night
+        Property: AC Hotel Madrid
+        4-star, city center, 0.3km
+        Trust: ⭐⭐⭐⭐⭐ PREFERRED
+        """]
+        HI["""Hilton Agent
+        ━━━━━━━━━━━━━━━━━━━━
+        Bid: $312/night
+        Property: Hilton Madrid
+        4-star, city center, 0.5km
+        Trust: ⭐⭐⭐⭐ TRUSTED
+        """]
+    end
+
+    subgraph TransferProviders["🚗 Transfer Providers"]
+        UB["""Uber Agent
+        ━━━━━━━━━━━━━━━━━━━━
+        Bid: $45 each way
+        Vehicle: UberX
+        Trust: ⭐⭐⭐⭐ TRUSTED
+        """]
+        LY["""Lyft Agent
+        ━━━━━━━━━━━━━━━━━━━━
+        Bid: $42 each way
+        Vehicle: Lyft Standard
+        Trust: ⭐⭐⭐ VERIFIED
+        """]
+    end
+
+    subgraph DiningProviders["🍽️ Dining Providers"]
+        OT["""OpenTable Agent
+        ━━━━━━━━━━━━━━━━━━━━
+        Bid: $0 (free service)
+        + CPA bonus if booked
+        Restaurants: 47 available
+        Trust: ⭐⭐⭐⭐⭐ PREFERRED
+        """]
+    end
+
+    %% Consumer submits request
+    REQ -->|POST /v1/work| AEX
+
+    %% Work broadcast to providers
+    W1 -->|Broadcast| AA & UA & SW
+    W2 -->|Broadcast| MR & HI
+    W3 -->|Broadcast| UB & LY
+    W4 -->|Broadcast| OT
+
+    %% Bids flow back
+    AA & UA -->|Submit Bids| BG
+    MR & HI -->|Submit Bids| BG
+    UB & LY -->|Submit Bids| BG
+    OT -->|Submit Bid| BG
+
+    %% Evaluation
+    BG --> BE
+    BE <--> TB
+
+    subgraph Winners["🏆 WINNING BIDS"]
+        direction TB
+        WIN1["""✈️ American Airlines
+        $847 direct flight
+        Score: 0.94 (direct bonus)"""]
+        WIN2["""🏨 Marriott
+        $289/night × 7 = $2,023
+        Score: 0.96 (price + rating)"""]
+        WIN3["""🚗 Uber
+        $45 × 2 = $90
+        Score: 0.91 (trust)"""]
+        WIN4["""🍽️ OpenTable
+        $0 + CPA
+        Score: 0.98 (preferred)"""]
+    end
+
+    BE --> Winners
+    Winners --> CE
+
+    subgraph DirectExecution["Direct A2A Execution (AEX exits path)"]
+        direction TB
+        EX1[Consumer ↔ American Airlines<br/>Book flights, receive confirmation]
+        EX2[Consumer ↔ Marriott<br/>Reserve room, receive booking #]
+        EX3[Consumer ↔ Uber<br/>Schedule pickups, receive ride codes]
+        EX4[Consumer ↔ OpenTable<br/>Book restaurants, receive confirmations]
+    end
+
+    CE -->|Award Contracts<br/>Return A2A endpoints| DirectExecution
+
+    subgraph Settlement["Settlement & Trust Update"]
+        SE[aex-settlement]
+        TOTAL["""
+        💰 FINAL COST BREAKDOWN
+        ━━━━━━━━━━━━━━━━━━━━━━━━
+        Flights:    $847
+        Hotel:      $2,023
+        Transfers:  $90
+        Dining:     $0
+        ━━━━━━━━━━━━━━━━━━━━━━━━
+        TOTAL:      $2,960
+        AEX Fee:    $444 (15%)
+
+        ✅ All providers paid
+        ✅ Trust scores updated
+        ✅ CPA bonuses processed
+        """]
+    end
+
+    DirectExecution -->|Completion Reports| SE
+    SE --> TOTAL
+
+    %% Styling
+    classDef consumer fill:#00BCD4,stroke:#0097A7,color:#fff
+    classDef aex fill:#4285F4,stroke:#1967D2,color:#fff
+    classDef provider fill:#607D8B,stroke:#455A64,color:#fff
+    classDef winner fill:#34A853,stroke:#188038,color:#fff
+    classDef execution fill:#9334E6,stroke:#7627BB,color:#fff
+    classDef settlement fill:#FBBC04,stroke:#F9AB00,color:#000
+
+    class REQ consumer
+    class WP,BG,BE,TB,CE aex
+    class AA,UA,SW,MR,HI,UB,LY,OT provider
+    class WIN1,WIN2,WIN3,WIN4 winner
+    class EX1,EX2,EX3,EX4 execution
+    class SE,TOTAL settlement

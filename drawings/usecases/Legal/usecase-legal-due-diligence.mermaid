@@ -1,0 +1,171 @@
+---
+title: AEX Use Case — M&A Due Diligence with SME-Based Routing
+---
+flowchart TB
+    subgraph Consumer["Consumer Agent (Morrison & Partners LLP)"]
+        REQ["""
+        📋 DUE DILIGENCE REQUEST
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Target: TechFlow Inc. ($2B acquisition)
+        Documents: 500 contracts
+        Deadline: 5 days
+
+        Document Types:
+        👔 Employment Agreements (85)
+        💼 Customer MSAs (72)
+        🏭 Vendor Contracts (68)
+        💡 IP Assignments (45)
+        🏢 Real Estate Leases (12)
+        💰 Financing Agreements (28)
+        🤝 Partnership/JV (15)
+        🌍 International (35) - GDPR
+        📝 NDAs (95)
+        📊 Regulatory Filings (45)
+        """]
+    end
+
+    subgraph AEX["AEX BROKER PLATFORM"]
+        subgraph APILayer["API Layer (Northbound)"]
+            GW[aex-gateway]
+            WP[aex-work-publisher]
+            GW -->|Route Request| WP
+        end
+
+        subgraph Classification["Document Classification & SME Matching"]
+            WP --> CLASS{Classify by<br/>Required SME}
+        end
+
+        CLASS --> SME1["""👔 Employment Law
+        Required: Non-compete, ERISA
+        Min Trust: TRUSTED"""]
+        CLASS --> SME2["""💡 Intellectual Property
+        Required: Patents, Licensing
+        Min Trust: TRUSTED"""]
+        CLASS --> SME3["""🌍 Cross-Border
+        Required: GDPR Certified
+        Min Trust: PREFERRED"""]
+        CLASS --> SME4["""💰 Securities/Finance
+        Required: Debt, Covenants
+        Min Trust: TRUSTED"""]
+        CLASS --> SME5["""💼 Commercial/SaaS
+        Required: Licensing, Liability
+        Min Trust: VERIFIED"""]
+        CLASS --> SME6["""📝 General
+        Required: Basic Commercial
+        Min Trust: VERIFIED"""]
+
+        subgraph Registry["aex-provider-registry (SME Capability Index)"]
+            PR[(Provider<br/>Capabilities<br/>& Certifications)]
+        end
+
+        subgraph Evaluation["Bid Evaluation"]
+            BE[aex-bid-evaluator]
+            TB[aex-trust-broker]
+        end
+    end
+
+    subgraph Providers["Registered Legal AI Providers"]
+        subgraph Tier1["⭐⭐⭐⭐⭐ PREFERRED Tier"]
+            P1["""EmploymentIQ
+            SME: Employment, HR, ERISA
+            Trust: 0.94"""]
+            P2["""LegalMind AI
+            SME: M&A, Corporate, Securities
+            Trust: 0.95"""]
+        end
+
+        subgraph Tier2["⭐⭐⭐⭐ TRUSTED Tier"]
+            P3["""IPAnalyzer
+            SME: Patents, IP, Licensing
+            Trust: 0.91"""]
+            P4["""GlobalLex
+            SME: Cross-border, GDPR ✓
+            Trust: 0.92"""]
+            P5["""FinanceAI
+            SME: Securities, Debt
+            Trust: 0.89"""]
+            P6["""ClauseAI
+            SME: Commercial, SaaS
+            Trust: 0.88"""]
+        end
+
+        subgraph Tier3["⭐⭐⭐ VERIFIED Tier"]
+            P7["""DocuGeneral
+            SME: General Commercial
+            Trust: 0.78"""]
+            P8["""ComplianceBot
+            SME: Regulatory
+            Trust: 0.76"""]
+        end
+    end
+
+    %% Request flow (Northbound via API Layer)
+    REQ -->|POST /v1/work| GW
+
+    %% SME matching queries registry
+    SME1 & SME2 & SME3 & SME4 & SME5 & SME6 --> PR
+    PR -->|Eligible Providers| BE
+
+    %% Broadcast to qualified providers only
+    SME1 -.->|Employment work| P1
+    SME2 -.->|IP work| P3
+    SME3 -.->|Int'l work| P4
+    SME4 -.->|Finance work| P5 & P2
+    SME5 -.->|Commercial work| P6
+    SME6 -.->|Simple work| P7
+
+    %% Bids flow back
+    P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 -->|Submit Bids| BE
+    BE <--> TB
+
+    subgraph Winners["🏆 SME-MATCHED WINNERS"]
+        W1["""👔 EmploymentIQ
+        85 docs × $14 = $1,190"""]
+        W2["""💡 IPAnalyzer
+        45 docs × $16 = $720"""]
+        W3["""🌍 GlobalLex
+        35 docs × $22 = $770"""]
+        W4["""💰 FinanceAI
+        28 docs × $18 = $504"""]
+        W5["""💼 ClauseAI
+        140 docs × $10 = $1,400"""]
+        W6["""📝 DocuGeneral
+        95 docs × $5 = $475"""]
+        W7["""🤝 LegalMind AI
+        15 JVs × $20 = $300"""]
+        W8["""📊 ComplianceBot
+        45 docs × $12 = $540"""]
+    end
+
+    BE --> Winners
+
+    subgraph Results["📊 RESULTS"]
+        TOTAL["""
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        TOTAL COST: $6,949
+        (vs $175,000 traditional)
+
+        SAVINGS: 96%
+        TIME: 8 hours (vs 3 weeks)
+        ACCURACY: 96% (SME-matched)
+        PROVIDERS: 8 specialists
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        """]
+    end
+
+    Winners --> TOTAL
+
+    %% Styling
+    classDef consumer fill:#00BCD4,stroke:#0097A7,color:#fff
+    classDef aex fill:#4285F4,stroke:#1967D2,color:#fff
+    classDef preferred fill:#34A853,stroke:#188038,color:#fff
+    classDef trusted fill:#FBBC04,stroke:#F9AB00,color:#000
+    classDef verified fill:#FF9800,stroke:#F57C00,color:#fff
+    classDef winner fill:#9334E6,stroke:#7627BB,color:#fff
+
+    class REQ consumer
+    class GW,WP,BE,TB,PR,CLASS aex
+    class P1,P2 preferred
+    class P3,P4,P5,P6 trusted
+    class P7,P8 verified
+    class W1,W2,W3,W4,W5,W6,W7,W8,TOTAL winner

@@ -1,0 +1,39 @@
+@startuml
+title AEX Work → Broadcast → Bids → Award (AEX exits path after award)
+
+actor "Consumer Agent" as C
+participant "AEX Work API" as AEX
+database "Discovery Index" as IDX
+participant "Provider A2A Agent #1" as P1
+participant "Provider A2A Agent #2" as P2
+participant "Bid Evaluator" as BE
+participant "Contract Engine" as CE
+
+C -> AEX: POST /v1/work\n{requiredSkills, constraints, budget}
+AEX -> IDX: search(requiredSkills, constraints)
+IDX --> AEX: candidate providers + AgentCard pointers
+
+par Broadcast WorkOpportunity
+  AEX -> P1: WorkOpportunity(workId, reqs, bidDeadline)
+  AEX -> P2: WorkOpportunity(workId, reqs, bidDeadline)
+end
+
+par Provider bids
+  P1 --> AEX: POST /v1/bids\n{workId, price, terms, confidence}
+  P2 --> AEX: POST /v1/bids\n{workId, price, terms, confidence}
+end
+
+AEX -> BE: evaluate(bids, trust, fit)
+BE --> AEX: winningBid(providerId)
+
+AEX -> CE: createContract(workId, providerId, terms)
+CE --> AEX: contractId + awardToken
+
+AEX -> P1: Award(contractId, settlementTerms, awardToken)
+AEX --> C: AwardResult\n{contractId, winnerAgentCard, awardToken}
+
+note over C,P1
+Direct execution is A2A-to-A2A.\nAEX is no longer on the data path.\nAEX re-enters for settlement/trust updates.
+end note
+
+@enduml

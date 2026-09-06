@@ -1,0 +1,42 @@
+---
+title: AEX Phased Delivery Roadmap
+---
+gantt
+    title Agent Exchange (AEX) — Broker Marketplace Evolution
+    dateFormat  YYYY-MM-DD
+
+    section Phase A - Bid-Based Marketplace
+    GCP Infrastructure Setup       :a1, 2025-01-06, 5d
+    aex-gateway (Auth/Rate Limit)  :a2, after a1, 5d
+    aex-provider-registry          :a3, after a1, 7d
+    aex-work-publisher             :a4, after a2, 7d
+    aex-bid-gateway (Go)           :a5, after a3, 7d
+    aex-bid-evaluator              :a6, after a5, 5d
+    aex-trust-broker               :a7, after a3, 7d
+    aex-contract-engine            :a8, after a6, 7d
+    aex-settlement (Base Price)    :a9, after a8, 5d
+    aex-telemetry                  :a10, after a8, 5d
+    aex-identity                   :a11, after a2, 5d
+    Integration Testing            :a12, after a9, 7d
+    Phase A Release                :milestone, after a12, 0d
+
+    section Phase B - CPA Outcomes
+    BigQuery ML Setup              :b1, after a12, 5d
+    Outcome Verification Framework :b2, after b1, 7d
+    aex-outcome-oracle             :b3, after b2, 7d
+    aex-governance (Policy)        :b4, after b1, 7d
+    aex-trust-scoring (ML)         :b5, after b1, 10d
+    Enhanced Bid Evaluator         :b6, after b5, 5d
+    CPA Settlement Logic           :b7, after b3, 5d
+    Provider Dashboard             :b8, after b7, 7d
+    Integration Testing            :b9, after b8, 5d
+    Phase B Release                :milestone, after b9, 0d
+
+    section Phase C - Full RTB
+    aex-auction (RTB Engine)       :c1, after b9, 10d
+    CPM Reservation System         :c2, after c1, 7d
+    Real-Time Bidding Protocol     :c3, after c1, 7d
+    Multi-Provider Orchestration   :c4, after c2, 7d
+    Advanced Analytics             :c5, after c3, 7d
+    Load Testing & Optimization    :c6, after c4, 7d
+    Phase C Release                :milestone, after c6, 0d

@@ -1,0 +1,53 @@
+@startuml Event Flow
+skinparam backgroundColor #FEFEFE
+
+title Event Flow
+
+rectangle "Events" as Events {
+    rectangle "work.submitted" as E1 #LightBlue
+    rectangle "work.bid_window_closed" as E2 #LightBlue
+    rectangle "contract.awarded" as E3 #LightGreen
+    rectangle "contract.completed" as E4 #LightGreen
+    rectangle "settlement.completed" as E5 #Gold
+}
+
+rectangle "Triggers" as Triggers {
+    rectangle "Provider\nnotification" as T1 #LightYellow
+    rectangle "Bid\nevaluation" as T2 #LightYellow
+    rectangle "Provider\nnotification" as T3 #LightYellow
+    rectangle "Settlement\nprocess" as T4 #LightYellow
+    rectangle "Trust\nupdate" as T5 #LightYellow
+}
+
+rectangle "Actions" as Actions {
+    rectangle "Webhook to\nsubscribed providers" as A1
+    rectangle "Score and rank\nall bids" as A2
+    rectangle "Notify winning\nprovider" as A3
+    rectangle "Calculate fees\nUpdate balances" as A4
+    rectangle "Recalculate\ntrust score" as A5
+}
+
+E1 --> T1
+T1 --> A1
+
+E2 --> T2
+T2 --> A2
+
+E3 --> T3
+T3 --> A3
+
+E4 --> T4
+T4 --> A4
+
+E5 --> T5
+T5 --> A5
+
+note bottom of Events
+  Events are published by services
+  and consumed by other services
+  or external webhooks
+end note
+
+@enduml
+
+

@@ -1,0 +1,144 @@
+@startuml Demo_Implementation_Flow
+
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+title 9. Demo Implementation - AEX Discovery + A2A Execution Flow
+
+actor "User" as user
+participant "Orchestrator\n:8103" as orch #LightGreen
+participant "Claude API\n(Anthropic)" as claude #LightBlue
+box "Agent Exchange" #LightYellow
+    participant "AEX Gateway\n:8080" as gw
+    participant "Provider Registry\n:8085" as reg
+end box
+participant "Legal Agent A\n:8100\n(Budget)" as la #LightPink
+participant "Legal Agent B\n:8101\n(Standard)" as lb #Plum
+participant "Legal Agent C\n:8102\n(Premium)" as lc #LightCoral
+
+== Phase 1: Agent Startup & Registration ==
+
+note over la, lc
+  On startup, each agent registers with AEX
+  using Docker network hostnames
+end note
+
+par Agent Registration
+    la -> gw : POST /v1/providers\n{name: "Legal Agent A",\nendpoint: "http://legal-agent-a:8100",\ncapabilities: ["contract_review",\n"risk_assessment"]}
+    gw -> reg : Store provider
+    reg --> gw : prov_83b1d3f3
+    gw --> la : 201 Created
+and
+    lb -> gw : POST /v1/providers\n{name: "Legal Agent B",\nendpoint: "http://legal-agent-b:8101",\ncapabilities: ["compliance_check",\n"regulatory_analysis"]}
+    gw -> reg : Store provider
+    reg --> gw : prov_a1c2d3e4
+    gw --> lb : 201 Created
+and
+    lc -> gw : POST /v1/providers\n{name: "Legal Agent C",\nendpoint: "http://legal-agent-c:8102",\ncapabilities: ["negotiation_support",\n"contract_drafting"]}
+    gw -> reg : Store provider
+    reg --> gw : prov_b2c3d4e5
+    gw --> lc : 201 Created
+end
+
+== Phase 2: User Request ==
+
+user -> orch : POST /a2a\n**A2A message/send**\n"Review this contract and\ncheck compliance"
+
+activate orch
+
+== Phase 3: Task Decomposition ==
+
+orch -> claude : POST /messages\n{model: "claude-sonnet-4-20250514",\nmessages: [user_request],\ntools: [decompose_task]}
+
+claude --> orch : Tool Call Response:\n**subtasks:**\n1. contract_review [contract_review]\n2. compliance_check [compliance_check]
+
+note right of orch
+  Claude identifies 2 subtasks
+  with skill_tags for each
+end note
+
+== Phase 4: AEX Provider Discovery ==
+
+note over orch, reg #LightGreen
+  **KEY STEP: AEX Discovery**
+  Orchestrator queries AEX to find
+  providers matching skill tags
+end note
+
+orch -> gw : GET /v1/providers/search\n?skills=contract_review
+
+gw -> reg : SearchBySkillTags\n(["contract_review"])
+
+reg -> reg : Query MongoDB:\ncapabilities contains\n"contract_review"
+
+reg --> gw : [{provider_id: "prov_83b1d3f3",\nname: "Legal Agent A",\nendpoint: "http://legal-agent-a:8100",\ntrust_score: 0.85}]
+
+gw --> orch : 200 OK\n{providers: [...]}
+
+note right of orch
+  Found: Legal Agent A
+  Selected based on trust score
+end note
+
+orch -> gw : GET /v1/providers/search\n?skills=compliance_check
+
+gw -> reg : SearchBySkillTags\n(["compliance_check"])
+
+reg --> gw : [{provider_id: "prov_a1c2d3e4",\nname: "Legal Agent B",\nendpoint: "http://legal-agent-b:8101",\ntrust_score: 0.80}]
+
+gw --> orch : 200 OK\n{providers: [...]}
+
+note right of orch
+  Found: Legal Agent B
+  Selected for compliance
+end note
+
+== Phase 5: Direct A2A Execution ==
+
+note over orch, lc #LightGreen
+  **AEX exits data path**
+  Direct A2A communication begins
+end note
+
+par Execute subtasks via A2A
+    orch -> la : POST /a2a\n**A2A message/send**\n"Review this contract..."
+    activate la
+    la -> claude : Process with Claude
+    claude --> la : Analysis result
+    la --> orch : {status: "completed",\nresult: "Contract analysis:\n3 risk areas identified..."}
+    deactivate la
+and
+    orch -> lb : POST /a2a\n**A2A message/send**\n"Check compliance..."
+    activate lb
+    lb -> claude : Process with Claude
+    claude --> lb : Compliance result
+    lb --> orch : {status: "completed",\nresult: "Compliance check:\nGDPR requirements..."}
+    deactivate lb
+end
+
+== Phase 6: Result Aggregation ==
+
+orch -> claude : POST /messages\n{Aggregate subtask results}
+
+claude --> orch : Combined summary with\nAgent Selection Table
+
+orch --> user : **A2A Response**\n\n## Summary\nContract reviewed, compliance checked\n\n## Agent Selection Summary\n| Task | Agent | Reason |\n|------|-------|--------|\n| contract_review | Legal Agent A | Budget tier |\n| compliance | Legal Agent B | Standard tier |
+
+deactivate orch
+
+== Data Flow Summary ==
+
+note over user, lc
+  **Protocol Usage:**
+  - Registration: REST API (AEX)
+  - Discovery: REST API (AEX)
+  - Execution: A2A Protocol (JSON-RPC 2.0)
+
+  **Key URLs:**
+  - AEX Gateway: http://aex-gateway:8080
+  - Provider Search: /v1/providers/search?skills=X
+  - A2A Endpoint: /a2a
+end note
+
+@enduml

@@ -1,0 +1,54 @@
+---
+title: AEX Pricing Model Flow — Ad-Tech to Agent Economics
+---
+flowchart LR
+    subgraph AdTech["Ad-Tech Model"]
+        direction TB
+        AD_CPM[CPM<br/>Cost per 1000 Impressions<br/>━━━━━━━━━━━━━━━━<br/>Pay for visibility]
+        AD_CPC[CPC<br/>Cost per Click<br/>━━━━━━━━━━━━━━━━<br/>Pay for engagement]
+        AD_CPA[CPA<br/>Cost per Action<br/>━━━━━━━━━━━━━━━━<br/>Pay for conversion]
+        AD_RTB[RTB<br/>Real-Time Bidding<br/>━━━━━━━━━━━━━━━━<br/>Auction per impression]
+    end
+
+    subgraph Mapping["Economic Mapping"]
+        direction TB
+        M1[" "]
+        M2[" "]
+        M3[" "]
+        M4[" "]
+    end
+
+    subgraph AEX["Agent Exchange Model"]
+        direction TB
+        AX_CPM[CPM<br/>Cost per Availability<br/>━━━━━━━━━━━━━━━━<br/>Reserve agent capacity<br/>SLA-backed uptime]
+        AX_CPC[Bid-Based<br/>Cost per Contract<br/>━━━━━━━━━━━━━━━━<br/>Providers bid prices<br/>Consumer selects winner]
+        AX_CPA[CPA<br/>Cost per Action<br/>━━━━━━━━━━━━━━━━<br/>Outcome-based bonus<br/>Success verification]
+        AX_RTB[RTB<br/>Agent Auction<br/>━━━━━━━━━━━━━━━━<br/>Real-time bidding<br/>Dynamic pricing]
+    end
+
+    AD_CPM -.-> AX_CPM
+    AD_CPC -.-> AX_CPC
+    AD_CPA -.-> AX_CPA
+    AD_RTB -.-> AX_RTB
+
+    subgraph PhaseA["Phase A"]
+        PA[Bid-Based Marketplace<br/>Providers compete on price<br/>Trust-based scoring]
+    end
+
+    subgraph PhaseB["Phase B"]
+        PB[Bid + CPA<br/>Outcome bonuses<br/>ML-based predictions]
+    end
+
+    subgraph PhaseC["Phase C"]
+        PC[Full Model<br/>RTB + CPM Reservations<br/>Dynamic marketplace]
+    end
+
+    AX_CPC --> PA
+    AX_CPC & AX_CPA --> PB
+    AX_CPC & AX_CPA & AX_RTB & AX_CPM --> PC
+
+    PA --> PB --> PC
+
+    style PhaseA fill:#4285F4,stroke:#1967D2,color:#fff
+    style PhaseB fill:#34A853,stroke:#188038,color:#fff
+    style PhaseC fill:#EA4335,stroke:#C5221F,color:#fff
