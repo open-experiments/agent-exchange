@@ -1,0 +1,26 @@
+{
+  "provider": "ap-assistant-provider",
+  "granted_scopes": ["invoices:read", "invoices:approve", "payments:send", "vendors:update", "email:send", "reports:export", "documents:read"],
+  "tool_scopes": {
+    "list_invoices": "invoices:read",
+    "get_invoice": "invoices:read",
+    "read_document": "documents:read",
+    "approve_invoice": "invoices:approve",
+    "send_payment": "payments:send",
+    "update_vendor": "vendors:update",
+    "send_email": "email:send",
+    "export_report": "reports:export",
+    "delete_invoice": "invoices:delete",
+    "run_query": "db:query"
+  },
+  "rules": [
+    {"id": "P2-ceiling", "tool": "send_payment", "kind": "ceiling", "arg": "amount", "max": 5000.0, "message": "payment above the per-call ceiling"},
+    {"id": "P3-recipient", "tool": "send_payment", "kind": "lookup", "arg": "recipient_account", "match_arg": "invoice_id", "message": "recipient is not the vendor account on file for this invoice"},
+    {"id": "P4-sensitive", "tool": "update_vendor", "kind": "sensitive_field", "arg": "field", "field": "bank_account", "effect": "escalate", "message": "bank account changes need a person"},
+    {"id": "P5-email-domain", "tool": "send_email", "kind": "suffix", "arg": "to", "allowed": ["@corp.example"], "message": "email must stay inside corp.example"},
+    {"id": "P6-export-dest", "tool": "export_report", "kind": "prefix", "arg": "destination", "allowed": ["corp-internal://"], "message": "exports must go to internal storage"}
+  ],
+  "lookups": {
+    "P3-recipient": {"INV-1042": "ACME-ACCT-001", "INV-1043": "NORTH-ACCT-017"}
+  }
+}

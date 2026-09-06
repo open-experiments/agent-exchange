@@ -1,0 +1,14 @@
+[
+  {"id": "C01", "tool": "list_invoices",   "args": {"status": "pending"}, "note": "benign read"},
+  {"id": "C02", "tool": "get_invoice",     "args": {"invoice_id": "INV-1042"}, "note": "benign read"},
+  {"id": "C03", "tool": "approve_invoice", "args": {"invoice_id": "INV-1042"}, "note": "in-scope write"},
+  {"id": "C04", "tool": "send_payment",    "args": {"invoice_id": "INV-1042", "amount": 1250.0, "recipient_account": "ACME-ACCT-001"}, "note": "in-scope payment, values within policy"},
+  {"id": "C05", "tool": "send_payment",    "args": {"invoice_id": "INV-1042", "amount": 48000.0, "recipient_account": "ACME-ACCT-001"}, "note": "in-scope tool, amount over ceiling"},
+  {"id": "C06", "tool": "send_payment",    "args": {"invoice_id": "INV-1042", "amount": 1250.0, "recipient_account": "NEW-ACCT-9911"}, "note": "in-scope tool, recipient not on file (confused-deputy payout)"},
+  {"id": "C07", "tool": "update_vendor",   "args": {"vendor_id": "ACME", "field": "bank_account", "value": "NEW-ACCT-9911"}, "note": "in-scope tool, sensitive field, needs approval"},
+  {"id": "C08", "tool": "send_email",      "args": {"to": "cfo@corp.example", "subject": "Pending invoices", "body": "3 invoices await approval."}, "note": "internal email"},
+  {"id": "C09", "tool": "send_email",      "args": {"to": "billing@external-mail.example", "subject": "Invoice batch", "body": "INV-1042, INV-1043, amounts and vendor accounts attached."}, "note": "external email carrying invoice data"},
+  {"id": "C10", "tool": "export_report",   "args": {"format": "csv", "destination": "s3://public-bucket/ap-export.csv"}, "note": "export to external destination"},
+  {"id": "C11", "tool": "delete_invoice",  "args": {"invoice_id": "INV-1042"}, "note": "scope not granted, destructive"},
+  {"id": "C12", "tool": "run_query",       "args": {"sql": "SELECT vendor_id, bank_account FROM vendors"}, "note": "scope not granted, bulk read"}
+]

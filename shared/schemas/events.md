@@ -902,6 +902,64 @@ Published by `aex-provider-registry` (Phase B) when provider achieves CPA certif
 
 ---
 
+## Tool-Call Events
+
+Published by a provider-side tool-call gate (`internal/toolgate`) into the `TOOLCALL` JetStream stream (subjects `toolcall.>`, 365-day retention). Every event carries the full artifact as `data`; the lifecycle of one call is `toolcall.requested`, `toolcall.decided`, then one of `toolcall.executed`, `toolcall.refused`, `toolcall.escalated`. A held call that a person settles adds `toolcall.approved` (then `toolcall.executed`) or `toolcall.refused`.
+
+### toolcall.decided
+
+```json
+{
+  "event_type": "toolcall.decided",
+  "source": "provider-ap-assistant",
+  "tenant_id": "tenant_123",
+  "data": {
+    "ts": "2026-09-05T21:39:30.729Z",
+    "agent_id": "ap-assistant-v2",
+    "principal": "user:j.doe@corp.example",
+    "session_id": "sess-7f3a",
+    "tool": "send_payment",
+    "args": {"invoice_id": "INV-1042", "amount": 1250.0, "recipient_account": "NEW-ACCT-9911"},
+    "decision": "deny",
+    "rule": "P3-recipient",
+    "scope": "payments:send",
+    "approval": "automatic",
+    "outcome": "refused",
+    "integrity": "hash-chained",
+    "tenant_id": "tenant_123",
+    "contract_id": "contract_789",
+    "cert_id": "cert_ap_assistant_v2",
+    "trace_id": "req-C06",
+    "call_id": "C06",
+    "provider": "ap-assistant-provider",
+    "prev_hash": "0e8d192dd965a1a0",
+    "hash": "5b88a565060d8906"
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| ts | datetime | Yes | When the decision was made |
+| agent_id | string | Yes | The acting agent |
+| principal | string | No | The human or tenant the agent acts for |
+| session_id | string | No | The agent session |
+| tool | string | Yes | Tool name |
+| args | object | No | Argument values; present only when the gate runs in full mode |
+| decision | string | Yes | allow, deny, escalate |
+| rule | string | No | The rule that decided (P1-scope for the scope check) |
+| scope | string | No | The scope consulted |
+| approval | string | No | automatic, pending-human, human-approved, human-rejected |
+| approver | string | No | Identity of the person who settled a held call |
+| outcome | string | No | executed, refused, held, or the executor error |
+| integrity | string | Yes | plain-log, append-only, hash-chained |
+| tenant_id, contract_id, cert_id, trace_id | string | No | Joins to tenant, contract, ACA certificate, gateway request |
+| prev_hash, hash | string | Yes | Per-provider hash chain; `toolgate.VerifyChain` checks it |
+
+`toolcall.requested`, `toolcall.executed`, `toolcall.refused`, `toolcall.escalated` and `toolcall.approved` carry the same `data`.
+
+---
+
 ## Pub/Sub Topics Summary
 
 | Topic | Publishers | Events |
@@ -915,6 +973,7 @@ Published by `aex-provider-registry` (Phase B) when provider achieves CPA certif
 | `aex-provider-events` | provider-registry | provider.registered, provider.status_changed, subscription.created, provider.outcome_recorded, provider.ml_features_updated, provider.cpa_certified |
 | `aex-governance-events` | governance | policy.evaluated, safety.violation, outcome.validated |
 | `aex-outcome-events` | outcome-oracle | outcome.verified, outcome.anomaly_detected |
+| `aex-toolcall-events` (JetStream `TOOLCALL`) | provider-side tool-call gates | toolcall.requested, toolcall.decided, toolcall.executed, toolcall.refused, toolcall.escalated, toolcall.approved |
 
 ---
 

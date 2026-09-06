@@ -94,6 +94,13 @@ func AllStreams(replicas int) []StreamDef {
 			Replicas:    replicas,
 		},
 		{
+			Name:        "TOOLCALL",
+			Subjects:    []string{"toolcall.>"},
+			Description: "Tool-call authorization artifacts from provider-side gates (requested, decided, executed, refused, escalated, approved)",
+			MaxAge:      365 * 24 * time.Hour, // 1 year, same as CERTIFICATE
+			Replicas:    replicas,
+		},
+		{
 			Name:        "DEADLETTER",
 			Subjects:    []string{"deadletter.>"},
 			Description: "Dead-letter stream for messages that exceeded max delivery attempts",
@@ -128,6 +135,8 @@ func StreamForSubject(subject string) string {
 		return "TRUST"
 	case "certificate", "crl":
 		return "CERTIFICATE"
+	case "toolcall":
+		return "TOOLCALL"
 	case "deadletter":
 		return "DEADLETTER"
 	default:

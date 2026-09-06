@@ -15,6 +15,7 @@ nav:
     - Project Overview: PROJECT.md
     - Architecture Flows: ARCHITECTURE_FLOWS_MERMAID.md
     - Authentication: AUTHENTICATION.md
+    - Tool-Call Gate: TOOLGATE.md
   - Agent Certification (ACA):
     - Overview: ACA.md
     - Implementation Plan: ACA_IMPLEMENTATION_PLAN.md
