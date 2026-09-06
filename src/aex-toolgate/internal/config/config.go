@@ -22,6 +22,14 @@ type Config struct {
 	Mode string
 	// NATSURL, when set, publishes every toolcall.* event into JetStream.
 	NATSURL string
+	// OperatorToken is the bearer token the operator endpoints require
+	// (settling a held call, reading the record chain). Without it those
+	// endpoints are refused: they must not be reachable by the gated agent.
+	OperatorToken string
+	// ExposeArgs serves full argument values on GET /v1/records. Off by
+	// default; the values include whatever the tools take, such as payment
+	// amounts and account numbers.
+	ExposeArgs bool
 
 	UpstreamTimeout time.Duration
 }
@@ -30,11 +38,13 @@ func Load() *Config {
 	return &Config{
 		Port:            getEnv("PORT", "8090"),
 		Environment:     getEnv("ENVIRONMENT", "development"),
-		PolicyFile:      getEnv("POLICY_FILE", "/etc/toolgate/policy.json"),
+		PolicyFile:      getEnv("POLICY_FILE", ""),
 		UpstreamURL:     getEnv("UPSTREAM_URL", "http://localhost:8091"),
 		UpstreamPrefix:  getEnv("UPSTREAM_PREFIX", "/tools"),
 		Mode:            getEnv("MODE", "full"),
 		NATSURL:         getEnv("NATS_URL", ""),
+		OperatorToken:   getEnv("OPERATOR_TOKEN", ""),
+		ExposeArgs:      getEnv("EXPOSE_ARGS", "") == "true",
 		UpstreamTimeout: time.Duration(getEnvInt("UPSTREAM_TIMEOUT_SECONDS", 20)) * time.Second,
 	}
 }

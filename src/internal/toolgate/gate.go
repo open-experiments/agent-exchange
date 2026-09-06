@@ -2,8 +2,11 @@ package toolgate
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -42,9 +45,11 @@ type Call struct {
 	ContractID string
 	CertID     string
 	TraceID    string
-	// Scopes, when set, are the caller's validated scopes for this call (for
-	// example the API-key scopes the gateway forwards) and replace the
-	// policy's GrantedScopes for the scope check. Nil means use the policy's.
+	// Scopes, when set, are the caller's scopes for this call (for example the
+	// API-key scopes the gateway forwards in X-Scopes). They intersect with
+	// the policy's GrantedScopes: they can only narrow the grant, never widen
+	// it, because they arrive in a header the caller controls. Nil means use
+	// the policy's grant unchanged.
 	Scopes []string
 }
 
@@ -80,10 +85,13 @@ type Gate struct {
 	mode      Mode
 	publisher Publisher
 	now       func() time.Time
+	chainID   string
 	mu        sync.Mutex
 	prevHash  string
 	records   []Artifact
 	held      map[string]held
+
+	publishFailures int
 }
 
 type held struct {
@@ -111,7 +119,7 @@ func New(policy Policy, opts ...Option) (*Gate, error) {
 		return nil, err
 	}
 	g := &Gate{policy: policy, mode: ModeFull, now: func() time.Time { return time.Now().UTC() },
-		prevHash: GenesisHash, held: map[string]held{}}
+		prevHash: GenesisHash, held: map[string]held{}, chainID: newChainID()}
 	for _, o := range opts {
 		o(g)
 	}
@@ -124,10 +132,7 @@ func (g *Gate) Decide(call Call) Decision {
 	if !known {
 		return Decision{Outcome: DecisionDeny, Rule: ScopeRuleID, Scope: "", Approval: ApprovalAutomatic, Message: "tool is not in the provider's inventory"}
 	}
-	granted := g.policy.GrantedScopes
-	if call.Scopes != nil {
-		granted = call.Scopes
-	}
+	granted := narrow(g.policy.GrantedScopes, call.Scopes)
 	if !hasScope(granted, scope) {
 		return Decision{Outcome: DecisionDeny, Rule: ScopeRuleID, Scope: scope, Approval: ApprovalAutomatic, Message: "scope not granted"}
 	}
@@ -279,5 +284,40 @@ func (g *Gate) publish(ctx context.Context, eventType string, a Artifact) {
 	}
 	data := a.ToEventData()
 	data["idempotency_key"] = eventType + "_" + a.Provider + "_" + a.Hash
-	_ = g.publisher.Publish(ctx, eventType, data)
+	if err := g.publisher.Publish(ctx, eventType, data); err != nil {
+		// The durable record is the point of this component, so a dropped
+		// event is not a silent condition: the call has already been decided
+		// (and possibly executed) and only the in-memory chain survives.
+		g.mu.Lock()
+		g.publishFailures++
+		n := g.publishFailures
+		g.mu.Unlock()
+		slog.Error("toolgate: audit event not published",
+			"event_type", eventType, "provider", a.Provider, "hash", a.Hash,
+			"chain_id", g.chainID, "publish_failures", n, "error", err)
+	}
+}
+
+func newChainID() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		return "chain-unknown"
+	}
+	return hex.EncodeToString(b)
+}
+
+// ChainID identifies this gate's chain. It is generated when the gate is
+// built, so a restart produces a new id: a consumer that sees the id change
+// knows the chain below it is a fresh one starting at GenesisHash, and that
+// the previous records live only in whatever consumed the events. Without it
+// a restarted gate is indistinguishable from one whose history was discarded,
+// because VerifyChain reports ok over any self-consistent chain.
+func (g *Gate) ChainID() string { return g.chainID }
+
+// PublishFailures is the number of audit events the gate could not publish.
+// Non-zero means the durable record is incomplete.
+func (g *Gate) PublishFailures() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.publishFailures
 }

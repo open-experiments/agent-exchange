@@ -134,24 +134,50 @@ func hasScope(granted []string, scope string) bool {
 	return false
 }
 
+// narrow intersects the policy's grant with the caller's scopes. The caller's
+// scopes arrive in a request header and are therefore untrusted: they may only
+// reduce what the policy granted, never add to it. A caller sending "*" gets
+// the policy's grant unchanged rather than everything, so the header cannot be
+// used to switch the tool_scopes layer off. Nil caller scopes mean "no
+// narrowing" and the policy's grant stands.
+func narrow(granted, callerScopes []string) []string {
+	if callerScopes == nil {
+		return granted
+	}
+	out := make([]string, 0, len(granted))
+	for _, g := range granted {
+		if hasScope(callerScopes, g) {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
 // evaluate applies one rule to a call. It returns whether the rule fired and
 // the effect to apply.
 func (r Rule) evaluate(call Call) (fired bool, effect string) {
 	if r.Tool != "" && r.Tool != call.Tool {
 		return false, ""
 	}
+	effect = effectOrDeny(r)
 	v, ok := call.Args[r.Arg]
 	if !ok {
-		return false, ""
-	}
-	effect = r.Effect
-	if effect == "" {
-		effect = EffectDeny
+		// The rule constrains an argument the call did not supply, so the
+		// constraint cannot be checked. Fail closed, as evaluateLookup does:
+		// an absent argument must not be a way around the rule (a tool whose
+		// upstream accepts a synonym, an alternate casing or its own default
+		// would otherwise sail straight past).
+		return true, effect
 	}
 	switch r.Kind {
 	case KindCeiling:
 		f, ok := toFloat(v)
-		return ok && f > r.Max, effect
+		if !ok {
+			// Not a number, so it cannot be compared against the ceiling.
+			// Fail closed: a quoted "999999" must not read as under the limit.
+			return true, effect
+		}
+		return f > r.Max, effect
 	case KindAllowlist:
 		s := fmt.Sprint(v)
 		for _, a := range r.Allowed {

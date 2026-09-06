@@ -24,9 +24,17 @@ func main() {
 	cfg := config.Load()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
+	if cfg.PolicyFile == "" {
+		// No fallback: a gate that starts on a policy nobody chose would
+		// authorize real calls against whatever happened to be baked in.
+		log.Fatal("POLICY_FILE is required: the gate will not start without a provider policy")
+	}
 	policy, err := toolgate.LoadPolicy(cfg.PolicyFile)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if cfg.OperatorToken == "" {
+		slog.Warn("OPERATOR_TOKEN is not set; holds cannot be settled and the record chain cannot be read")
 	}
 	mode := toolgate.ModeFull
 	if cfg.Mode == "scope" {
@@ -55,15 +63,17 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.Port,
-		Handler:      httpapi.New(gate, cfg.UpstreamURL, cfg.UpstreamPrefix, cfg.UpstreamTimeout),
+		Addr: ":" + cfg.Port,
+		Handler: httpapi.New(gate, cfg.UpstreamURL, cfg.UpstreamPrefix, cfg.UpstreamTimeout,
+			httpapi.WithOperatorToken(cfg.OperatorToken), httpapi.WithExposeArgs(cfg.ExposeArgs)),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: cfg.UpstreamTimeout + 5*time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 	go func() {
 		slog.Info("aex-toolgate listening", "port", cfg.Port, "env", cfg.Environment, "provider", policy.Provider,
-			"mode", cfg.Mode, "rules", len(policy.Rules), "tools", len(policy.ToolScopes), "upstream", cfg.UpstreamURL, "nats", cfg.NATSURL != "")
+			"mode", cfg.Mode, "rules", len(policy.Rules), "tools", len(policy.ToolScopes), "upstream", cfg.UpstreamURL,
+			"nats", cfg.NATSURL != "", "chain_id", gate.ChainID(), "operator_endpoints", cfg.OperatorToken != "")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}

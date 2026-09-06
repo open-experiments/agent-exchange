@@ -105,6 +105,7 @@ func runMode(args []string) {
 	scopes := fs.String("scopes", "", "comma-separated scopes for the created key (default: the seven of the study)")
 	tenantName := fs.String("tenant-name", "", "name of the created tenant (default purdue-run2c-<config>)")
 	records := fs.String("records", "", "aex-toolgate base URL; when set, the chain is fetched after the run into artifacts_<config>.jsonl")
+	operatorToken := fs.String("operator-token", os.Getenv("OPERATOR_TOKEN"), "gate's OPERATOR_TOKEN; required to settle holds and read the chain (defaults to $OPERATOR_TOKEN)")
 	outDir := fs.String("out", "out", "output directory")
 	approve := fs.Bool("approve-held", false, "after the run, approve the held call through the gate's API (C only)")
 	dump := fs.Bool("dump", false, "print the output files to stdout at the end (for a Job whose filesystem is discarded)")
@@ -199,10 +200,16 @@ func runMode(args []string) {
 	_ = f.Close()
 	fmt.Printf("mean end-to-end latency: %.1f ms over %d calls\n", total/float64(len(calls)), len(calls))
 
+	if (*approve || *records != "") && *operatorToken == "" {
+		log.Println("note: -operator-token is empty; the gate's hold and record endpoints will refuse this client")
+	}
 	if *approve && *records != "" {
 		for id, h := range holds {
 			body, _ := json.Marshal(map[string]any{"approver": "user:ap.manager@corp.example", "approved": true})
-			resp, err := client.Post(strings.TrimRight(*records, "/")+"/v1/holds/"+h, "application/json", bytes.NewReader(body))
+			req, _ := http.NewRequest(http.MethodPost, strings.TrimRight(*records, "/")+"/v1/holds/"+h, bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+*operatorToken)
+			resp, err := client.Do(req)
 			if err != nil {
 				log.Printf("approve %s: %v", id, err)
 				continue
@@ -213,9 +220,16 @@ func runMode(args []string) {
 		}
 	}
 	if *records != "" {
-		resp, err := client.Get(strings.TrimRight(*records, "/") + "/v1/records")
+		req, _ := http.NewRequest(http.MethodGet, strings.TrimRight(*records, "/")+"/v1/records", nil)
+		req.Header.Set("Authorization", "Bearer "+*operatorToken)
+		resp, err := client.Do(req)
 		if err != nil {
 			log.Fatalf("records: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			log.Fatalf("records: gate answered %d: %s (set -operator-token, and EXPOSE_ARGS=true on the gate if the run needs argument values)", resp.StatusCode, truncate(string(b), 200))
 		}
 		var recs []toolgate.Artifact
 		if err := json.NewDecoder(resp.Body).Decode(&recs); err != nil {
@@ -230,7 +244,9 @@ func runMode(args []string) {
 		_ = rf.Close()
 		ok, at := toolgate.VerifyChain(recs)
 		fmt.Printf("gate chain fetched: %d records, verified=%v (failed_at=%d)\n", len(recs), ok, at)
-		vr, err := client.Get(strings.TrimRight(*records, "/") + "/v1/records/verify")
+		vreq, _ := http.NewRequest(http.MethodGet, strings.TrimRight(*records, "/")+"/v1/records/verify", nil)
+		vreq.Header.Set("Authorization", "Bearer "+*operatorToken)
+		vr, err := client.Do(vreq)
 		if err == nil {
 			b, _ := io.ReadAll(vr.Body)
 			_ = vr.Body.Close()

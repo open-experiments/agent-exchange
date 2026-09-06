@@ -41,6 +41,11 @@ func DefaultRouteScopes() RouteScopes {
 		"DELETE /v1/tenants":     "tenants:write",
 		"POST /v1/certificates":  "certs:issue",
 		"POST /v1/reputation":    "certs:issue",
+		// Tool calls proxied to a provider's toolgate. Without an entry here
+		// the route falls through to the "*" default, which means only "*"
+		// keys can reach it -- and "*" is the one grant that leaves a
+		// downstream gate's own scope check with nothing to narrow.
+		"POST /v1/tools": "tools:invoke",
 	}
 }
 
@@ -77,11 +82,27 @@ func (rs RouteScopes) Required(method, path string) string {
 		if m != "*" && m != method {
 			continue
 		}
-		if strings.HasPrefix(path, prefix) && len(prefix) > bestLen {
+		if matchPrefix(path, prefix) && len(prefix) > bestLen {
 			best, bestLen = scope, len(prefix)
 		}
 	}
 	return best
+}
+
+// matchPrefix reports whether path is prefix or sits under it, matching only
+// on whole path segments. A plain strings.HasPrefix would let a sibling route
+// inherit a shorter route's scope: "POST /v1/work" would cover a later
+// "/v1/workflows", and "/v1/tools/list_invoices" would cover
+// "/v1/tools/list_invoices_and_delete". The failure is silent
+// under-protection, not a 403, so it has to be ruled out here.
+func matchPrefix(path, prefix string) bool {
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+	if len(path) == len(prefix) || strings.HasSuffix(prefix, "/") {
+		return true
+	}
+	return path[len(prefix)] == '/'
 }
 
 // Keys returns the map's entries sorted, for logs and docs.

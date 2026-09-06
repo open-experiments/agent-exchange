@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +13,31 @@ import (
 
 	"github.com/parlakisik/agent-exchange/internal/toolgate"
 )
+
+// testOperatorToken stands in for the credential the provider's operator
+// holds. The gated agent never has it.
+const testOperatorToken = "test-operator-token"
+
+// operatorHeaders authorizes the operator-only endpoints.
+func operatorHeaders() map[string]string {
+	return map[string]string{"Authorization": "Bearer " + testOperatorToken}
+}
+
+// getAs performs a GET with the given headers.
+func getAs(t *testing.T, url string, headers map[string]string) (*http.Response, []byte) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	b, _ := io.ReadAll(resp.Body)
+	return resp, b
+}
 
 type testCall struct {
 	ID   string         `json:"id"`
@@ -40,7 +66,8 @@ func setup(t *testing.T) (*httptest.Server, *httptest.Server, []testCall, *[]str
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(New(gate, upstream.URL, "/tools", 5*time.Second))
+	srv := httptest.NewServer(New(gate, upstream.URL, "/tools", 5*time.Second,
+		WithOperatorToken(testOperatorToken), WithExposeArgs(true)))
 	b, err := os.ReadFile("../../../internal/toolgate/testdata/calls.json")
 	if err != nil {
 		t.Fatal(err)
@@ -100,32 +127,30 @@ func TestTwelveCallsThroughTheService(t *testing.T) {
 	}
 
 	// The held vendor change is approved by a person through the API and then runs.
-	resp, body := post(t, srv.URL+"/v1/holds/"+hold, map[string]any{"approver": "user:ap.manager@corp.example", "approved": true}, nil)
+	resp, body := post(t, srv.URL+"/v1/holds/"+hold, map[string]any{"approver": "user:ap.manager@corp.example", "approved": true}, operatorHeaders())
 	if resp.StatusCode != http.StatusOK || body["approval"] != toolgate.ApprovalGranted {
 		t.Fatalf("resolve: expected 200 human-approved, got %d %v", resp.StatusCode, body)
 	}
 	if len(*executed) != 6 || (*executed)[5] != "update_vendor" {
 		t.Fatalf("the approved call should have run upstream, executed=%v", *executed)
 	}
-	if resp, _ := post(t, srv.URL+"/v1/holds/"+hold, map[string]any{"approver": "x", "approved": true}, nil); resp.StatusCode != http.StatusNotFound {
+	if resp, _ := post(t, srv.URL+"/v1/holds/"+hold, map[string]any{"approver": "x", "approved": true}, operatorHeaders()); resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("a settled hold cannot be settled twice, got %d", resp.StatusCode)
 	}
 
 	// Records: 13 on the chain (12 calls plus the approval), chain verifies.
-	r, err := http.Get(srv.URL + "/v1/records/verify")
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, vb := getAs(t, srv.URL+"/v1/records/verify", operatorHeaders())
 	var v map[string]any
-	_ = json.NewDecoder(r.Body).Decode(&v)
-	_ = r.Body.Close()
+	_ = json.Unmarshal(vb, &v)
 	if v["ok"] != true || v["records"].(float64) != 13 {
 		t.Fatalf("verify: %v", v)
 	}
-	r2, _ := http.Get(srv.URL + "/v1/records")
+	if v["chain_id"] == "" || v["chain_id"] == nil {
+		t.Errorf("verify should name the chain so a restart is visible: %v", v)
+	}
+	_, rb := getAs(t, srv.URL+"/v1/records", operatorHeaders())
 	var recs []toolgate.Artifact
-	_ = json.NewDecoder(r2.Body).Decode(&recs)
-	_ = r2.Body.Close()
+	_ = json.Unmarshal(rb, &recs)
 	if recs[5].TraceID != "req-C06" || recs[5].Rule != "P3-recipient" || recs[5].TenantID != "tenant_123" {
 		t.Fatalf("C06 record should carry the gateway request id, the rule and the tenant: %+v", recs[5])
 	}

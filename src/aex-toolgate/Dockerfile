@@ -25,7 +25,10 @@ RUN apk --no-cache upgrade && apk --no-cache add ca-certificates
 WORKDIR /app
 
 COPY --from=builder /build/aex-toolgate/aex-toolgate .
-COPY --from=builder /build/internal/toolgate/testdata/policy.json /etc/toolgate/policy.json
+
+# No policy is baked in on purpose. POLICY_FILE must point at the provider's
+# own policy (a mounted ConfigMap or secret); the gate refuses to start
+# without it rather than fall back to a fixture.
 
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser && \

@@ -12,7 +12,7 @@ The study behind the component compared three configurations over the same twelv
 
 ## What the gate does
 
-1. **Scope.** The tool's required scope (from the policy's `tool_scopes`) must be in the session's `granted_scopes`. A grant of `*` covers everything, matching the gateway's default key scope. Unknown tools fail closed.
+1. **Scope.** The tool's required scope (from the policy's `tool_scopes`) must be in the session's `granted_scopes`. Unknown tools fail closed. A caller's `X-Scopes` intersects with the policy's grant and can only narrow it, never widen it: the header is caller-controlled, so `*` there leaves the policy's grant as it stands rather than granting everything.
 2. **Rules.** In `ModeFull`, argument-value rules are evaluated in policy order and the first that fires decides: `ceiling` (numeric maximum), `allowlist`, `lookup` (the value must match what a table maps another argument to, such as the vendor account on file for this invoice), `sensitive_field` (escalate to a person), `suffix` (email domains), `prefix` (storage destinations). A rule's `effect` is `deny` or `escalate`.
 3. **Execution.** Allowed calls run through the caller's executor; refused calls do not run; escalated calls are held until `Resolve` records a human decision under the approver's identity.
 4. **Artifact.** One record per decision, chained to the previous record for the provider.
@@ -68,13 +68,17 @@ agent  ->  aex-gateway  ->  aex-toolgate  ->  provider tools
 | Endpoint | What it does |
 |---|---|
 | `POST /v1/tools/{tool}` | body: the argument values as a JSON object. The gate decides; an allowed call is forwarded to `UPSTREAM_URL` + `UPSTREAM_PREFIX` + `/{tool}` and the tool's answer is returned with `X-Toolgate-Decision`, `X-Toolgate-Rule` and `X-Toolgate-Hash`. A refused call answers 403 with the rule and the message; a held call answers 202 with the hold hash. |
-| `POST /v1/holds/{hash}` | body `{"approver": "...", "approved": true}`. Settles a held call: runs the tool when approved, appends the human decision to the chain, publishes `toolcall.approved` or `toolcall.refused`. |
-| `GET /v1/records`, `GET /v1/records/verify` | the provider's chain and its verification |
+| `POST /v1/holds/{hash}` | **operator only.** Body `{"approver": "...", "approved": true}`. Settles a held call: runs the tool when approved, appends the human decision to the chain, publishes `toolcall.approved` or `toolcall.refused`. |
+| `GET /v1/records`, `GET /v1/records/verify` | **operator only.** The provider's chain and its verification. |
 | `GET /health`, `GET /ready` | probes |
 
-Identity headers: `X-Tenant-ID` and `X-Request-ID` (the gateway sets both; the request id becomes the artifact's `trace_id`, the join key between the gateway's line and the gate's record), `X-Scopes` (the gateway forwards the validated scopes; when present they replace the policy's `granted_scopes` for the scope check), `X-AEX-Agent-ID`, `X-AEX-Principal`, `X-AEX-Session-ID`, `X-AEX-Contract-ID`, `X-AEX-Cert-ID`, `X-AEX-Call-ID`.
+Identity headers: `X-Tenant-ID` and `X-Request-ID` (the gateway sets both; the request id becomes the artifact's `trace_id`, the join key between the gateway's line and the gate's record), `X-Scopes` (the gateway forwards the validated scopes; they intersect with the policy's `granted_scopes` and can only narrow the grant), `X-AEX-Agent-ID`, `X-AEX-Principal`, `X-AEX-Session-ID`, `X-AEX-Contract-ID`, `X-AEX-Cert-ID`, `X-AEX-Call-ID`.
 
-Configuration: `PORT` (8090), `POLICY_FILE`, `UPSTREAM_URL`, `UPSTREAM_PREFIX` (`/tools`), `MODE` (`full` or `scope`), `NATS_URL` (optional; with it every event goes to the TOOLCALL stream), `UPSTREAM_TIMEOUT_SECONDS`.
+**Trust boundary.** The identity headers are attribution, not authentication: they are whatever the caller sent. The gate is designed to sit behind the gateway, which sets them, and it never lets a header widen an authorization decision. The operator endpoints are the exception and are not part of that model at all — settling a held call and reading the record chain are for the provider's operator, not for the agent being gated (an agent that can settle its own hold defeats the `escalate` effect, and one that can read the chain reads every other call's argument values). Both require `Authorization: Bearer $OPERATOR_TOKEN`, and with no token configured they are refused rather than open. A shared operator token authorizes the action; the `approver` in the body is the attribution claim recorded alongside it. Per-approver credentials are the next step.
+
+Configuration: `PORT` (8090), `POLICY_FILE` (**required**; the gate refuses to start without a provider policy rather than fall back to a fixture), `UPSTREAM_URL`, `UPSTREAM_PREFIX` (`/tools`), `MODE` (`full` or `scope`), `NATS_URL` (optional; with it every event goes to the TOOLCALL stream), `UPSTREAM_TIMEOUT_SECONDS`, `OPERATOR_TOKEN` (required to use the operator endpoints), `EXPOSE_ARGS` (`true` serves full argument values on `GET /v1/records`; off by default because in `full` mode an artifact carries payment amounts and account numbers verbatim).
+
+**The record chain is in memory and process-local.** A restart begins a new chain at genesis, and `VerifyChain` reports `ok` over any self-consistent chain, so a fresh chain and a truncated one look alike. `GET /v1/records/verify` therefore reports `chain_id`, which changes on every restart, and `publish_failures`, which is non-zero when an event could not reach JetStream and the durable copy is incomplete. The durable record is the stream, not the gate's memory; persisting the chain and anchoring it externally is still open.
 
 ## What changed in the gateway
 

@@ -194,7 +194,9 @@ If tenant is SUSPENDED → 401 Unauthorized (all keys blocked)
 6. Gateway checks the route's scope against the key's scopes (`403 insufficient_scope` names the scope it needed)
 7. Gateway sets `X-Tenant-ID`, `X-Request-ID` and `X-Scopes` headers for downstream services
 
-**Route scopes.** Reads under `/v1/` need `read`; writes need the scope of the resource (`work:submit`, `bids:submit`, `contracts:write`, `providers:write`, `billing:write`, `tenants:write`, `certs:issue`); a key with `*` passes everything; a route with no entry requires `*`. A deployment merges its own entries over the defaults with `ROUTE_SCOPES_FILE` (`{"METHOD /prefix": "scope"}`), which is how a provider's tool routes under `/v1/tools/` get their scopes. Per-call authorization on argument values is the tool-call gate's job: see [TOOLGATE.md](TOOLGATE.md).
+**Route scopes.** Reads under `/v1/` need `read`; writes need the scope of the resource (`work:submit`, `bids:submit`, `contracts:write`, `providers:write`, `billing:write`, `tenants:write`, `certs:issue`); a key with `*` passes everything; a route with no entry requires `*`. Prefixes match on whole path segments, so `POST /v1/work` does not cover a later `/v1/workflows`. `POST /v1/tools` has a default entry of `tools:invoke`: without one it would fall through to `*`, and `*` is the one grant a downstream tool-call gate cannot narrow. A deployment merges its own entries over the defaults with `ROUTE_SCOPES_FILE` (`{"METHOD /prefix": "scope"}`), which is how a provider's tool routes under `/v1/tools/` get their scopes. Per-call authorization on argument values is the tool-call gate's job: see [TOOLGATE.md](TOOLGATE.md).
+
+**Key revocation and the validator cache.** `HTTPAPIKeyValidator` caches a successful validation for five minutes and nothing invalidates it, so a key revoked through `POST /v1/tenants/{id}/apikeys/{key}/revoke` keeps authenticating, with its old scopes, until the entry expires. Plan revocation around that window; wiring revocation to a cache purge is open work.
 
 ### JWT Bearer Token Authentication
 

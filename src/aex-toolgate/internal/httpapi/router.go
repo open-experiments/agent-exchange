@@ -10,20 +10,32 @@
 //
 //	X-Tenant-ID       the tenant the gateway validated (attribution)
 //	X-Request-ID      the gateway's request id; becomes the artifact's trace_id
-//	X-Scopes          comma-separated validated scopes; when present they
-//	                  replace the policy's granted_scopes for the scope check
+//	X-Scopes          comma-separated validated scopes; they intersect with
+//	                  the policy's granted_scopes and can only narrow it. The
+//	                  header is caller-controlled, so it never widens a grant:
+//	                  "*" leaves the policy's grant as it stands.
 //	X-AEX-Agent-ID    the acting agent
 //	X-AEX-Principal   the person the agent acts for
 //	X-AEX-Session-ID  the agent session
 //	X-AEX-Contract-ID the AEX contract the work belongs to
 //	X-AEX-Cert-ID     the agent's ACA certificate
 //	X-AEX-Call-ID     the caller's own id for the call (else the request id)
+//
+// Those headers are attribution, not authentication: they are whatever the
+// caller sent, and none of them widens an authorization decision.
+//
+// The operator endpoints (POST /v1/holds/{hash}, GET /v1/records and
+// /v1/records/verify) are outside that model. They belong to the provider's
+// operator, not to the agent being gated, and require
+// Authorization: Bearer <OPERATOR_TOKEN>. With no token configured they are
+// refused rather than left open.
 package httpapi
 
 import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -43,12 +55,34 @@ type Server struct {
 	upstreamPrefix string
 	client         *http.Client
 	started        time.Time
+	operatorToken  string
+	exposeArgs     bool
 }
 
+// Option configures the server.
+type Option func(*Server)
+
+// WithOperatorToken sets the bearer token the operator endpoints require:
+// resolving a held call and reading the record chain. Those endpoints are not
+// for the agent being gated — an agent that can settle its own holds defeats
+// the escalate effect, and one that can read the chain reads every other
+// call's argument values. Without a token they are refused outright.
+func WithOperatorToken(t string) Option {
+	return func(s *Server) { s.operatorToken = strings.TrimSpace(t) }
+}
+
+// WithExposeArgs serves full argument values on GET /v1/records. Off by
+// default: in ModeFull an artifact carries the values verbatim, which for the
+// shipped policy means payment amounts and recipient account numbers.
+func WithExposeArgs(v bool) Option { return func(s *Server) { s.exposeArgs = v } }
+
 // New builds the handler.
-func New(gate *toolgate.Gate, upstreamURL, upstreamPrefix string, timeout time.Duration) http.Handler {
+func New(gate *toolgate.Gate, upstreamURL, upstreamPrefix string, timeout time.Duration, opts ...Option) http.Handler {
 	s := &Server{gate: gate, upstreamURL: strings.TrimRight(upstreamURL, "/"), upstreamPrefix: upstreamPrefix,
 		client: &http.Client{Timeout: timeout}, started: time.Now()}
+	for _, o := range opts {
+		o(s)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /ready", s.health)
@@ -85,7 +119,13 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(bytes.TrimSpace(b)) > 0 {
-			if err := json.Unmarshal(b, &args); err != nil {
+			// UseNumber keeps integers exact. Decoding into float64 rewrites
+			// anything past 2^53 (an account or invoice number), so the tool
+			// would receive a different value than the agent sent and the
+			// artifact would record the rewritten one.
+			dec := json.NewDecoder(bytes.NewReader(b))
+			dec.UseNumber()
+			if err := dec.Decode(&args); err != nil {
 				writeError(w, http.StatusBadRequest, "bad_request", "body must be a JSON object of argument values")
 				return
 			}
@@ -159,7 +199,28 @@ func (s *Server) forward(ctx context.Context, in *http.Request, c toolgate.Call)
 	return upstreamResult{status: resp.StatusCode, body: b, ctype: resp.Header.Get("Content-Type")}, nil
 }
 
+// requireOperator gates the endpoints that are not for the gated agent. It
+// fails closed: with no token configured the endpoint is unavailable rather
+// than open, because the alternative is that a deployment which forgot to set
+// one lets the agent settle its own holds and read every record.
+func (s *Server) requireOperator(w http.ResponseWriter, r *http.Request) bool {
+	if s.operatorToken == "" {
+		writeError(w, http.StatusServiceUnavailable, "operator_token_not_configured",
+			"this endpoint needs OPERATOR_TOKEN set on the gate")
+		return false
+	}
+	got := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	if subtle.ConstantTimeCompare([]byte(got), []byte(s.operatorToken)) != 1 {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "operator credential required")
+		return false
+	}
+	return true
+}
+
 func (s *Server) resolve(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOperator(w, r) {
+		return
+	}
 	hash := r.PathValue("hash")
 	var body struct {
 		Approver string `json:"approver"`
@@ -183,13 +244,30 @@ func (s *Server) resolve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) records(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.gate.Records())
+	if !s.requireOperator(w, r) {
+		return
+	}
+	recs := s.gate.Records()
+	if !s.exposeArgs {
+		for i := range recs {
+			recs[i].Args = nil
+		}
+	}
+	writeJSON(w, http.StatusOK, recs)
 }
 
 func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOperator(w, r) {
+		return
+	}
 	recs := s.gate.Records()
 	ok, at := toolgate.VerifyChain(recs)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": ok, "records": len(recs), "failed_at": at})
+	// chain_id changes on every restart, so a consumer can tell a verified
+	// chain that continues the previous one from a verified chain that
+	// started over at genesis. publish_failures being non-zero means the
+	// durable copy of this chain is incomplete.
+	writeJSON(w, http.StatusOK, map[string]any{"ok": ok, "records": len(recs), "failed_at": at,
+		"chain_id": s.gate.ChainID(), "publish_failures": s.gate.PublishFailures()})
 }
 
 func callFromRequest(r *http.Request, tool string, args map[string]any) toolgate.Call {

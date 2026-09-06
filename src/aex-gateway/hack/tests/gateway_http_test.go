@@ -491,8 +491,13 @@ func TestScopeEnforced(t *testing.T) {
 		{"read scope cannot submit work", http.MethodPost, "/v1/work", []string{"read"}, http.StatusForbidden},
 		{"work:submit submits work", http.MethodPost, "/v1/work", []string{"work:submit"}, http.StatusOK},
 		{"star covers everything", http.MethodPost, "/v1/work", []string{"*"}, http.StatusOK},
-		{"unmapped route needs star", http.MethodPost, "/v1/tools/send_payment", []string{"read"}, http.StatusForbidden},
-		{"unmapped route with star", http.MethodPost, "/v1/tools/send_payment", []string{"*"}, http.StatusOK},
+		{"tools route needs tools:invoke", http.MethodPost, "/v1/tools/send_payment", []string{"read"}, http.StatusForbidden},
+		{"tools route with tools:invoke", http.MethodPost, "/v1/tools/send_payment", []string{"tools:invoke"}, http.StatusOK},
+		{"tools route with star", http.MethodPost, "/v1/tools/send_payment", []string{"*"}, http.StatusOK},
+		{"genuinely unmapped route needs star", http.MethodPost, "/v1/unmapped-thing", []string{"read"}, http.StatusForbidden},
+		// A star key clears the scope layer, so this reaches routing and 404s
+		// there rather than being refused at 403 by scopes.
+		{"genuinely unmapped route with star reaches routing", http.MethodPost, "/v1/unmapped-thing", []string{"*"}, http.StatusNotFound},
 	}
 	for _, c := range cases {
 		req, _ := http.NewRequest(c.method, ts.URL+c.path, nil)
