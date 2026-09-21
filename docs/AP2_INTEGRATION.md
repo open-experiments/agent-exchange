@@ -590,3 +590,31 @@ AP2 mandates serve as evidence in disputes:
 - [A2A Protocol](https://a2a-protocol.org/)
 - [W3C Payment Request API](https://www.w3.org/TR/payment-request/)
 - [AEX Architecture](../README.md)
+
+---
+
+## Appendix C: Nano (XNO) as an additional settlement rail
+
+Payment providers in `aex-settlement` are pluggable: `loadPaymentProviders()` reads them from
+`PAYMENT_PROVIDER_URLS`, and each provider answers an A2A `bid` with `base_fee_percent`,
+`net_fee_percent`, `processing_time_seconds`, and `supported_methods`
+(`src/aex-settlement/internal/payment/provider.go`). Because AEX already **compares providers on fee and
+latency**, a new rail can be listed without changing the settlement core.
+
+Nano (XNO) is a feeless, sub-second, peer-to-peer settlement network. A Nano provider can bid:
+
+| Field | Value | Why |
+|---|---|---|
+| `base_fee_percent` | `0` | Nano charges no per-transaction network fee |
+| `net_fee_percent` | `0` | no issuer, no chargeback, no intermediary |
+| `processing_time_seconds` | `< 1` | typical confirmation is sub-second |
+| `supported_methods` | `["XNO"]` | settled directly wallet-to-wallet |
+
+This is additive and **off by default**: the provider's endpoint is `NANO_SETTLEMENT_URL` and a blank
+endpoint is skipped (not logged as a failed bid), so the existing demo providers behave exactly as
+before. It is not a replacement for AP2 or for a fiat rail — an agent that wants dollars must still
+convert — but for agent-to-agent settlement where card/stablecoin fees are non-trivial, a zero-fee,
+sub-second rail is worth listing.
+
+Existing Nano building blocks (no payment logic to rebuild): the x402 exact-scheme facilitator that
+already settles `nano:mainnet`, and the wallet/RPC components indexed at <https://hub.nano.org>.
