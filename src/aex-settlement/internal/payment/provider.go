@@ -119,6 +119,17 @@ func loadPaymentProviders() []PaymentProviderConfig {
 			Endpoint:    getEnvOrDefault("COMPLIANCEPAY_URL", "http://payment-compliancepay:8202"),
 			Description: "Compliance specialist with advanced security",
 		},
+		{
+			// Nano (XNO) settles peer-to-peer in under a second with no per-transaction fee, so a Nano
+			// provider can bid base_fee_percent 0 and processing_time_seconds < 1 and win this bid
+			// comparison on cost for any work category where card/stablecoin fees are non-trivial.
+			// Off unless NANO_SETTLEMENT_URL is set: the default empty endpoint means this provider is
+			// not probed, so the existing demo providers behave exactly as before.
+			ID:          "nano",
+			Name:        "Nano (XNO)",
+			Endpoint:    getEnvOrDefault("NANO_SETTLEMENT_URL", ""),
+			Description: "Feeless, sub-second settlement in XNO",
+		},
 	}
 }
 
@@ -134,6 +145,11 @@ func (c *ProviderClient) GetPaymentBids(ctx context.Context, req model.PaymentBi
 	var bids []model.PaymentProviderBid
 
 	for _, provider := range c.providers {
+		if strings.TrimSpace(provider.Endpoint) == "" {
+			// A provider with no endpoint is not configured (e.g. Nano unless NANO_SETTLEMENT_URL is
+			// set): skip it silently instead of logging a failed bid for something never stood up.
+			continue
+		}
 		bid, err := c.requestBid(ctx, provider, req)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to get bid from payment provider",
