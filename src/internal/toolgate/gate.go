@@ -141,6 +141,9 @@ func (g *Gate) Decide(call Call) Decision {
 		return Decision{Outcome: DecisionAllow, Rule: ScopeRuleID, Scope: scope, Approval: ApprovalAutomatic}
 	}
 	for _, r := range g.policy.Rules {
+		if !g.policy.applies(r, call.Tool) {
+			continue
+		}
 		var fired bool
 		var effect, reason string
 		if r.Kind == KindLookup {
@@ -212,6 +215,27 @@ func (g *Gate) Authorize(ctx context.Context, call Call, exec Executor) (Artifac
 		g.publish(ctx, EventEscalated, a)
 	}
 	return a, execErr
+}
+
+// OutcomeDecideOnly is the outcome of a call decided by DecideOnly: the gate
+// ruled and recorded, and the caller, not the gate, runs or skips the tool.
+const OutcomeDecideOnly = "decided only: not executed by the gate"
+
+// DecideOnly decides the call and records the artifact without executing it
+// and without holding it. It is for callers that execute tools themselves and
+// ask the gate only for its ruling: a benchmark harness, or a policy measured
+// in shadow before it enforces. The artifact's outcome says the gate did not
+// act, so the record never reads as an enforced refusal or execution; an
+// escalated call is recorded as escalated, but no hold exists to settle.
+// Only toolcall.requested and toolcall.decided are published.
+func (g *Gate) DecideOnly(ctx context.Context, call Call) Artifact {
+	d := g.Decide(call)
+	a := g.newArtifact(call, d)
+	a.Outcome = OutcomeDecideOnly
+	a = g.commit(a)
+	g.publish(ctx, EventRequested, a)
+	g.publish(ctx, EventDecided, a)
+	return a
 }
 
 // Resolve settles a held call. approver is the identity of the person who

@@ -24,8 +24,13 @@
 // Those headers are attribution, not authentication: they are whatever the
 // caller sent, and none of them widens an authorization decision.
 //
-// The operator endpoints (POST /v1/holds/{hash}, GET /v1/records and
-// /v1/records/verify) are outside that model. They belong to the provider's
+// POST /v1/decide/{tool} takes the same body and headers as /v1/tools/{tool}
+// but only decides and records: nothing is forwarded, nothing is held. It is an
+// operator endpoint, because an agent that can ask "would this pass?" without
+// consequence can search the policy for values that slip through.
+//
+// The operator endpoints (POST /v1/decide/{tool}, POST /v1/holds/{hash}, GET
+// /v1/records and /v1/records/verify) are outside that model. They belong to the provider's
 // operator, not to the agent being gated, and require
 // Authorization: Bearer <OPERATOR_TOKEN>. With no token configured they are
 // refused rather than left open.
@@ -87,6 +92,7 @@ func New(gate *toolgate.Gate, upstreamURL, upstreamPrefix string, timeout time.D
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /ready", s.health)
 	mux.HandleFunc("POST /v1/tools/{tool}", s.authorize)
+	mux.HandleFunc("POST /v1/decide/{tool}", s.decide)
 	mux.HandleFunc("POST /v1/holds/{hash}", s.resolve)
 	mux.HandleFunc("GET /v1/records", s.records)
 	mux.HandleFunc("GET /v1/records/verify", s.verify)
@@ -111,25 +117,9 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 		r.Header.Set("X-Request-ID", newRequestID())
 	}
 	w.Header().Set("X-Request-ID", r.Header.Get("X-Request-ID"))
-	var args map[string]any
-	if r.Body != nil {
-		b, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "bad_request", "cannot read body")
-			return
-		}
-		if len(bytes.TrimSpace(b)) > 0 {
-			// UseNumber keeps integers exact. Decoding into float64 rewrites
-			// anything past 2^53 (an account or invoice number), so the tool
-			// would receive a different value than the agent sent and the
-			// artifact would record the rewritten one.
-			dec := json.NewDecoder(bytes.NewReader(b))
-			dec.UseNumber()
-			if err := dec.Decode(&args); err != nil {
-				writeError(w, http.StatusBadRequest, "bad_request", "body must be a JSON object of argument values")
-				return
-			}
-		}
+	args, ok := readArgs(w, r)
+	if !ok {
+		return
 	}
 	call := callFromRequest(r, tool, args)
 
@@ -172,6 +162,58 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(res.status)
 		_, _ = w.Write(res.body)
 	}
+}
+
+// decide rules on a call and records it without forwarding or holding it. The
+// answer is 200 whatever the decision: the request succeeded, and the decision
+// is its content (also in the X-Toolgate-* headers, as on /v1/tools).
+func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOperator(w, r) {
+		return
+	}
+	if r.Header.Get("X-Request-ID") == "" {
+		r.Header.Set("X-Request-ID", newRequestID())
+	}
+	w.Header().Set("X-Request-ID", r.Header.Get("X-Request-ID"))
+	args, ok := readArgs(w, r)
+	if !ok {
+		return
+	}
+	call := callFromRequest(r, r.PathValue("tool"), args)
+	a := s.gate.DecideOnly(r.Context(), call)
+	w.Header().Set("X-Toolgate-Decision", a.Decision)
+	w.Header().Set("X-Toolgate-Rule", a.Rule)
+	w.Header().Set("X-Toolgate-Hash", a.Hash)
+	writeJSON(w, http.StatusOK, map[string]any{"decision": a.Decision, "rule": a.Rule, "scope": a.Scope,
+		"approval": a.Approval, "message": s.gate.Decide(call).Message, "outcome": a.Outcome,
+		"hash": a.Hash, "call_id": a.CallID})
+}
+
+// readArgs decodes the argument values from the request body, answering 400
+// itself when it cannot.
+func readArgs(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
+	var args map[string]any
+	if r.Body == nil {
+		return args, true
+	}
+	b, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "bad_request", "cannot read body")
+		return nil, false
+	}
+	if len(bytes.TrimSpace(b)) > 0 {
+		// UseNumber keeps integers exact. Decoding into float64 rewrites
+		// anything past 2^53 (an account or invoice number), so the tool
+		// would receive a different value than the agent sent and the
+		// artifact would record the rewritten one.
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.UseNumber()
+		if err := dec.Decode(&args); err != nil {
+			writeError(w, http.StatusBadRequest, "bad_request", "body must be a JSON object of argument values")
+			return nil, false
+		}
+	}
+	return args, true
 }
 
 // forward sends the allowed call to the upstream tool endpoint.
