@@ -24,6 +24,11 @@ const (
 	// KindSuffix denies when the string argument Arg does not end with one of
 	// Allowed. Used for email domains.
 	KindSuffix = "suffix"
+	// KindTool fires whenever the rule applies, whatever the arguments: the
+	// action itself is what the rule governs ("every destructive tool needs a
+	// person"). It takes no Arg and must be limited by Tool or Tag, so it can
+	// never fire on every tool by accident.
+	KindTool = "tool"
 	// KindPrefix denies when the string argument Arg does not start with one of
 	// Allowed. Used for storage destinations.
 	KindPrefix = "prefix"
@@ -35,11 +40,14 @@ const (
 	EffectEscalate = "escalate"
 )
 
-// Rule is one argument-value rule. Tool restricts the rule to one tool; an
-// empty Tool applies it to every tool that carries the argument.
+// Rule is one argument-value rule. Tool restricts the rule to one tool and Tag
+// to the tools the policy's ToolTags label with that tag; a rule sets at most
+// one of them. An empty Tool and Tag applies it to every tool that carries the
+// argument.
 type Rule struct {
 	ID       string   `json:"id"`
 	Tool     string   `json:"tool,omitempty"`
+	Tag      string   `json:"tag,omitempty"`
 	Kind     string   `json:"kind"`
 	Arg      string   `json:"arg"`
 	Max      float64  `json:"max,omitempty"`
@@ -59,6 +67,27 @@ type Policy struct {
 	ToolScopes    map[string]string            `json:"tool_scopes"`
 	Rules         []Rule                       `json:"rules"`
 	Lookups       map[string]map[string]string `json:"lookups,omitempty"`
+	// ToolTags labels tools with classes ("destructive", "payment", ...) so
+	// one rule can govern many tools. Every tagged tool must be in ToolScopes.
+	ToolTags map[string][]string `json:"tool_tags,omitempty"`
+}
+
+// hasTag reports whether the policy labels tool with tag.
+func (p Policy) hasTag(tool, tag string) bool {
+	for _, t := range p.ToolTags[tool] {
+		if t == tag {
+			return true
+		}
+	}
+	return false
+}
+
+// applies reports whether rule r governs calls to tool.
+func (p Policy) applies(r Rule, tool string) bool {
+	if r.Tool != "" && r.Tool != tool {
+		return false
+	}
+	return r.Tag == "" || p.hasTag(tool, r.Tag)
 }
 
 // ScopeRuleID is the rule id recorded when the scope check decides a call.
@@ -85,16 +114,46 @@ func (p Policy) Validate() error {
 	if len(p.ToolScopes) == 0 {
 		return fmt.Errorf("toolgate: policy maps no tools to scopes")
 	}
+	tags := map[string]bool{}
+	for tool, ts := range p.ToolTags {
+		// A tag on a tool the policy does not know is a typo that would
+		// silently leave the real tool ungoverned.
+		if _, ok := p.ToolScopes[tool]; !ok {
+			return fmt.Errorf("toolgate: tool_tags names %q, which is not in tool_scopes", tool)
+		}
+		for _, t := range ts {
+			tags[t] = true
+		}
+	}
 	seen := map[string]bool{}
 	for _, r := range p.Rules {
-		if r.ID == "" || r.Arg == "" {
-			return fmt.Errorf("toolgate: rule %q needs an id and an arg", r.ID)
+		if r.ID == "" {
+			return fmt.Errorf("toolgate: rule needs an id")
 		}
 		if seen[r.ID] {
 			return fmt.Errorf("toolgate: duplicate rule id %q", r.ID)
 		}
 		seen[r.ID] = true
+		if r.Tool != "" && r.Tag != "" {
+			return fmt.Errorf("toolgate: rule %q sets both tool and tag; use one", r.ID)
+		}
+		// Same reasoning as for tool_tags: a rule on a tag no tool carries
+		// governs nothing, and nobody would notice.
+		if r.Tag != "" && !tags[r.Tag] {
+			return fmt.Errorf("toolgate: rule %q uses tag %q, which no tool carries", r.ID, r.Tag)
+		}
+		if r.Kind == KindTool {
+			if r.Arg != "" {
+				return fmt.Errorf("toolgate: rule %q of kind tool takes no arg", r.ID)
+			}
+			if r.Tool == "" && r.Tag == "" {
+				return fmt.Errorf("toolgate: rule %q of kind tool needs a tool or a tag", r.ID)
+			}
+		} else if r.Arg == "" {
+			return fmt.Errorf("toolgate: rule %q needs an arg", r.ID)
+		}
 		switch r.Kind {
+		case KindTool:
 		case KindCeiling:
 		case KindAllowlist, KindSuffix, KindPrefix:
 			if len(r.Allowed) == 0 {
@@ -209,6 +268,9 @@ func (r Rule) evaluate(call Call) (fired bool, effect, reason string) {
 		return false, "", ""
 	}
 	effect = effectOrDeny(r)
+	if r.Kind == KindTool {
+		return true, effect, ""
+	}
 	v, ok := call.Args[r.Arg]
 	if !ok {
 		// The rule constrains an argument the call did not supply, so the
