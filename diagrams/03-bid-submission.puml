@@ -1,0 +1,55 @@
+@startuml Bid Submission Flow
+skinparam backgroundColor #FEFEFE
+
+title Bid Submission Flow
+
+actor Provider as P
+participant "Gateway" as GW
+participant "Bid-Gateway" as BG
+participant "Provider-Registry" as PR
+database "Database" as DB
+
+P -> GW : POST /v1/bids\nAuthorization: Bearer {api_key}\n{work_id, price, confidence,\napproach, sla, expires_at}
+activate GW
+
+GW -> BG : Route to bid-gateway
+activate BG
+
+BG -> PR : GET /internal/v1/providers/validate-key\n?api_key={key}
+activate PR
+
+PR -> PR : Hash key (SHA256)
+PR -> DB : Find by key hash
+activate DB
+DB --> PR : Provider record
+deactivate DB
+
+PR --> BG : {valid: true,\nprovider_id: prov_xxxx}
+deactivate PR
+
+BG -> BG : Validate bid:\n- Check expires_at > now\n- Check price > 0\n- Check work exists
+
+BG -> BG : Generate bid_id\n(bid_xxxx)
+
+BG -> BG : Create BidPacket:\n{bid_id, work_id,\nprovider_id, price,\nconfidence, sla, ...}
+
+BG -> DB : Store bid packet
+activate DB
+DB --> BG : OK
+deactivate DB
+
+BG --> GW : {bid_id, status: RECEIVED}
+deactivate BG
+
+GW --> P : 201 Created\n{bid_id}
+deactivate GW
+
+note right of BG
+  Bid is stored and will be
+  included in evaluation when
+  bid window closes
+end note
+
+@enduml
+
+

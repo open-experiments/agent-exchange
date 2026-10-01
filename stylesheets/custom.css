@@ -1,0 +1,28 @@
+/* AEX Brand Overrides */
+
+:root {
+  --md-primary-fg-color: #5e35b1;
+  --md-accent-fg-color: #ffab00;
+}
+
+/* Hero image sizing */
+.md-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+/* Table styling */
+.md-typeset table:not([class]) {
+  font-size: 0.82rem;
+}
+
+/* Code block styling */
+.md-typeset pre > code {
+  font-size: 0.78rem;
+}
+
+/* Navigation sections */
+.md-nav__title {
+  font-weight: 600;
+}

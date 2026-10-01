@@ -1,0 +1,117 @@
+@startuml Contract_Award_A2A_Handoff
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+title 4. Contract Award & A2A Handoff
+
+participant "Orchestrator Agent\n(Consumer)" as orch #LightGreen
+participant "AEX Gateway\n:8080" as gw #LightYellow
+participant "AEX Contract Engine\n:8084" as ce #LightYellow
+participant "AEX Provider Registry\n:8085" as pr #LightYellow
+participant "AEX Bid Gateway\n:8082" as bg #LightYellow
+participant "Token Service" as ts #LightGreen
+database "MongoDB" as db #LightBlue
+participant "Legal Agent A\n(A2A Server)" as la #LightPink
+
+== Award Contract ==
+
+orch -> gw : POST /v1/contracts/award\n{\n  "work_id": "work_xyz",\n  "bid_id": "bid_A"\n}
+activate gw
+
+gw -> ce : Forward award request
+activate ce
+
+ce -> bg : GET /internal/bids/{bid_id}
+activate bg
+bg --> ce : Bid details\n{provider_id, price, sla, ...}
+deactivate bg
+
+ce -> pr : GET /internal/providers/{provider_id}
+activate pr
+pr --> ce : Provider details\n{\n  preferred_interface: {\n    url: "https://legal-agent-a.example/a2a",\n    protocol_binding: "JSONRPC"\n  },\n  security_schemes: ["Bearer"]\n}
+deactivate pr
+
+== Generate Contract Token (JWT) ==
+
+ce -> ts : GenerateContractToken(claims)
+activate ts
+note right of ts
+  JWT Claims:
+  - iss: "aex"
+  - aud: "legal-agent-a.example"
+  - sub: "orchestrator_agent_id"
+  - work_id: "work_xyz"
+  - contract_id: "contract_123"
+  - provider_id: "prov_A"
+  - price_microunits: 30000000
+  - scope: ["a2a:message:send", "a2a:message:stream"]
+  - exp: (now + 1 hour)
+  - jti: "unique_token_id"
+end note
+
+ts -> ts : Sign with ES256 private key
+ts --> ce : Contract Token (JWT)
+deactivate ts
+
+== Store Contract ==
+
+ce -> ce : Generate contract_id
+ce -> ce : Set status = "AWARDED"
+
+ce -> db : Insert contract
+activate db
+note right of db
+  Contract document:
+  - contract_id
+  - work_id
+  - bid_id
+  - consumer_id
+  - provider_id
+  - agreed_price: 30.00
+  - provider_endpoint (A2A URL)
+  - execution_token (JWT hash)
+  - status: "AWARDED"
+  - expires_at
+  - awarded_at
+end note
+db --> ce : Inserted
+deactivate db
+
+ce -> ce : Publish event:\n"contract.awarded"
+
+== Return A2A Endpoint to Consumer ==
+
+ce --> gw : 200 OK\n{\n  "contract_id": "contract_123",\n  "work_id": "work_xyz",\n  "provider_id": "prov_A",\n  "agreed_price": 30.00,\n  "status": "AWARDED",\n  **"provider_a2a_endpoint": "https://legal-agent-a.example/a2a",**\n  **"protocol_binding": "JSONRPC",**\n  **"contract_token": "eyJhbGciOiJFUzI1NiIs...",**\n  "security_schemes": ["Bearer"],\n  "expires_at": "2026-01-02T13:00:00Z"\n}
+deactivate ce
+
+gw --> orch : Contract award response
+deactivate gw
+
+== Direct A2A Execution (AEX Exits Data Path) ==
+
+note over orch, la
+  **AEX is now out of the execution path**
+  Consumer communicates directly with Provider via A2A Protocol
+end note
+
+orch -> la : **POST https://legal-agent-a.example/a2a**\nContent-Type: application/json\n**Authorization: Bearer {contract_token}**\n\n{\n  "jsonrpc": "2.0",\n  "method": "message/send",\n  "id": "req_001",\n  "params": {\n    "message": {\n      "role": "user",\n      "parts": [{\n        "type": "text",\n        "text": "Please review this partnership contract..."\n      }]\n    }\n  }\n}
+activate la
+
+la -> la : Validate contract_token\n(fetch JWKS from AEX)
+la -> la : Verify signature & claims
+la -> la : Check scope allows "a2a:message:send"
+la -> la : Process with Claude LLM
+
+la --> orch : **A2A Response**\n{\n  "jsonrpc": "2.0",\n  "id": "req_001",\n  "result": {\n    "task": {\n      "id": "task_456",\n      "status": {"state": "COMPLETED"},\n      "artifacts": [{\n        "parts": [{\n          "type": "text",\n          "text": "Contract Analysis Report:\\n\\n1. Key Risks..."\n        }]\n      }]\n    }\n  }\n}
+deactivate la
+
+note over orch
+  Orchestrator receives results
+  directly from Provider Agent
+  via standard A2A Protocol
+end note
+
+@enduml

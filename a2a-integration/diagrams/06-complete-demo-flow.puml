@@ -1,0 +1,172 @@
+@startuml Complete_Demo_Flow
+
+
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 200
+
+title 6. Complete Demo Flow - Multi-Agent Legal & Travel Scenario
+
+actor "User" as user
+participant "Demo UI\n(Mesop)" as ui #LightBlue
+participant "Orchestrator\n(Claude)" as orch #LightGreen
+box "Agent Exchange" #LightYellow
+    participant "AEX\nGateway" as gw
+    participant "AEX\nServices" as aex
+end box
+participant "Legal Agent A\n(Claude)" as la #LightPink
+participant "Travel Agent\n(GPT-4)" as ta #LightCoral
+participant "Legal Agent B\n(Gemini)" as lb #Plum
+
+== User Request ==
+
+user -> ui : "Plan my Berlin trip next week.\nReview partnership contract.\nCheck German regulations."
+
+ui -> orch : Forward multi-task request
+activate orch
+
+orch -> orch : **Task Decomposition**\n(LangGraph + Claude)
+
+note right of orch
+  Identified 3 subtasks:
+  1. Contract Review (legal)
+  2. Travel Booking (travel)
+  3. Compliance Check (legal)
+end note
+
+== Parallel Work Submissions ==
+
+par Submit all work requests
+    orch -> gw : POST /v1/work\n{skill: "contract_review"}
+    gw -> aex : Process
+    aex --> gw : work_id: "work_001"
+    gw --> orch : Work 1 created
+and
+    orch -> gw : POST /v1/work\n{skill: "flight_booking"}
+    gw -> aex : Process
+    aex --> gw : work_id: "work_002"
+    gw --> orch : Work 2 created
+and
+    orch -> gw : POST /v1/work\n{skill: "compliance_check"}
+    gw -> aex : Process
+    aex --> gw : work_id: "work_003"
+    gw --> orch : Work 3 created
+end
+
+== Provider Discovery & Bidding ==
+
+note over aex
+  AEX discovers providers by skills:
+  - Work 1: Legal Agent A, Legal Agent B
+  - Work 2: Travel Agent
+  - Work 3: Legal Agent B
+end note
+
+par Providers receive opportunities and bid
+    aex -> la : Opportunity: work_001
+    la -> gw : POST /v1/bids {work_001, $30}
+and
+    aex -> lb : Opportunity: work_001
+    lb -> gw : POST /v1/bids {work_001, $25}
+and
+    aex -> ta : Opportunity: work_002
+    ta -> gw : POST /v1/bids {work_002, $20}
+and
+    aex -> lb : Opportunity: work_003
+    lb -> gw : POST /v1/bids {work_003, $20}
+end
+
+== Bid Evaluation (30s window) ==
+
+aex -> aex : Evaluate bids\n(Balanced strategy)
+
+note over aex
+  **Evaluation Results:**
+
+  Work 1 (Contract Review):
+  - Legal Agent A: Score 0.87 ✓ WIN
+  - Legal Agent B: Score 0.76
+
+  Work 2 (Travel Booking):
+  - Travel Agent: Score 0.85 ✓ WIN
+
+  Work 3 (Compliance):
+  - Legal Agent B: Score 0.80 ✓ WIN
+end note
+
+== Contract Awards ==
+
+par Award all contracts
+    orch -> gw : POST /v1/contracts/award {work_001, bid_A}
+    aex -> aex : Generate contract token
+    gw --> orch : Contract 1\n{a2a_endpoint: legal-agent-a/a2a,\ntoken: "eyJ..."}
+and
+    orch -> gw : POST /v1/contracts/award {work_002, bid_travel}
+    aex -> aex : Generate contract token
+    gw --> orch : Contract 2\n{a2a_endpoint: travel-agent/a2a,\ntoken: "eyJ..."}
+and
+    orch -> gw : POST /v1/contracts/award {work_003, bid_B}
+    aex -> aex : Generate contract token
+    gw --> orch : Contract 3\n{a2a_endpoint: legal-agent-b/a2a,\ntoken: "eyJ..."}
+end
+
+== Direct A2A Execution (Parallel) ==
+
+note over orch, lb #LightGreen
+  **AEX exits data path**
+  Direct A2A communication begins
+end note
+
+par Execute all tasks via A2A
+    orch -> la : **A2A: message/send**\nAuth: Bearer {token_1}\n"Review this contract..."
+    activate la
+    la -> la : Claude processes\ncontract review
+    la --> orch : Task result:\n"3 risk areas identified..."
+    deactivate la
+and
+    orch -> ta : **A2A: message/send**\nAuth: Bearer {token_2}\n"Book flight to Berlin..."
+    activate ta
+    ta -> ta : GPT-4 processes\ntravel booking
+    ta --> orch : Task result:\n"Flight LHR→BER booked..."
+    deactivate ta
+and
+    orch -> lb : **A2A: message/send**\nAuth: Bearer {token_3}\n"Research German regulations..."
+    activate lb
+    lb -> lb : Gemini processes\ncompliance research
+    lb --> orch : Task result:\n"GDPR compliance required..."
+    deactivate lb
+end
+
+== Settlement ==
+
+par Report completions
+    la -> gw : POST /contracts/1/complete {success: true}
+    aex -> aex : Settlement:\n$30 - $4.50 fee = $25.50
+and
+    ta -> gw : POST /contracts/2/complete {success: true}
+    aex -> aex : Settlement:\n$20 - $3.00 fee = $17.00
+and
+    lb -> gw : POST /contracts/3/complete {success: true}
+    aex -> aex : Settlement:\n$20 - $3.00 fee = $17.00
+end
+
+note over aex
+  **Total Settlement:**
+  Consumer paid: $70.00
+  Platform fee: $10.50 (15%)
+  Providers received: $59.50
+
+  Trust scores updated for all providers
+end note
+
+== Result Aggregation ==
+
+orch -> orch : **Aggregate Results**\n(LangGraph)
+
+orch --> ui : Unified response
+
+ui --> user : **Your Business Trip Plan:**\n\n📋 **Contract Review:**\n3 risk areas identified in partnership agreement\n\n✈️ **Travel Booked:**\nFlight: LHR→BER, Jan 8\nHotel: Berlin Marriott, 3 nights\n\n📜 **German Regulations:**\nGDPR compliance checklist provided
+
+deactivate orch
+
+@enduml

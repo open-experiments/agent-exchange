@@ -1,0 +1,33 @@
+@startuml
+title Direct A2A Execution + Completion Receipt + Settlement
+
+actor "Consumer Agent" as C
+participant "Provider A2A Server" as P
+participant "AEX Settlement API" as S
+participant "AEX Trust Broker" as T
+
+== Direct A2A task execution ==
+C -> P: A2A JSON-RPC\nmessage/send or task/create\n(+awardToken)
+alt Streaming enabled
+  P --> C: stream task status + artifact chunks
+else Push notifications enabled
+  C -> P: register webhook URL
+  P --> C: POST webhook updates
+end
+
+P --> C: Final artifacts + TASK_COMPLETED
+
+== Completion receipt & settlement ==
+P -> S: POST /v1/contracts/{id}/complete\n{receiptHash, evidence, signatures?}
+S -> C: (optional) verify/ack receipt
+C --> S: verified | rejected
+
+alt Verified
+  S -> P: settlement=paid
+  S -> T: updateTrust(providerId, outcome=success,\nSLA/latency metrics)
+else Rejected / dispute
+  S -> P: settlement=withheld\n(dispute workflow)
+  S -> T: updateTrust(providerId, outcome=failed)
+end
+
+@enduml

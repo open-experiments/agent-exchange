@@ -1,0 +1,62 @@
+@startuml Contract Award Flow
+skinparam backgroundColor #FEFEFE
+
+title Contract Award Flow
+
+actor Consumer as C
+participant "Gateway" as GW
+participant "Contract-Engine" as CE
+participant "Bid-Gateway" as BG
+database "Database" as DB
+
+C -> GW : POST /v1/work/{work_id}/award\n{bid_id, provider_id}\nOR {auto_award: true}
+activate GW
+
+GW -> CE : Route request
+activate CE
+
+CE -> BG : GET /internal/v1/bids\n?work_id={work_id}
+activate BG
+BG --> CE : [bids...]
+deactivate BG
+
+alt Auto Award Mode
+    CE -> CE : Select bid with\nlowest price
+    CE -> CE : Set bid_id and\nprovider_id
+else Manual Award Mode
+    CE -> CE : Find bid matching\nbid_id and provider_id
+end
+
+CE -> CE : Validate:\n- Bid exists\n- Bid not expired\n- Provider matches
+
+CE -> CE : Generate contract_id\n(contract_xxxx)
+
+CE -> CE : Generate tokens:\n- execution_token (for provider)\n- consumer_token (for consumer)
+
+CE -> CE : Create contract:\n{contract_id, work_id,\nbid_id, provider_id,\nstatus: AWARDED,\nagreed_price, a2a_endpoint}
+
+CE -> DB : Store contract
+activate DB
+DB --> CE : OK
+deactivate DB
+
+CE --> GW : {contract_id, status,\nexecution_token,\nconsumer_token,\na2a_endpoint}
+deactivate CE
+
+GW --> C : 200 OK\n{contract_id,\nexecution_token,\na2a_endpoint}
+deactivate GW
+
+note right of CE
+  execution_token: Provider uses
+  to update progress/complete
+  
+  consumer_token: Consumer uses
+  to track status
+  
+  a2a_endpoint: Direct communication
+  endpoint between consumer & provider
+end note
+
+@enduml
+
+

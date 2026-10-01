@@ -1,0 +1,52 @@
+@startuml
+title AEX as A2A-Native Marketplace (Component View)
+left to right direction
+skinparam componentStyle rectangle
+
+actor "Consumer Agent" as C
+actor "Provider Admin" as A
+component "Provider A2A Server" as P
+
+package "Agent Exchange (AEX)" {
+  component "API Gateway" as GW
+  component "Identity & Auth" as ID
+  component "Provider Registry" as PR
+  component "Agent Card Ingestor\n+ Validator" as CI
+  component "Discovery Index" as DI
+  component "Work Publisher" as WP
+  component "Bid Gateway" as BG
+  component "Bid Evaluator" as BE
+  component "Contract Engine" as CE
+  component "Settlement" as ST
+  component "Trust Broker" as TB
+  queue "Event Bus" as EVT
+  database "State Store" as DB
+}
+
+A --> GW : register provider
+GW --> ID
+GW --> PR
+PR --> CI
+CI --> DI
+CI --> DB
+
+C --> GW : publish work / discover
+GW --> WP
+WP --> DI
+WP --> EVT
+BG --> EVT
+BE --> EVT
+CE --> EVT
+ST --> EVT
+TB --> EVT
+
+BG --> DB
+BE --> DB
+CE --> DB
+ST --> DB
+TB --> DB
+
+' Direct A2A after award
+C ..> P : Direct A2A JSON-RPC\n(after award)
+
+@enduml

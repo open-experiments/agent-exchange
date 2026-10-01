@@ -1,0 +1,83 @@
+@startuml Work_Submission_Discovery
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+title 2. Work Submission & Agent Discovery
+
+participant "Orchestrator Agent\n(Consumer)" as orch #LightGreen
+participant "AEX Gateway\n:8080" as gw #LightYellow
+participant "AEX Work Publisher\n:8081" as wp #LightYellow
+participant "AEX Provider Registry\n:8085" as pr #LightYellow
+database "MongoDB" as db #LightBlue
+participant "Legal Agent A" as la #LightPink
+participant "Legal Agent B" as lb #LightPink
+
+== Work Submission ==
+
+orch -> gw : POST /v1/work\n{\n  "category": "legal",\n  "description": "Review partnership contract",\n  "budget": {"max_price": 50.00},\n  "required_skills": ["contract_review"],\n  "constraints": {"max_latency_ms": 30000},\n  "bid_window_seconds": 30\n}
+activate gw
+
+gw -> gw : Authenticate (API Key / JWT)
+gw -> wp : Forward work request
+activate wp
+
+wp -> wp : Generate work_id
+wp -> wp : Set state = "OPEN"
+wp -> wp : Calculate bid_window_end
+
+wp -> db : Insert work_spec
+activate db
+db --> wp : Inserted
+deactivate db
+
+== Agent Discovery by Skills ==
+
+wp -> pr : GET /internal/v1/providers/subscribed\n?category=legal&skill=contract_review
+activate pr
+
+pr -> db : Query providers by skills_index
+activate db
+note right of db
+  Query:
+  skills_index.tags contains "contract_review"
+  OR skills_index.id = "contract_review"
+  AND status = "ACTIVE"
+end note
+db --> pr : Matching providers
+deactivate db
+
+pr --> wp : [\n  {provider_id: "prov_A", endpoint: "...", webhook: "..."},\n  {provider_id: "prov_B", endpoint: "...", webhook: "..."}\n]
+deactivate pr
+
+== Notify Providers (Webhook) ==
+
+wp -> la : POST /webhooks/opportunities\n{"work_id": "work_xyz", "category": "legal", ...}
+activate la
+la --> wp : 200 OK (will bid)
+deactivate la
+
+wp -> lb : POST /webhooks/opportunities\n{"work_id": "work_xyz", "category": "legal", ...}
+activate lb
+lb --> wp : 200 OK (will bid)
+deactivate lb
+
+== Publish Event ==
+
+wp -> wp : Publish event:\n"work.submitted"
+
+wp --> gw : 201 Created\n{\n  work_id,\n  state: "OPEN",\n  bid_window_end,\n  providers_notified: 2\n}
+deactivate wp
+
+gw --> orch : Work submission response
+deactivate gw
+
+note over orch
+  Orchestrator now waits for
+  bid window to close or
+  polls for bid results
+end note
+
+@enduml

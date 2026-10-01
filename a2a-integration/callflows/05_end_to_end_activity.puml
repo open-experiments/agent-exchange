@@ -1,0 +1,48 @@
+@startuml
+title End-to-End Workflow (Activity, Swimlanes)
+
+start
+
+partition "Provider" {
+  :Expose Agent Card\n/.well-known/agent-card.json\n(or legacy /.well-known/agent.json);
+  :Register Agent Card URL\nwith AEX;
+}
+
+partition "AEX" {
+  :Fetch Agent Card;\nValidate schema + interfaces;\nVerify signature if present;
+  :Index skills/tags/capabilities;
+}
+
+partition "Consumer" {
+  :Publish Work to AEX\n(requiredSkills, constraints, budget);
+}
+
+partition "AEX" {
+  :Match providers using index;
+  :Broadcast WorkOpportunity;
+  :Collect bids;
+  :Evaluate (price, trust, fit);
+  :Award contract;\nReturn winner Agent Card + award token;
+}
+
+partition "Consumer" {
+  :Connect to provider directly via A2A;\nStart task (JSON-RPC);
+}
+
+partition "Provider" {
+  :Execute task;\nEmit streaming/push updates;
+  :Return artifacts + completion;
+}
+
+partition "AEX" {
+  :Provider submits completion receipt;
+  :Optional consumer verify/ack;
+  if (Verified?) then (yes)
+    :Settle payment;\nUpdate trust = success;
+  else (no)
+    :Withhold / dispute;\nUpdate trust = failed;
+  endif
+}
+
+stop
+@enduml
