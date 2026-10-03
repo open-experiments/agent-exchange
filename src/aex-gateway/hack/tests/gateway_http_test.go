@@ -43,6 +43,7 @@ func testConfig() *config.Config {
 		RateLimitBurstSize: 50,
 		RequestTimeout:     30 * time.Second,
 		APIKeyValidator:    "memory", // no identity service in tests; keys are never added, so every key is invalid
+		AllowedOrigins:     []string{"*"},
 	}
 }
 

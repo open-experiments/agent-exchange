@@ -352,7 +352,7 @@ Every request passes through these middleware layers in order:
                  → Prevents service crashes from propagating
 
 4. CORS          Cross-origin resource sharing headers
-                 → Configurable allowed origins for production
+                 → Allowed origins from ALLOWED_ORIGINS (default "*")
                  → Allows preflight OPTIONS without auth
 
 5. Timeout       30-second max request duration
@@ -492,6 +492,7 @@ For CA private key:
 | `RATE_LIMIT_PER_MINUTE` | Default per-tenant request limit | `1000` | No |
 | `RATE_LIMIT_BURST_SIZE` | Burst allowance above limit | `50` | No |
 | `REQUEST_TIMEOUT_SECONDS` | Max request duration | `30` | No |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins. `*` sends `Access-Control-Allow-Origin: *`; otherwise a listed origin is echoed with credentials and `Vary: Origin`, and any other origin gets no CORS headers. Each origin must be an exact `scheme://host[:port]` (no path; a trailing `/` is ignored). Set explicit origins in production | `*` | No |
 | `WORK_PUBLISHER_URL` | Work publisher service URL | `http://localhost:8081` | Yes |
 | `PROVIDER_REGISTRY_URL` | Provider registry service URL | `http://localhost:8085` | Yes |
 | `BID_GATEWAY_URL` | Bid gateway service URL | `http://localhost:8082` | Yes |
