@@ -549,6 +549,8 @@ Resources:
               Value: !Sub http://bid-gateway.${EnvironmentName}.local:8082
             - Name: WORK_PUBLISHER_URL
               Value: !Sub http://work-publisher.${EnvironmentName}.local:8081
+            - Name: SETTLEMENT_URL
+              Value: !Sub http://settlement.${EnvironmentName}.local:8086
             - Name: MONGO_URI
               Value: !Sub mongodb://root:root@mongodb.${EnvironmentName}.local:27017/?authSource=admin
             - Name: MONGO_DB

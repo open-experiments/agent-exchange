@@ -187,9 +187,11 @@ create_or_update_service() {
         aex-bid-evaluator)
             env_vars+=",{\"name\":\"BID_GATEWAY_URL\",\"value\":\"http://aex-bid-gateway.$service_name.local:8080\"}"
             env_vars+=",{\"name\":\"TRUST_BROKER_URL\",\"value\":\"http://aex-trust-broker.$service_name.local:8080\"}"
+            env_vars+=",{\"name\":\"WORK_PUBLISHER_URL\",\"value\":\"http://aex-work-publisher.$service_name.local:8080\"}"
             ;;
         aex-contract-engine)
             env_vars+=",{\"name\":\"BID_GATEWAY_URL\",\"value\":\"http://aex-bid-gateway.$service_name.local:8080\"}"
+            env_vars+=",{\"name\":\"WORK_PUBLISHER_URL\",\"value\":\"http://aex-work-publisher.$service_name.local:8080\"}"
             env_vars+=",{\"name\":\"SETTLEMENT_URL\",\"value\":\"http://aex-settlement.$service_name.local:8080\"}"
             ;;
     esac
