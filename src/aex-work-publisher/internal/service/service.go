@@ -17,10 +17,11 @@ import (
 )
 
 var (
-	ErrInvalidWorkSpec  = errors.New("invalid work specification")
-	ErrWorkNotFound     = errors.New("work not found")
-	ErrInvalidState     = errors.New("invalid work state")
-	ErrVersionConflict  = errors.New("version conflict: concurrent modification")
+	ErrInvalidWorkSpec = errors.New("invalid work specification")
+	ErrWorkNotFound    = errors.New("work not found")
+	ErrInvalidState    = errors.New("invalid work state")
+	ErrVersionConflict = errors.New("version conflict: concurrent modification")
+	ErrNotAuthorized   = errors.New("not authorized")
 	DefaultBidWindowMs = int64(30000)  // 30 seconds
 	MaxBidWindowMs     = int64(300000) // 5 minutes
 	MinBidWindowMs     = int64(5000)   // 5 seconds
@@ -126,7 +127,10 @@ func (s *Service) PublishWork(ctx context.Context, consumerID string, req model.
 func (s *Service) GetWork(ctx context.Context, workID string) (model.WorkSpec, error) {
 	work, err := s.store.GetWork(ctx, workID)
 	if err != nil {
-		return model.WorkSpec{}, ErrWorkNotFound
+		if errors.Is(err, store.ErrWorkNotFound) {
+			return model.WorkSpec{}, ErrWorkNotFound
+		}
+		return model.WorkSpec{}, fmt.Errorf("get work: %w", err)
 	}
 	return work, nil
 }
@@ -137,11 +141,14 @@ func (s *Service) CancelWork(ctx context.Context, workID, consumerID string) (mo
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		work, err := s.store.GetWork(ctx, workID)
 		if err != nil {
-			return model.WorkSpec{}, ErrWorkNotFound
+			if errors.Is(err, store.ErrWorkNotFound) {
+				return model.WorkSpec{}, ErrWorkNotFound
+			}
+			return model.WorkSpec{}, fmt.Errorf("get work: %w", err)
 		}
 
 		if work.ConsumerID != consumerID {
-			return model.WorkSpec{}, errors.New("not authorized")
+			return model.WorkSpec{}, ErrNotAuthorized
 		}
 
 		if work.State != model.WorkStateOpen && work.State != model.WorkStateEvaluating {

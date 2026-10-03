@@ -68,9 +68,19 @@ func main() {
 		log.Printf("mongo disabled (set MONGO_URI to enable)")
 	}
 
-	svc, err := service.New(st, cfg.BidGatewayURL)
+	svc, err := service.New(st, cfg.BidGatewayURL, cfg.WorkPublisherURL, cfg.SettlementURL)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if cfg.WorkPublisherURL == "" {
+		slog.Warn("WORK_PUBLISHER_URL not set; contracts will record an unknown consumer and will not be settled")
+	} else {
+		log.Printf("work publisher enabled url=%s", cfg.WorkPublisherURL)
+	}
+	if cfg.SettlementURL == "" {
+		slog.Warn("SETTLEMENT_URL not set; completed contracts will not be sent to settlement")
+	} else {
+		log.Printf("settlement enabled url=%s", cfg.SettlementURL)
 	}
 
 	// Setup HTTP router with metrics endpoint
@@ -103,7 +113,19 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+
+	// Settlement notifications run detached from requests and may still be
+	// retrying; give them their full timeout rather than what is left of
+	// shutdownCtx.
+	settleCtx, settleCancel := context.WithTimeout(context.Background(), service.SettlementTimeout+5*time.Second)
+	defer settleCancel()
+	if err := svc.WaitForSettlements(settleCtx); err != nil {
+		log.Printf("pending settlement notifications not finished before shutdown: %v", err)
+	}
 	if mongoClient != nil {
-		_ = mongoClient.Disconnect(shutdownCtx)
+		// shutdownCtx may have expired while waiting on settlements.
+		disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer disconnectCancel()
+		_ = mongoClient.Disconnect(disconnectCtx)
 	}
 }

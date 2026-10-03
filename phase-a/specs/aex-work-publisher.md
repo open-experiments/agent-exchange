@@ -46,6 +46,19 @@ Firestore  Pub/Sub   Provider
 
 Submit a new work specification.
 
+The consumer that owns the work (and that settlement later charges) comes from
+the request headers, never the body:
+
+- `X-Tenant-ID`: the tenant aex-gateway authenticated. The gateway sets it on
+  every proxied request, overwriting any client value, so it takes precedence.
+- `X-Consumer-ID`: accepted for direct service-to-service calls that bypass the
+  gateway.
+
+A request with neither is rejected with `401` and error code
+`CONSUMER_ID_REQUIRED`; there is no default consumer. A body that fails
+validation (missing category or description, non-positive `budget.max_price`)
+returns `400 VALIDATION_ERROR`.
+
 ```json
 // Request
 {
@@ -99,6 +112,10 @@ Submit a new work specification.
 
 Get work specification and current status.
 
+Returns `404 NOT_FOUND` only when no work exists with that ID; a storage
+failure returns `500 INTERNAL_ERROR`. Callers (aex-bid-evaluator,
+aex-contract-engine) rely on 404 meaning "does not exist".
+
 ```json
 {
   "work_id": "work_550e8400",
@@ -114,7 +131,9 @@ Get work specification and current status.
 
 #### POST /v1/work/{work_id}/cancel
 
-Cancel work request (only if not yet awarded).
+Cancel work request (only if not yet awarded). Requires the same consumer
+identity headers as `POST /v1/work` (`401 CONSUMER_ID_REQUIRED` without one)
+and only the consumer that submitted the work may cancel it.
 
 ```json
 // Response
@@ -181,7 +200,7 @@ type SuccessCriterion struct {
 
 type WorkSpec struct {
 	ID             string `json:"work_id"`
-	ConsumerID     string `json:"consumer_id"` // From JWT
+	ConsumerID     string `json:"consumer_id"` // From X-Tenant-ID (gateway) or X-Consumer-ID
 	Category       string `json:"category"`
 	Description    string `json:"description"`
 	Constraints    WorkConstraints `json:"constraints"`

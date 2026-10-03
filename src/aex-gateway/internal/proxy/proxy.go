@@ -74,11 +74,21 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Add internal headers
+	// Upstreams trust X-Tenant-ID as the caller's identity, so a request
+	// without an authenticated tenant is never forwarded.
 	tenantID := middleware.GetTenantID(req.Context())
+	if tenantID == "" {
+		respondError(w, http.StatusUnauthorized, "authentication_required", "Authentication required", req)
+		return
+	}
+
+	// Add internal headers
 	requestID := middleware.GetRequestID(req.Context())
 
 	req.Header.Set("X-Tenant-ID", tenantID)
+	// X-Consumer-ID is the identity header for direct internal calls; a
+	// client-supplied one must not reach an upstream alongside the tenant.
+	req.Header.Del("X-Consumer-ID")
 	req.Header.Set("X-Request-ID", requestID)
 	// The validated scopes travel with the request so a downstream gate can
 	// apply finer checks than the route map (per tool, per argument value).

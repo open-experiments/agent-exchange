@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -47,7 +48,9 @@ type Config struct {
 	// Auth
 	JWTSecret string
 
-	// CORS
+	// AllowedOrigins lists the browser origins allowed by CORS, from the
+	// comma-separated ALLOWED_ORIGINS; "*" (the default) allows any origin.
+	// Production should name its origins explicitly.
 	AllowedOrigins []string
 
 	// Logging
@@ -76,7 +79,7 @@ func Load() *Config {
 		ProxyTimeout:        time.Duration(getEnvInt("PROXY_TIMEOUT_SECONDS", 25)) * time.Second,
 		RedisURL:            getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:           getEnv("JWT_SECRET", ""),
-		AllowedOrigins:      []string{"*"},
+		AllowedOrigins:      getEnvList("ALLOWED_ORIGINS", []string{"*"}),
 		LogLevel:            getEnv("LOG_LEVEL", "info"),
 	}
 }
@@ -95,4 +98,20 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// getEnvList splits a comma-separated list of origins, trimming spaces and a
+// trailing "/" (browsers send Origin without one) and dropping empty entries;
+// unset or no entries gives defaultValue.
+func getEnvList(key string, defaultValue []string) []string {
+	var out []string
+	for _, item := range strings.Split(os.Getenv(key), ",") {
+		if item = strings.TrimSuffix(strings.TrimSpace(item), "/"); item != "" {
+			out = append(out, item)
+		}
+	}
+	if len(out) == 0 {
+		return defaultValue
+	}
+	return out
 }

@@ -1,12 +1,11 @@
 # HTTP Client Utilities
 
-Shared HTTP client package with retry logic, authentication, and request building helpers.
+Shared HTTP client package with retry logic, circuit breaking, and request building helpers.
 
 ## Features
 
 - **Automatic retries** with exponential backoff
 - **Configurable timeouts** per client
-- **Authentication support** (Bearer token, API key, Basic auth)
 - **Fluent request builder** API
 - **JSON encoding/decoding** helpers
 - **Structured error types**
@@ -59,45 +58,6 @@ err := httpclient.NewRequest("POST", "https://api.example.com").
     JSON(body).
     Context(ctx).
     ExecuteJSON(client, &response)
-```
-
-### Authentication
-
-```go
-// Bearer token
-auth := &httpclient.BearerTokenAuth{Token: "your-token"}
-authClient := httpclient.NewClientWithAuth(client, auth)
-
-// API key
-auth := &httpclient.APIKeyAuth{
-    Header: "X-API-Key",
-    Key:    "your-api-key",
-}
-authClient := httpclient.NewClientWithAuth(client, auth)
-
-// Basic auth
-auth := &httpclient.BasicAuth{
-    Username: "user",
-    Password: "pass",
-}
-authClient := httpclient.NewClientWithAuth(client, auth)
-```
-
-### Custom Retry Configuration
-
-```go
-retryConfig := httpclient.RetryConfig{
-    MaxRetries:     5,
-    InitialBackoff: 200 * time.Millisecond,
-    MaxBackoff:     10 * time.Second,
-    RetryableStatuses: []int{
-        http.StatusRequestTimeout,
-        http.StatusTooManyRequests,
-        http.StatusServiceUnavailable,
-    },
-}
-
-client := httpclient.NewClientWithRetry("my-service", 10*time.Second, retryConfig)
 ```
 
 ## Error Handling

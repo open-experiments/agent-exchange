@@ -167,7 +167,7 @@ func (s *TokenService) GetTreasury() (*model.TreasuryResponse, error) {
 	}, nil
 }
 
-// GetAgentIDByTokenHash implements the AgentAuthenticator interface for auth middleware
+// GetAgentIDByTokenHash returns the agent ID that owns the given bearer-token hash
 func (s *TokenService) GetAgentIDByTokenHash(tokenHash string) (string, error) {
 	return s.store.GetAgentIDByTokenHash(tokenHash)
 }

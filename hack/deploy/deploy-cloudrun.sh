@@ -136,9 +136,11 @@ deploy_service() {
         aex-bid-evaluator)
             env_vars+=",BID_GATEWAY_URL=https://aex-bid-gateway-$PROJECT.run.app"
             env_vars+=",TRUST_BROKER_URL=https://aex-trust-broker-$PROJECT.run.app"
+            env_vars+=",WORK_PUBLISHER_URL=https://aex-work-publisher-$PROJECT.run.app"
             ;;
         aex-contract-engine)
             env_vars+=",BID_GATEWAY_URL=https://aex-bid-gateway-$PROJECT.run.app"
+            env_vars+=",WORK_PUBLISHER_URL=https://aex-work-publisher-$PROJECT.run.app"
             env_vars+=",SETTLEMENT_URL=https://aex-settlement-$PROJECT.run.app"
             ;;
     esac

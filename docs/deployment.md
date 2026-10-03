@@ -603,8 +603,8 @@ git push origin v1.0.0
 | `aex-gateway` | `WORK_PUBLISHER_URL`, `BID_GATEWAY_URL`, `PROVIDER_REGISTRY_URL`, `SETTLEMENT_URL`, `IDENTITY_URL` |
 | `aex-work-publisher` | `STORE_TYPE`, `PROVIDER_REGISTRY_URL` |
 | `aex-bid-gateway` | `PROVIDER_REGISTRY_URL` |
-| `aex-bid-evaluator` | `BID_GATEWAY_URL`, `TRUST_BROKER_URL` |
-| `aex-contract-engine` | `BID_GATEWAY_URL`, `SETTLEMENT_URL` |
+| `aex-bid-evaluator` | `BID_GATEWAY_URL`, `TRUST_BROKER_URL`, `WORK_PUBLISHER_URL` |
+| `aex-contract-engine` | `BID_GATEWAY_URL`, `WORK_PUBLISHER_URL`, `SETTLEMENT_URL` |
 
 ---
 

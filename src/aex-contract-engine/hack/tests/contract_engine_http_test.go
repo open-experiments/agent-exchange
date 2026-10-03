@@ -42,7 +42,7 @@ func TestAwardProgressCompleteFlow(t *testing.T) {
 	}))
 	t.Cleanup(bg.Close)
 
-	svc, err := cesvc.New(cestore.NewMemoryContractStore(), bg.URL)
+	svc, err := cesvc.New(cestore.NewMemoryContractStore(), bg.URL, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

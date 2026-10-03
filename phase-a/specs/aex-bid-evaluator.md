@@ -84,6 +84,19 @@ Gateway  Broker    Engine
 
 Evaluate bids for a work spec.
 
+When the request omits `budget.max_price`, the evaluator fetches the work spec
+from work-publisher (`GET /v1/work/{work_id}` on `WORK_PUBLISHER_URL`). The
+request may still carry `budget`, `constraints` and `description`; any field it
+sets overrides the fetched value, and a request that includes
+`budget.max_price` is evaluated without contacting work-publisher.
+
+| Condition | Response |
+|-----------|----------|
+| work-publisher returns 404 | `404 WORK_NOT_FOUND` |
+| work-publisher unreachable or other error | `502 BAD_GATEWAY` |
+| `WORK_PUBLISHER_URL` unset and no `budget.max_price` | `400 BAD_REQUEST` |
+| `budget.max_price` negative (checked before any fetch) | `400 BAD_REQUEST` |
+
 ```json
 // Request
 {

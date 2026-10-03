@@ -68,6 +68,10 @@ spec:
                 configMapKeyRef:
                   name: aex-config
                   key: ENVIRONMENT
+            # Comma-separated browser origins allowed by CORS; "*" allows any.
+            # Set the real UI origins in production.
+            - name: ALLOWED_ORIGINS
+              value: "*"
           resources:
             requests:
               cpu: 100m

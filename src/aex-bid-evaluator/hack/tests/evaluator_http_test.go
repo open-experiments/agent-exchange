@@ -59,7 +59,7 @@ func TestEvaluateOverHTTPUsingRealBidGatewayHTTP(t *testing.T) {
 	}))
 	t.Cleanup(bg.Close)
 
-	svc, err := evalsvc.New(bg.URL, "", "", evalstore.NewMemoryEvaluationStore())
+	svc, err := evalsvc.New(bg.URL, "", "", "", evalstore.NewMemoryEvaluationStore())
 	if err != nil {
 		t.Fatal(err)
 	}

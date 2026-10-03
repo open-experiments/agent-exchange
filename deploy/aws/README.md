@@ -229,8 +229,8 @@ Builds can be triggered:
 | aex-provider-registry | 8085 | MONGO_URI |
 | aex-work-publisher | 8081 | PROVIDER_REGISTRY_URL |
 | aex-bid-gateway | 8082 | PROVIDER_REGISTRY_URL |
-| aex-bid-evaluator | 8083 | BID_GATEWAY_URL, TRUST_BROKER_URL |
-| aex-contract-engine | 8084 | BID_GATEWAY_URL, WORK_PUBLISHER_URL |
+| aex-bid-evaluator | 8083 | BID_GATEWAY_URL, TRUST_BROKER_URL, WORK_PUBLISHER_URL |
+| aex-contract-engine | 8084 | BID_GATEWAY_URL, WORK_PUBLISHER_URL, SETTLEMENT_URL |
 | aex-settlement | 8086 | CONTRACT_ENGINE_URL, TRUST_BROKER_URL |
 | aex-trust-broker | 8088 | - |
 | aex-identity | 8089 | - |

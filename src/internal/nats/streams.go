@@ -109,37 +109,3 @@ func AllStreams(replicas int) []StreamDef {
 		},
 	}
 }
-
-// StreamForSubject returns the stream name that owns the given subject prefix.
-// Returns an empty string if no stream matches.
-func StreamForSubject(subject string) string {
-	// Match on the first token of the subject.
-	prefix := subject
-	for i, c := range subject {
-		if c == '.' {
-			prefix = subject[:i]
-			break
-		}
-	}
-
-	switch prefix {
-	case "work":
-		return "WORK"
-	case "bid", "bids":
-		return "BID"
-	case "contract":
-		return "CONTRACT"
-	case "settlement":
-		return "SETTLEMENT"
-	case "trust", "reputation":
-		return "TRUST"
-	case "certificate", "crl":
-		return "CERTIFICATE"
-	case "toolcall":
-		return "TOOLCALL"
-	case "deadletter":
-		return "DEADLETTER"
-	default:
-		return ""
-	}
-}

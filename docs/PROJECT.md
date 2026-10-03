@@ -673,8 +673,7 @@ agent-exchange/
 │       ├── httpclient/           # HTTP client + circuit breakers
 │       ├── telemetry/            # OpenTelemetry tracing + Prometheus
 │       ├── certauth/             # Certificate verification (shared)
-│       ├── ap2/                  # Agent Payments Protocol v2
-│       └── agentcard/            # Agent card resolution (A2A protocol)
+│       └── ap2/                  # Agent Payments Protocol v2
 ├── deploy/
 │   └── k8s/                      # Kubernetes manifests
 │       ├── base/                 # Kustomize base configuration

@@ -7,6 +7,8 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/parlakisik/agent-exchange/aex-work-publisher/internal/model"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type FirestoreStore struct {
@@ -36,6 +38,9 @@ func (s *FirestoreStore) SaveWork(ctx context.Context, work model.WorkSpec) erro
 func (s *FirestoreStore) GetWork(ctx context.Context, workID string) (model.WorkSpec, error) {
 	doc, err := s.client.Collection(s.collection).Doc(workID).Get(ctx)
 	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return model.WorkSpec{}, ErrWorkNotFound
+		}
 		return model.WorkSpec{}, fmt.Errorf("get work: %w", err)
 	}
 

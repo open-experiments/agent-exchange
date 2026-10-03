@@ -65,7 +65,6 @@ clean:
 # Run go mod tidy on all services
 tidy:
 	@echo "Running go mod tidy..."
-	@cd src/internal && go mod tidy
 	@for service in $(SERVICES); do \
 		if [ -f "src/$$service/go.mod" ]; then \
 			echo "Tidying $$service..."; \

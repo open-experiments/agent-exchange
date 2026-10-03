@@ -52,7 +52,7 @@ func (s *MongoWorkStore) GetWork(ctx context.Context, workID string) (model.Work
 	err := s.coll.FindOne(ctx, bson.M{"id": workID}).Decode(&work)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return model.WorkSpec{}, errors.New("work not found")
+			return model.WorkSpec{}, ErrWorkNotFound
 		}
 		return model.WorkSpec{}, err
 	}
@@ -74,8 +74,11 @@ func (s *MongoWorkStore) UpdateWork(ctx context.Context, work model.WorkSpec) er
 	if result.MatchedCount == 0 {
 		// Either not found or version mismatch
 		exists := s.coll.FindOne(ctx, bson.M{"id": work.ID})
-		if exists.Err() != nil {
-			return errors.New("work not found")
+		if err := exists.Err(); err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				return ErrWorkNotFound
+			}
+			return err
 		}
 		return ErrVersionConflict
 	}
