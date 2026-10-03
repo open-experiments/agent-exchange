@@ -119,53 +119,18 @@ func (c *Client) HealthCheck(ctx context.Context, url string) error {
 	return nil
 }
 
-// WaitForServices waits for all services to be healthy
-func (c *Client) WaitForServices(ctx context.Context, timeout time.Duration) error {
-	services := map[string]string{
-		"work-publisher":    c.urls.WorkPublisher,
-		"bid-gateway":       c.urls.BidGateway,
-		"bid-evaluator":     c.urls.BidEvaluator,
-		"contract-engine":   c.urls.ContractEngine,
-		"provider-registry": c.urls.ProviderRegistry,
-		"trust-broker":      c.urls.TrustBroker,
-		"identity":          c.urls.Identity,
-		"settlement":        c.urls.Settlement,
-	}
-
-	deadline := time.Now().Add(timeout)
-	for name, url := range services {
-		for {
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for %s", name)
-			}
-
-			err := c.HealthCheck(ctx, url)
-			if err == nil {
-				break
-			}
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(1 * time.Second):
-			}
-		}
-	}
-	return nil
-}
-
 // Work Publisher API
 
 type WorkSpec struct {
-	ID            string         `json:"work_id,omitempty"`
-	Category      string         `json:"category"`
-	Description   string         `json:"description"`
-	Payload       map[string]any `json:"payload,omitempty"`
-	Constraints   *Constraints   `json:"constraints,omitempty"`
-	Budget        *Budget        `json:"budget,omitempty"`
-	ConsumerID    string         `json:"consumer_id,omitempty"`
-	BidWindowMs   int64          `json:"bid_window_ms,omitempty"`
-	Status        string         `json:"status,omitempty"`
+	ID          string         `json:"work_id,omitempty"`
+	Category    string         `json:"category"`
+	Description string         `json:"description"`
+	Payload     map[string]any `json:"payload,omitempty"`
+	Constraints *Constraints   `json:"constraints,omitempty"`
+	Budget      *Budget        `json:"budget,omitempty"`
+	ConsumerID  string         `json:"consumer_id,omitempty"`
+	BidWindowMs int64          `json:"bid_window_ms,omitempty"`
+	Status      string         `json:"status,omitempty"`
 }
 
 type Constraints struct {
@@ -224,20 +189,20 @@ func (c *Client) CreateSubscription(ctx context.Context, sub *Subscription) (*Su
 // Bid Gateway API
 
 type Bid struct {
-	BidID            string            `json:"bid_id,omitempty"`
-	WorkID           string            `json:"work_id"`
-	ProviderID       string            `json:"provider_id,omitempty"`
-	Price            float64           `json:"price"`
+	BidID            string             `json:"bid_id,omitempty"`
+	WorkID           string             `json:"work_id"`
+	ProviderID       string             `json:"provider_id,omitempty"`
+	Price            float64            `json:"price"`
 	PriceBreakdown   map[string]float64 `json:"price_breakdown,omitempty"`
-	Confidence       float64           `json:"confidence,omitempty"`
-	Approach         string            `json:"approach,omitempty"`
-	EstimatedLatency int64             `json:"estimated_latency,omitempty"`
-	MVPSample        string            `json:"mvp_sample,omitempty"`
-	SLA              *SLA              `json:"sla,omitempty"`
-	A2AEndpoint      string            `json:"a2a_endpoint"`
-	ExpiresAt        string            `json:"expires_at"`
-	ReceivedAt       string            `json:"received_at,omitempty"`
-	Status           string            `json:"status,omitempty"`
+	Confidence       float64            `json:"confidence,omitempty"`
+	Approach         string             `json:"approach,omitempty"`
+	EstimatedLatency int64              `json:"estimated_latency,omitempty"`
+	MVPSample        string             `json:"mvp_sample,omitempty"`
+	SLA              *SLA               `json:"sla,omitempty"`
+	A2AEndpoint      string             `json:"a2a_endpoint"`
+	ExpiresAt        string             `json:"expires_at"`
+	ReceivedAt       string             `json:"received_at,omitempty"`
+	Status           string             `json:"status,omitempty"`
 }
 
 type SLA struct {
@@ -287,19 +252,12 @@ func (c *Client) SubmitBidWithAuth(ctx context.Context, providerAPIKey string, b
 	return &result, nil
 }
 
-// SubmitBid is deprecated - use SubmitBidWithAuth for proper authentication
-func (c *Client) SubmitBid(ctx context.Context, bid *Bid) (*Bid, error) {
-	var result Bid
-	err := c.JSON(ctx, http.MethodPost, c.urls.BidGateway+"/v1/bids", bid, &result)
-	return &result, err
-}
-
 // Bid Evaluator API
 
 type EvaluationRequest struct {
-	WorkID   string               `json:"work_id"`
-	Strategy string               `json:"strategy,omitempty"`
-	Budget   *EvaluationBudget    `json:"budget,omitempty"`
+	WorkID   string            `json:"work_id"`
+	Strategy string            `json:"strategy,omitempty"`
+	Budget   *EvaluationBudget `json:"budget,omitempty"`
 }
 
 type EvaluationBudget struct {
@@ -308,22 +266,22 @@ type EvaluationBudget struct {
 }
 
 type EvaluationResult struct {
-	ID               string           `json:"evaluation_id"`
-	WorkID           string           `json:"work_id"`
-	TotalBids        int              `json:"total_bids"`
-	ValidBids        int              `json:"valid_bids"`
-	RankedBids       []RankedBid      `json:"ranked_bids"`
+	ID               string            `json:"evaluation_id"`
+	WorkID           string            `json:"work_id"`
+	TotalBids        int               `json:"total_bids"`
+	ValidBids        int               `json:"valid_bids"`
+	RankedBids       []RankedBid       `json:"ranked_bids"`
 	DisqualifiedBids []DisqualifiedBid `json:"disqualified_bids,omitempty"`
-	EvaluatedAt      string           `json:"evaluated_at"`
+	EvaluatedAt      string            `json:"evaluated_at"`
 }
 
 type RankedBid struct {
-	Rank       int           `json:"rank"`
-	BidID      string        `json:"bid_id"`
-	ProviderID string        `json:"provider_id"`
-	Score      float64       `json:"total_score"`
+	Rank       int            `json:"rank"`
+	BidID      string         `json:"bid_id"`
+	ProviderID string         `json:"provider_id"`
+	Score      float64        `json:"total_score"`
 	Scores     BidScoreDetail `json:"scores"`
-	Price      float64       `json:"-"` // Not directly from API, computed if needed
+	Price      float64        `json:"-"` // Not directly from API, computed if needed
 }
 
 type BidScoreDetail struct {
@@ -503,15 +461,6 @@ func (c *Client) GetContract(ctx context.Context, contractID string) (*Contract,
 	var result Contract
 	err := c.JSON(ctx, http.MethodGet, c.urls.ContractEngine+"/v1/contracts/"+contractID, nil, &result)
 	return &result, err
-}
-
-// Deprecated methods kept for compatibility
-func (c *Client) UpdateProgress(ctx context.Context, req *ProgressRequest) error {
-	return fmt.Errorf("use UpdateProgressWithToken instead")
-}
-
-func (c *Client) CompleteContract(ctx context.Context, req *CompleteRequest) (*Contract, error) {
-	return nil, fmt.Errorf("use CompleteContractWithToken instead")
 }
 
 // Settlement API
@@ -788,8 +737,7 @@ func (c *Client) RequestWithStatus(ctx context.Context, method, url string, body
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, bodyBytes, nil
 }
-

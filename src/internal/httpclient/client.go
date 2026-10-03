@@ -113,31 +113,6 @@ func NewClient(serviceName string, timeout time.Duration) *Client {
 	}
 }
 
-// NewClientWithRetry creates a new HTTP client with custom retry config
-func NewClientWithRetry(serviceName string, timeout time.Duration, retryConfig RetryConfig) *Client {
-	cbCfg := DefaultCircuitBreakerConfig()
-	return &Client{
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		retryConfig: retryConfig,
-		serviceName: serviceName,
-		breaker:     newBreaker(serviceName, cbCfg),
-	}
-}
-
-// NewClientWithCircuitBreaker creates a new HTTP client with custom circuit breaker config
-func NewClientWithCircuitBreaker(serviceName string, timeout time.Duration, cbCfg CircuitBreakerConfig) *Client {
-	return &Client{
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		retryConfig: DefaultRetryConfig(),
-		serviceName: serviceName,
-		breaker:     newBreaker(serviceName, cbCfg),
-	}
-}
-
 // Do executes an HTTP request with circuit breaker and retry logic.
 // If the circuit breaker is open, it returns ErrCircuitOpen immediately
 // without attempting the request.

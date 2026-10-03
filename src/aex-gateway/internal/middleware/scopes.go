@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 )
 
@@ -113,16 +112,6 @@ func matchPrefix(path, prefix string) bool {
 		return true
 	}
 	return path[len(prefix)] == '/'
-}
-
-// Keys returns the map's entries sorted, for logs and docs.
-func (rs RouteScopes) Keys() []string {
-	keys := make([]string, 0, len(rs))
-	for k := range rs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // ScopeDecision is what the scope check decided for one request. Logging

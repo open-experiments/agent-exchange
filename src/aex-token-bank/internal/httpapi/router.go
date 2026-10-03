@@ -444,12 +444,6 @@ func (r *Router) getMyTransactionHistory(w http.ResponseWriter, req *http.Reques
 
 // getAuthenticatedAgentID extracts and validates the agent from the Bearer token
 func (r *Router) getAuthenticatedAgentID(req *http.Request) string {
-	// First check if already set in context (by middleware)
-	if agentID := GetAuthenticatedAgentID(req); agentID != "" {
-		return agentID
-	}
-
-	// Otherwise, try to extract from Authorization header directly
 	authHeader := req.Header.Get("Authorization")
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 		return ""
