@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -113,7 +114,7 @@ func (h *Handlers) ProcessDeposit(w http.ResponseWriter, r *http.Request) {
 	tx, err := h.svc.ProcessDeposit(r.Context(), req.TenantID, req.Amount)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "process deposit failed", "error", err)
-		if err == service.ErrInvalidAmount {
+		if errors.Is(err, service.ErrInvalidAmount) {
 			respondError(w, http.StatusBadRequest, "INVALID_AMOUNT", "invalid amount")
 			return
 		}
@@ -126,6 +127,16 @@ func (h *Handlers) ProcessDeposit(w http.ResponseWriter, r *http.Request) {
 
 // ProcessContractCompletion handles internal contract completion events
 // POST /internal/settlement/complete
+//
+// 200 {"status":"settled","charged":true,...}: the consumer was debited and the provider credited.
+// A success=true event for a contract recorded as success=false also settles this way.
+// 200 {"status":"recorded","charged":false,...}: success=false; recorded, no money moved.
+// 400: the event names no real consumer/provider or has an invalid price.
+// 402 CONSUMER_ACCOUNT_NOT_FOUND: the consumer has no balance account to debit.
+// 409 EXECUTION_EXISTS: the contract was already settled (money moved exactly once),
+// or success=false was repeated for a contract already recorded as failed.
+// 5xx: the settlement may be recorded but unfinished; the caller should retry,
+// and the settlement resumer finishes it regardless.
 func (h *Handlers) ProcessContractCompletion(w http.ResponseWriter, r *http.Request) {
 	var event model.ContractCompletedEvent
 	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
@@ -133,17 +144,34 @@ func (h *Handlers) ProcessContractCompletion(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := h.svc.ProcessContractCompletion(r.Context(), event); err != nil {
-		slog.ErrorContext(r.Context(), "process contract completion failed", "error", err)
-		if err == service.ErrExecutionExists {
+	result, err := h.svc.ProcessContractCompletion(r.Context(), event)
+	if err != nil {
+		var validationErr *service.ValidationError
+		switch {
+		case errors.As(err, &validationErr):
+			slog.WarnContext(r.Context(), "contract completion rejected",
+				"contract_id", event.ContractID,
+				"code", validationErr.Code,
+				"error", err,
+			)
+			respondError(w, http.StatusBadRequest, validationErr.Code, validationErr.Message)
+		case errors.Is(err, service.ErrExecutionExists):
+			slog.InfoContext(r.Context(), "contract already settled", "contract_id", event.ContractID)
 			respondError(w, http.StatusConflict, "EXECUTION_EXISTS", "execution already recorded")
-			return
+		case errors.Is(err, service.ErrConsumerAccountNotFound):
+			slog.WarnContext(r.Context(), "contract completion rejected: consumer has no balance account",
+				"contract_id", event.ContractID,
+				"consumer_id", event.ConsumerID,
+			)
+			respondError(w, http.StatusPaymentRequired, "CONSUMER_ACCOUNT_NOT_FOUND", "consumer has no balance account to debit")
+		default:
+			slog.ErrorContext(r.Context(), "process contract completion failed", "error", err)
+			respondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal error")
 		}
-		respondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal error")
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"status": "settled"})
+	respondJSON(w, http.StatusOK, result)
 }
 
 // Health check

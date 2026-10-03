@@ -304,6 +304,118 @@ SELECT balance FROM tenant_balances WHERE tenant_id = $1 FOR UPDATE
 }
 ```
 
+### Implemented Settlement (MongoDB)
+
+The running service stores data in MongoDB rather than PostgreSQL. The local,
+demo and ECS stacks run a standalone `mongod`, and standalone MongoDB has no
+multi-document transactions. Only the k8s StatefulSet is a replica set. For that
+reason, settlement does not depend on transactions. It uses a status-driven,
+idempotent sequence that behaves the same on every topology and in the
+in-memory store.
+
+`POST /internal/settlement/complete` (sent by `aex-contract-engine` for
+`contract.completed`):
+
+1. **Normalize and validate.** The service trims `contract_id`,
+   `consumer_id` and `provider_id` once and uses the trimmed values for
+   everything it stores and charges. It rejects the event with `400` when
+   `contract_id` is empty (`CONTRACT_ID_REQUIRED`), when `consumer_id` is empty
+   or `"unknown"` (`INVALID_CONSUMER_ID`), when `provider_id` is empty
+   (`PROVIDER_ID_REQUIRED`), or when `agreed_price` is not a non-negative
+   decimal (`INVALID_AGREED_PRICE`). From here on the work runs on a context
+   detached from the request (30s timeout), so a caller that disconnects
+   cannot abandon a settlement halfway.
+2. **Look up `contract_id`.** If the lookup fails, the service returns `500`.
+   A failed lookup is never read as "not settled". If an execution exists:
+   - `PENDING`: the service resumes it (step 5).
+   - `FAILED` with `charged=false` (an earlier `success=false`) and this event
+     has `success=true`: the service upgrades it. It checks the consumer
+     account (step 3), then replaces the execution, keeping its ID, with a
+     `PENDING`, charged one. The replace only matches while the stored
+     execution is still an uncharged failure, so of several concurrent
+     upgrades exactly one wins and the rest re-read and resume or return 409.
+     Executions recorded before `settlement_status` existed always have
+     `status=COMPLETED`, so they are never upgraded.
+   - Otherwise (`SETTLED`, or a repeated `success=false` on a `FAILED`
+     execution): `409 EXECUTION_EXISTS`.
+3. **Consumer account.** A successful completion is settled only against a
+   consumer that has a balance account, which is created by its first deposit.
+   Otherwise the service returns `402 CONSUMER_ACCOUNT_NOT_FOUND`, records
+   nothing and moves no money. Once the consumer deposits, the same event
+   settles.
+4. **Record.** The service inserts the execution. The unique index on
+   `executions.contract_id` makes this one-per-contract, and a duplicate-key
+   error surfaces as `ErrExecutionExists`. A request that loses the insert race
+   reads the winner's execution and handles it as in step 2.
+   - When `success=false`, the execution is recorded with `status=FAILED`,
+     `settlement_status=SETTLED` and `charged=false`. Nothing is debited or
+     credited. Response: `200 {"status":"recorded","charged":false,...}`.
+   - When `success=true`, the execution is recorded with
+     `settlement_status=PENDING`, `pending_since` and `charged=true`, before
+     any call to a payment agent.
+5. **Payment step, once.** Unless `payment_recorded` is set, the service
+   requests payment provider bids and runs AP2 (both bounded to 5s; a failure
+   falls back to internal settlement, as before) and stores the outcome with a
+   compare-and-set on `payment_recorded`. Every runner continues with the
+   first stored outcome, and a resumed settlement does not repeat the step.
+   Bids and AP2 here are quotes and mock mandates; two runners racing on the
+   very first attempt can both call them, but only one outcome is kept.
+6. **Move money idempotently.** The service applies the consumer debit (op
+   `<contract_id>:debit`, never creates an account) and the provider credit
+   (op `<contract_id>:credit`, creates the provider account on first payout).
+   Each op is one atomic single-document update on `tenant_balances`. The
+   update changes `balance` and records the op ID in `settlement_ops`, and it
+   only matches while the op ID is not yet recorded. The same update drops
+   recorded ops older than the retention window (`SETTLEMENT_OP_RETENTION`,
+   default 30 days). Ops are trimmed by age, not count, so a busy tenant can
+   never push out the op of a settlement that is still `PENDING`. Each ledger
+   entry has the ID `ledger_<op id>`, and a duplicate means it was already
+   written.
+7. **Mark `SETTLED`.** This is a compare-and-set from `PENDING`. Only the
+   runner that makes the transition publishes `settlement.completed`.
+   Response: `200
+   {"status":"settled","charged":true,"execution_id":...,"contract_id":...}`.
+
+If any step after 4 fails, the service returns `500`. A retry, or the
+resumer, completes the remaining steps without repeating the finished ones.
+As a result, `409` always means the money moved exactly once (or the failure
+was already recorded), and the contract engine treats it as success.
+Executions recorded before `settlement_status` existed have no value for it
+and are treated as `SETTLED`.
+
+#### Settlement resumer
+
+Each replica runs a resumer, once at startup and then every
+`SETTLEMENT_RESUME_INTERVAL` (default `30s`). It lists `PENDING` executions
+whose `pending_since` is older than `SETTLEMENT_RESUME_GRACE` (default `1m`)
+through a partial index on `pending_since` (`settlement_status: PENDING`), up
+to 100 per scan, oldest first. It drives each one through steps 5 to 7 with
+the same code as the request path. Every step is idempotent or a
+compare-and-set, so the resumer is safe to run alongside request retries and
+on several replicas at once; no step assumes it is the only runner. An
+execution that has been `PENDING` for longer than
+`SETTLEMENT_PENDING_ALERT_AGE` (default `15m`) is logged at `ERROR`
+(`settlement_pending_overdue`) on every scan until it settles.
+
+A `PENDING` execution is replayed only while it has been pending for at most
+half of `SETTLEMENT_OP_RETENTION`. Its ops were applied after
+`pending_since`, so they are still remembered when the replay runs. An older
+execution is refused (`ErrSettlementTooOld`, logged at `ERROR` as
+`settlement_pending_too_old_to_replay`) and must be reconciled by hand.
+Replaying it automatically could debit the consumer twice. With the default
+settings the resumer settles executions within minutes, so this only happens
+after the service has been unable to settle for about two weeks.
+
+Retention trades memory for safety. `settlement_ops` holds one entry (about
+80 bytes) per settlement op in the window, so a tenant with very high volume
+should use a shorter `SETTLEMENT_OP_RETENTION`, which must stay at least
+twice the longest time an execution may wait to be resumed.
+
+Consumer balances may still go negative, because only the account's
+existence is enforced. Deposits create the account (upsert) and use a
+transaction when the deployment supports one. The service refuses to start if
+it cannot create the unique `contract_id` index.
+
 ## Event Handling
 
 ### Consumed Events
@@ -529,6 +641,12 @@ PUBSUB_SUBSCRIPTION_CONTRACT_FAILED=aex-settlement-contract-failed-sub
 
 # Business
 PLATFORM_FEE_RATE=0.15
+
+# Settlement resumer (Go durations)
+SETTLEMENT_RESUME_INTERVAL=30s     # how often PENDING executions are scanned
+SETTLEMENT_RESUME_GRACE=1m         # minimum PENDING age before the resumer acts
+SETTLEMENT_PENDING_ALERT_AGE=15m   # PENDING longer than this logs ERROR
+SETTLEMENT_OP_RETENTION=720h       # how long applied balance op IDs are kept
 
 # Observability
 LOG_LEVEL=info

@@ -69,7 +69,9 @@ func main() {
 	var mongoClient *mongo.Client
 
 	if cfg.StoreType == "memory" {
-		settlementStore = store.NewMemoryStore()
+		memoryStore := store.NewMemoryStore()
+		memoryStore.SetBalanceOpRetention(cfg.BalanceOpRetention)
+		settlementStore = memoryStore
 		slog.Info("using in-memory store")
 	} else {
 		// Connect to MongoDB
@@ -91,8 +93,12 @@ func main() {
 
 		// Initialize store
 		mongoStore := store.NewMongoSettlementStore(mongoClient, cfg.MongoDB)
+		mongoStore.SetBalanceOpRetention(cfg.BalanceOpRetention)
+		// The unique contract_id index is what makes settlement idempotent;
+		// refuse to serve without it.
 		if err := mongoStore.EnsureIndexes(ctx); err != nil {
-			slog.Warn("failed to create indexes", "error", err)
+			slog.Error("failed to create indexes", "error", err)
+			os.Exit(1)
 		}
 		settlementStore = mongoStore
 		slog.Info("using mongodb store", "uri", cfg.MongoURI, "db", cfg.MongoDB)
@@ -138,6 +144,20 @@ func main() {
 	// Initialize service
 	svc := service.New(settlementStore, publisher)
 
+	// Resume settlements a request left PENDING (crash, store error,
+	// timeout). Safe on every replica: all settlement steps are idempotent.
+	resumer := service.NewResumer(svc, service.ResumerConfig{
+		Interval: cfg.ResumeInterval,
+		Grace:    cfg.ResumeGrace,
+		AlertAge: cfg.PendingAlertAge,
+	})
+	resumerCtx, stopResumer := context.WithCancel(context.Background())
+	resumerDone := make(chan struct{})
+	go func() {
+		defer close(resumerDone)
+		resumer.Run(resumerCtx)
+	}()
+
 	// Setup HTTP router
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.NewRouter(svc))
@@ -178,6 +198,9 @@ func main() {
 		slog.Error("server forced to shutdown", "error", err)
 		os.Exit(1)
 	}
+
+	stopResumer()
+	<-resumerDone
 
 	slog.Info("server stopped")
 }
