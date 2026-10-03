@@ -2,6 +2,8 @@ package clients
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"time"
 
 	"github.com/parlakisik/agent-exchange/internal/httpclient"
@@ -34,7 +36,9 @@ func NewSettlementClient(baseURL string) *SettlementClient {
 	}
 }
 
-// ProcessContractCompletion sends contract completion to settlement service
+// ProcessContractCompletion sends contract completion to settlement service.
+// Settlement answers 409 EXECUTION_EXISTS when the contract was already
+// settled; that is treated as success so repeated notifications are idempotent.
 func (c *SettlementClient) ProcessContractCompletion(ctx context.Context, event ContractCompletedEvent) error {
 	var response struct {
 		Status string `json:"status"`
@@ -46,5 +50,9 @@ func (c *SettlementClient) ProcessContractCompletion(ctx context.Context, event 
 		Context(ctx).
 		ExecuteJSON(c.client, &response)
 
+	var httpErr *httpclient.HTTPError
+	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusConflict {
+		return nil
+	}
 	return err
 }

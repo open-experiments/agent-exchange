@@ -33,6 +33,16 @@ spec:
                 configMapKeyRef:
                   name: aex-config
                   key: BID_GATEWAY_URL
+            - name: WORK_PUBLISHER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: aex-config
+                  key: WORK_PUBLISHER_URL
+            - name: SETTLEMENT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: aex-config
+                  key: SETTLEMENT_URL
             - name: MONGO_URI
               valueFrom:
                 secretKeyRef:

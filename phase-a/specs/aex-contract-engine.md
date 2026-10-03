@@ -52,6 +52,12 @@ After contract award, **AEX exits the execution path**. The consumer communicate
 
 Award contract to a bid (can be auto or consumer-selected).
 
+The contract's `consumer_id` is looked up from work-publisher
+(`GET /v1/work/{work_id}` on `WORK_PUBLISHER_URL`). If `WORK_PUBLISHER_URL` is
+unset or the lookup fails, the award still succeeds, the contract records
+`consumer_id: "unknown"` and a WARN is logged; such contracts are never sent to
+settlement.
+
 ```json
 // Request
 {
@@ -126,6 +132,12 @@ Authorization: Bearer {execution_token}
 #### POST /v1/contracts/{contract_id}/complete
 
 Provider reports task completion with outcome.
+
+Only contracts in `AWARDED` or `EXECUTING` can be completed; any other status
+returns `409 INVALID_CONTRACT_STATE` and leaves the stored outcome unchanged.
+Settlement (`SETTLEMENT_URL`) is notified only when `success` is true and the
+contract has a known `consumer_id`; otherwise the contract is still completed
+and `settlement_initiated` is `false`.
 
 ```json
 // Headers
@@ -422,6 +434,7 @@ FIRESTORE_COLLECTION_CONTRACTS=contracts
 # Service URLs
 WORK_PUBLISHER_URL=https://aex-work-publisher-xxx.run.app
 BID_GATEWAY_URL=https://aex-bid-gateway-xxx.run.app
+SETTLEMENT_URL=https://aex-settlement-xxx.run.app
 
 # Pub/Sub
 PUBSUB_PROJECT_ID=aex-prod
