@@ -34,6 +34,7 @@ services:
       WORK_PUBLISHER_URL: "http://aex-work-publisher:8080"
       SETTLEMENT_URL: "http://aex-settlement:8080"
       BID_EVALUATOR_URL: "http://aex-bid-evaluator:8080"
+      ALLOWED_ORIGINS: "*"
     ports:
       - "8080:8080"
     depends_on:
