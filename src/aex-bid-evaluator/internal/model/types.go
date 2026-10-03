@@ -80,7 +80,8 @@ type BidEvaluation struct {
 type EvaluateRequest struct {
 	WorkID string `json:"work_id"`
 
-	// Optional override if you don't have a work-publisher yet.
+	// Optional overrides. When budget.max_price is absent the work spec is
+	// fetched from work-publisher; any field set here wins over the fetched one.
 	Budget      *WorkBudget      `json:"budget,omitempty"`
 	Constraints *WorkConstraints `json:"constraints,omitempty"`
 	Description *string          `json:"description,omitempty"`

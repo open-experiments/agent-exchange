@@ -17,25 +17,31 @@ import (
 	"github.com/parlakisik/agent-exchange/aex-bid-evaluator/internal/clients"
 	"github.com/parlakisik/agent-exchange/aex-bid-evaluator/internal/model"
 	"github.com/parlakisik/agent-exchange/aex-bid-evaluator/internal/store"
+	"github.com/parlakisik/agent-exchange/internal/httpclient"
 )
 
 type Service struct {
-	bidGateway  *clients.BidGatewayClient
-	trustBroker *clients.TrustBrokerClient
-	certAuth    *clients.CertAuthClient
-	store       store.EvaluationStore
+	bidGateway    *clients.BidGatewayClient
+	trustBroker   *clients.TrustBrokerClient
+	certAuth      *clients.CertAuthClient
+	workPublisher *clients.WorkPublisherClient // nil when WORK_PUBLISHER_URL is unset
+	store         store.EvaluationStore
 }
 
-func New(bidGatewayURL string, trustBrokerURL string, certAuthURL string, st store.EvaluationStore) (*Service, error) {
+func New(bidGatewayURL string, trustBrokerURL string, certAuthURL string, workPublisherURL string, st store.EvaluationStore) (*Service, error) {
 	if strings.TrimSpace(bidGatewayURL) == "" {
 		return nil, errors.New("BID_GATEWAY_URL is required")
 	}
-	return &Service{
+	svc := &Service{
 		bidGateway:  clients.NewBidGatewayClient(bidGatewayURL),
 		trustBroker: clients.NewTrustBrokerClient(trustBrokerURL),
 		certAuth:    clients.NewCertAuthClient(certAuthURL),
 		store:       st,
-	}, nil
+	}
+	if strings.TrimSpace(workPublisherURL) != "" {
+		svc.workPublisher = clients.NewWorkPublisherClient(workPublisherURL)
+	}
+	return svc, nil
 }
 
 func (s *Service) HandleEvaluate(w http.ResponseWriter, r *http.Request) {
@@ -57,23 +63,45 @@ func (s *Service) HandleEvaluate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "WORK_ID_REQUIRED", "work_id is required")
 		return
 	}
+	if req.Budget != nil && req.Budget.MaxPrice < 0 {
+		respondError(w, http.StatusBadRequest, "BAD_REQUEST", "budget.max_price must not be negative")
+		return
+	}
 
 	work := model.WorkSpec{
 		WorkID:      req.WorkID,
 		Budget:      model.WorkBudget{MaxPrice: 0, BidStrategy: "balanced"},
 		Constraints: model.WorkConstraints{},
 	}
-	if req.Budget != nil {
-		work.Budget = *req.Budget
+
+	// Callers that supply budget.max_price keep the request-only path. Otherwise
+	// (absent or 0) the work spec is fetched from work-publisher and request
+	// fields override it.
+	if (req.Budget == nil || req.Budget.MaxPrice == 0) && s.workPublisher != nil {
+		fetched, err := s.workPublisher.GetWork(ctx, req.WorkID)
+		if err != nil {
+			var httpErr *httpclient.HTTPError
+			if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+				respondError(w, http.StatusNotFound, "WORK_NOT_FOUND", "work not found")
+				return
+			}
+			slog.ErrorContext(ctx, "failed to fetch work from work-publisher",
+				"work_id", req.WorkID,
+				"error", err,
+			)
+			respondError(w, http.StatusBadGateway, "BAD_GATEWAY", "failed to fetch work")
+			return
+		}
+		work = workSpecFromPublisher(req.WorkID, fetched)
 	}
-	if req.Constraints != nil {
-		work.Constraints = *req.Constraints
-	}
-	if req.Description != nil {
-		work.Description = *req.Description
-	}
+	applyRequestOverrides(&work, req)
+
 	if work.Budget.MaxPrice <= 0 {
-		respondError(w, http.StatusBadRequest, "BAD_REQUEST", "budget.max_price is required (work-publisher not integrated yet)")
+		msg := "budget.max_price is required"
+		if s.workPublisher == nil {
+			msg = "budget.max_price is required when WORK_PUBLISHER_URL is not configured"
+		}
+		respondError(w, http.StatusBadRequest, "BAD_REQUEST", msg)
 		return
 	}
 
@@ -83,6 +111,46 @@ func (s *Service) HandleEvaluate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, ev)
+}
+
+// workSpecFromPublisher converts a work-publisher work spec into the subset
+// the evaluator scores against.
+func workSpecFromPublisher(workID string, w *clients.WorkSpec) model.WorkSpec {
+	strategy := w.Budget.BidStrategy
+	if strategy == "" {
+		strategy = "balanced"
+	}
+	return model.WorkSpec{
+		WorkID: workID,
+		Budget: model.WorkBudget{
+			MaxPrice:    w.Budget.MaxPrice,
+			BidStrategy: strategy,
+		},
+		Constraints: model.WorkConstraints{
+			MaxLatencyMs: w.Constraints.MaxLatencyMs,
+		},
+		Description: w.Description,
+	}
+}
+
+// applyRequestOverrides lets explicit request fields win over the base work
+// spec. A supplied budget replaces max_price/bid_strategy only where the
+// request sets them, so a caller may override just the strategy.
+func applyRequestOverrides(work *model.WorkSpec, req model.EvaluateRequest) {
+	if req.Budget != nil {
+		if req.Budget.MaxPrice > 0 {
+			work.Budget.MaxPrice = req.Budget.MaxPrice
+		}
+		if req.Budget.BidStrategy != "" {
+			work.Budget.BidStrategy = req.Budget.BidStrategy
+		}
+	}
+	if req.Constraints != nil {
+		work.Constraints = *req.Constraints
+	}
+	if req.Description != nil {
+		work.Description = *req.Description
+	}
 }
 
 func (s *Service) evaluate(ctx context.Context, work model.WorkSpec) (model.BidEvaluation, error) {

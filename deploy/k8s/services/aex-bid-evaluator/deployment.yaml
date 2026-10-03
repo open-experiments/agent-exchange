@@ -38,6 +38,11 @@ spec:
                 configMapKeyRef:
                   name: aex-config
                   key: TRUST_BROKER_URL
+            - name: WORK_PUBLISHER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: aex-config
+                  key: WORK_PUBLISHER_URL
             - name: MONGO_URI
               valueFrom:
                 secretKeyRef:
