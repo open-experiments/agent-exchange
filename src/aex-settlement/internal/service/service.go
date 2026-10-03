@@ -273,14 +273,6 @@ func (s *Service) processAP2Payment(ctx context.Context, event model.ContractCom
 	return ap2Result, nil
 }
 
-// GetPaymentMethods returns available AP2 payment methods for a user
-func (s *Service) GetPaymentMethods(ctx context.Context, userID string) ([]ap2.PaymentMethod, error) {
-	if !s.ap2Enabled {
-		return nil, fmt.Errorf("AP2 is not enabled")
-	}
-	return s.ap2Handler.GetPaymentMethods(ctx, userID)
-}
-
 // decimalToCents converts a decimal string (e.g. "12.50") to cents (e.g. 1250).
 // Uses shopspring/decimal for precise conversion then truncates to int64.
 func decimalToCents(amount string) (int64, error) {
@@ -552,18 +544,4 @@ func (s *Service) detectWorkCategory(domain, description string) string {
 
 	// Default to general legal
 	return "legal_research"
-}
-
-// GetPaymentProviderBids returns payment provider bids for a given request
-func (s *Service) GetPaymentProviderBids(ctx context.Context, req model.PaymentBidRequest) (model.PaymentProviderSelection, error) {
-	bids, err := s.paymentProvider.GetPaymentBids(ctx, req)
-	if err != nil {
-		return model.PaymentProviderSelection{}, err
-	}
-
-	// Select best provider
-	selection := s.paymentProvider.SelectBestProvider(bids, "lowest_fee")
-	selection.WorkCategory = req.WorkCategory
-
-	return selection, nil
 }

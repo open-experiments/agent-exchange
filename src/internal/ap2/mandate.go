@@ -157,42 +157,6 @@ func (g *MandateGenerator) generateMerchantAuthorization(merchantID, cartHash st
 	return hex.EncodeToString(data)
 }
 
-// ValidateCartMandate validates a cart mandate's signature and expiry.
-func (g *MandateGenerator) ValidateCartMandate(cart *CartMandate) error {
-	if cart == nil {
-		return fmt.Errorf("cart mandate is nil")
-	}
-
-	// Check expiry
-	if time.Now().After(cart.Contents.CartExpiry) {
-		return fmt.Errorf("cart mandate has expired")
-	}
-
-	// Verify hash (simplified)
-	if cart.MerchantAuthorization == "" {
-		return fmt.Errorf("missing merchant authorization")
-	}
-
-	return nil
-}
-
-// ValidatePaymentMandate validates a payment mandate.
-func (g *MandateGenerator) ValidatePaymentMandate(mandate *PaymentMandate) error {
-	if mandate == nil {
-		return fmt.Errorf("payment mandate is nil")
-	}
-
-	if mandate.PaymentMandateContents.PaymentMandateID == "" {
-		return fmt.Errorf("missing payment mandate ID")
-	}
-
-	if mandate.PaymentMandateContents.PaymentDetailsTotal.Amount.Value <= 0 {
-		return fmt.Errorf("invalid payment amount")
-	}
-
-	return nil
-}
-
 // generateRandomID creates a random hex ID.
 func generateRandomID() string {
 	var b [8]byte
