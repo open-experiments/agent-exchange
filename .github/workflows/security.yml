@@ -39,6 +39,9 @@ jobs:
           - aex-settlement
           - aex-certauth
           - aex-toolgate
+          - aex-credentials-provider
+          - aex-telemetry
+          - aex-token-bank
     steps:
       - uses: actions/checkout@v7
 
@@ -73,6 +76,9 @@ jobs:
           - aex-settlement
           - aex-certauth
           - aex-toolgate
+          - aex-credentials-provider
+          - aex-telemetry
+          - aex-token-bank
     steps:
       - uses: actions/checkout@v7
 
