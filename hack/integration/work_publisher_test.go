@@ -308,6 +308,8 @@ func TestWorkCancellation(t *testing.T) {
 	ctx := context.Background()
 	timestamp := time.Now().UnixNano()
 
+	consumerID := fmt.Sprintf("cancel-consumer-%d", timestamp)
+
 	// Submit work
 	work, err := c.SubmitWork(ctx, &WorkSpec{
 		Category:    "cancellation-test",
@@ -316,7 +318,7 @@ func TestWorkCancellation(t *testing.T) {
 		Budget: &Budget{
 			MaxPrice: 10.00,
 		},
-		ConsumerID:  fmt.Sprintf("cancel-consumer-%d", timestamp),
+		ConsumerID:  consumerID,
 		BidWindowMs: 300000,
 	})
 	if err != nil {
@@ -328,7 +330,7 @@ func TestWorkCancellation(t *testing.T) {
 	}
 
 	// Try to cancel
-	cancelledWork, err := c.CancelWork(ctx, work.ID)
+	cancelledWork, err := c.CancelWork(ctx, work.ID, consumerID)
 	if err != nil {
 		t.Logf("Cancel work not implemented or failed: %v", err)
 	} else if cancelledWork != nil {

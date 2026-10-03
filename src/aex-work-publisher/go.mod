@@ -12,6 +12,7 @@ require (
 	github.com/parlakisik/agent-exchange/internal/telemetry v0.0.0
 	go.mongodb.org/mongo-driver v1.17.7
 	google.golang.org/api v0.275.0
+	google.golang.org/grpc v1.83.2
 )
 
 replace (
@@ -75,6 +76,5 @@ require (
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d // indirect
-	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
