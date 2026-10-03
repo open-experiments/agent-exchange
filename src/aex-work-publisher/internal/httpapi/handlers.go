@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -24,11 +25,9 @@ func NewHandlers(svc *service.Service) *Handlers {
 func (h *Handlers) HandleSubmitWork(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// In production, extract from JWT token
-	// For now, use header or query param
-	consumerID := r.Header.Get("X-Consumer-ID")
-	if consumerID == "" {
-		consumerID = "default_consumer" // TODO: Replace with actual auth
+	consumerID, ok := requireConsumerID(w, r)
+	if !ok {
+		return
 	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB limit
@@ -46,6 +45,10 @@ func (h *Handlers) HandleSubmitWork(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.svc.PublishWork(ctx, consumerID, req)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidWorkSpec) {
+			respondError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+			return
+		}
 		slog.ErrorContext(ctx, "failed to publish work", "error", err)
 		respondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to publish work")
 		return
@@ -66,7 +69,7 @@ func (h *Handlers) HandleGetWork(w http.ResponseWriter, r *http.Request) {
 
 	work, err := h.svc.GetWork(ctx, workID)
 	if err != nil {
-		if err == service.ErrWorkNotFound {
+		if errors.Is(err, service.ErrWorkNotFound) {
 			respondError(w, http.StatusNotFound, "NOT_FOUND", "work not found")
 			return
 		}
@@ -82,9 +85,9 @@ func (h *Handlers) HandleGetWork(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) HandleCancelWork(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	consumerID := r.Header.Get("X-Consumer-ID")
-	if consumerID == "" {
-		consumerID = "default_consumer" // TODO: Replace with actual auth
+	consumerID, ok := requireConsumerID(w, r)
+	if !ok {
+		return
 	}
 
 	workID := extractWorkID(r.URL.Path)
@@ -95,12 +98,17 @@ func (h *Handlers) HandleCancelWork(w http.ResponseWriter, r *http.Request) {
 
 	work, err := h.svc.CancelWork(ctx, workID, consumerID)
 	if err != nil {
-		if err == service.ErrWorkNotFound {
+		switch {
+		case errors.Is(err, service.ErrWorkNotFound):
 			respondError(w, http.StatusNotFound, "NOT_FOUND", "work not found")
-			return
+		case errors.Is(err, service.ErrNotAuthorized),
+			errors.Is(err, service.ErrInvalidState),
+			errors.Is(err, service.ErrVersionConflict):
+			respondError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		default:
+			slog.ErrorContext(ctx, "failed to cancel work", "error", err)
+			respondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to cancel work")
 		}
-		slog.ErrorContext(ctx, "failed to cancel work", "error", err)
-		respondError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
 
@@ -155,6 +163,25 @@ func (h *Handlers) HandleCloseBidWindow(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// requireConsumerID resolves the consumer that owns the request. The gateway
+// authenticates the caller and sets X-Tenant-ID to the validated tenant,
+// overwriting anything the client sent, so it takes precedence. X-Consumer-ID
+// is accepted for direct service-to-service calls that bypass the gateway.
+// A request with neither is rejected with 401: the consumer is the tenant that
+// settlement charges, so there is no safe default.
+func requireConsumerID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	consumerID := strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
+	if consumerID == "" {
+		consumerID = strings.TrimSpace(r.Header.Get("X-Consumer-ID"))
+	}
+	if consumerID == "" {
+		respondError(w, http.StatusUnauthorized, "CONSUMER_ID_REQUIRED",
+			"consumer identity is required (X-Tenant-ID or X-Consumer-ID header)")
+		return "", false
+	}
+	return consumerID, true
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/parlakisik/agent-exchange/aex-work-publisher/internal/model"
@@ -114,10 +115,33 @@ func TestGetWork(t *testing.T) {
 
 	t.Run("get non-existent work", func(t *testing.T) {
 		_, err := svc.GetWork(ctx, "work_nonexistent")
-		if err == nil {
-			t.Error("GetWork() expected error for non-existent work, got nil")
+		if !errors.Is(err, ErrWorkNotFound) {
+			t.Errorf("GetWork() error = %v, want ErrWorkNotFound", err)
 		}
 	})
+
+	t.Run("store failure is not reported as not found", func(t *testing.T) {
+		storeErr := errors.New("connection refused")
+		failing := New(failingGetStore{MemoryStore: store.NewMemoryStore(), err: storeErr}, "", nil)
+
+		_, err := failing.GetWork(ctx, "work_any")
+		if errors.Is(err, ErrWorkNotFound) {
+			t.Fatalf("GetWork() error = %v, must not be ErrWorkNotFound", err)
+		}
+		if !errors.Is(err, storeErr) {
+			t.Errorf("GetWork() error = %v, want it to wrap %v", err, storeErr)
+		}
+	})
+}
+
+// failingGetStore is a WorkStore whose reads fail with a non-not-found error.
+type failingGetStore struct {
+	*store.MemoryStore
+	err error
+}
+
+func (s failingGetStore) GetWork(context.Context, string) (model.WorkSpec, error) {
+	return model.WorkSpec{}, s.err
 }
 
 func TestCancelWork(t *testing.T) {
@@ -152,8 +176,8 @@ func TestCancelWork(t *testing.T) {
 
 	t.Run("cancel non-existent work", func(t *testing.T) {
 		_, err := svc.CancelWork(ctx, "work_nonexistent", "tenant_001")
-		if err == nil {
-			t.Error("CancelWork() expected error for non-existent work, got nil")
+		if !errors.Is(err, ErrWorkNotFound) {
+			t.Errorf("CancelWork() error = %v, want ErrWorkNotFound", err)
 		}
 	})
 }

@@ -14,6 +14,9 @@ AEX_GATEWAY_URL = os.environ.get("AEX_GATEWAY_URL", "http://localhost:8080")
 AEX_SETTLEMENT_URL = os.environ.get("AEX_SETTLEMENT_URL", "http://localhost:8088")
 AEX_PROVIDER_REGISTRY_URL = os.environ.get("AEX_PROVIDER_REGISTRY_URL", "http://localhost:8085")
 AEX_WORK_PUBLISHER_URL = os.environ.get("AEX_WORK_PUBLISHER_URL", "http://localhost:8081")
+# The demo consumer. Work-publisher takes the consumer identity from the
+# X-Consumer-ID header on direct (non-gateway) calls.
+DEMO_CONSUMER_ID = "consumer-demo-001"
 AEX_BID_GATEWAY_URL = os.environ.get("AEX_BID_GATEWAY_URL", "http://localhost:8082")
 AEX_CONTRACT_ENGINE_URL = os.environ.get("AEX_CONTRACT_ENGINE_URL", "http://localhost:8084")
 LEGAL_AGENT_A_URL = os.environ.get("LEGAL_AGENT_A_URL", "http://localhost:8100")
@@ -228,7 +231,7 @@ def publish_work_to_aex(description: str, document_pages: int, max_budget: float
     """Publish work request to AEX Work Publisher service."""
     try:
         payload = {
-            "consumer_id": "consumer-demo-001",
+            "consumer_id": DEMO_CONSUMER_ID,
             "category": "legal/contract_review",
             "description": description,
             "constraints": {
@@ -248,7 +251,11 @@ def publish_work_to_aex(description: str, document_pages: int, max_budget: float
             },
         }
         with httpx.Client(timeout=10.0) as client:
-            resp = client.post(f"{AEX_WORK_PUBLISHER_URL}/v1/work", json=payload)
+            resp = client.post(
+                f"{AEX_WORK_PUBLISHER_URL}/v1/work",
+                json=payload,
+                headers={"X-Consumer-ID": DEMO_CONSUMER_ID},
+            )
             if resp.status_code in [200, 201]:
                 return resp.json()
             print(f"Work Publisher returned {resp.status_code}: {resp.text}")
@@ -438,37 +445,6 @@ def select_best_payment_provider(bids: list[dict]) -> dict:
     if not bids:
         return {}
     return min(bids, key=lambda b: b.get("net_fee_percent", 100))
-
-
-def process_settlement_via_aex(contract_id: str, consumer_id: str, provider_id: str,
-                                agreed_price: float, use_ap2: bool = True) -> dict:
-    """Process settlement through AEX Settlement service with AP2."""
-    try:
-        payload = {
-            "contract_id": contract_id,
-            "work_id": f"work-{contract_id}",
-            "agent_id": provider_id,
-            "consumer_id": consumer_id,
-            "provider_id": provider_id,
-            "domain": "legal",
-            "started_at": datetime.utcnow().isoformat() + "Z",
-            "completed_at": datetime.utcnow().isoformat() + "Z",
-            "success": True,
-            "agreed_price": str(agreed_price),
-            "currency": "USD",
-            "use_ap2": use_ap2,
-            "payment_method": "card" if use_ap2 else "",
-        }
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(
-                f"{AEX_SETTLEMENT_URL}/v1/contracts/complete",
-                json=payload
-            )
-            if resp.status_code in [200, 201]:
-                return resp.json()
-    except Exception as e:
-        print(f"Error processing settlement: {e}")
-    return {}
 
 
 def fetch_real_bids(pages: int) -> list[dict]:
@@ -1090,34 +1066,16 @@ def on_fetch_payment_bids(e: me.ClickEvent):
 def on_settle(e: me.ClickEvent):
     state = me.state(State)
 
-    # Try to process settlement via AEX with AP2
-    settlement_result = process_settlement_via_aex(
-        contract_id=state.contract_id,
-        consumer_id="consumer-demo-001",
-        provider_id=state.winner_provider_id,
-        agreed_price=state.agreed_price,
-        use_ap2=True,
-    )
-
-    if settlement_result:
-        # Use real settlement data
-        state.platform_fee = float(settlement_result.get("platform_fee", state.agreed_price * 0.15))
-        state.provider_payout = float(settlement_result.get("provider_payout", state.agreed_price * 0.85))
-        state.ap2_enabled = settlement_result.get("ap2_enabled", False)
-        state.payment_mandate_id = settlement_result.get("payment_mandate_id", "")
-        state.payment_receipt_id = settlement_result.get("payment_receipt_id", "")
-        state.payment_transaction_id = settlement_result.get("payment_transaction_id", "")
-        state.payment_method = settlement_result.get("payment_method", "")
-    else:
-        # Fallback to local calculation
-        state.platform_fee = round(state.agreed_price * 0.15, 2)
-        state.provider_payout = round(state.agreed_price - state.platform_fee, 2)
-        # Simulate AP2 for demo purposes
-        state.ap2_enabled = True
-        state.payment_mandate_id = f"pm_{state.contract_id}"
-        state.payment_receipt_id = f"rcpt_{int(time.time())}"
-        state.payment_transaction_id = f"txn_{int(time.time())}"
-        state.payment_method = "Demo Visa ****1234"
+    # Contract Engine settles the contract with AEX Settlement when it is
+    # completed, so this step only presents the breakdown.
+    state.platform_fee = round(state.agreed_price * 0.15, 2)
+    state.provider_payout = round(state.agreed_price - state.platform_fee, 2)
+    # Simulate AP2 for demo purposes
+    state.ap2_enabled = True
+    state.payment_mandate_id = f"pm_{state.contract_id}"
+    state.payment_receipt_id = f"rcpt_{int(time.time())}"
+    state.payment_transaction_id = f"txn_{int(time.time())}"
+    state.payment_method = "Demo Visa ****1234"
 
     state.settlement_timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 

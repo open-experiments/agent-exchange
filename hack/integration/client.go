@@ -64,6 +64,11 @@ func (c *Client) SetAPIKey(key string) {
 
 // Request makes an HTTP request
 func (c *Client) Request(ctx context.Context, method, url string, body any) (*http.Response, error) {
+	return c.requestWithHeaders(ctx, method, url, body, nil)
+}
+
+// requestWithHeaders makes an HTTP request with additional headers.
+func (c *Client) requestWithHeaders(ctx context.Context, method, url string, body any, headers map[string]string) (*http.Response, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -82,13 +87,22 @@ func (c *Client) Request(ctx context.Context, method, url string, body any) (*ht
 	if c.apiKey != "" {
 		req.Header.Set("X-API-Key", c.apiKey)
 	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 
 	return c.http.Do(req)
 }
 
 // JSON makes a request and decodes the JSON response
 func (c *Client) JSON(ctx context.Context, method, url string, body, result any) error {
-	resp, err := c.Request(ctx, method, url, body)
+	return c.jsonWithHeaders(ctx, method, url, body, result, nil)
+}
+
+// jsonWithHeaders makes a request with additional headers and decodes the
+// JSON response.
+func (c *Client) jsonWithHeaders(ctx context.Context, method, url string, body, result any, headers map[string]string) error {
+	resp, err := c.requestWithHeaders(ctx, method, url, body, headers)
 	if err != nil {
 		return err
 	}
@@ -142,10 +156,32 @@ type Budget struct {
 	BidStrategy string  `json:"bid_strategy,omitempty"`
 }
 
+// consumerHeaders identifies the consumer to work-publisher on direct calls.
+// Through the gateway the authenticated tenant is used instead.
+func consumerHeaders(consumerID string) map[string]string {
+	return map[string]string{"X-Consumer-ID": consumerID}
+}
+
+// SubmitWork submits work directly to work-publisher as work.ConsumerID.
+// Work-publisher takes the consumer from the request headers, not the body,
+// and rejects submissions without one.
 func (c *Client) SubmitWork(ctx context.Context, work *WorkSpec) (*WorkSpec, error) {
 	var result WorkSpec
-	err := c.JSON(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", work, &result)
+	err := c.jsonWithHeaders(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", work, &result, consumerHeaders(work.ConsumerID))
 	return &result, err
+}
+
+// SubmitWorkWithStatus posts an arbitrary work body directly to
+// work-publisher as consumerID and returns the raw status and body.
+func (c *Client) SubmitWorkWithStatus(ctx context.Context, consumerID string, body any) (int, []byte, error) {
+	resp, err := c.requestWithHeaders(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", body, consumerHeaders(consumerID))
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, bodyBytes, nil
 }
 
 func (c *Client) GetWork(ctx context.Context, workID string) (*WorkSpec, error) {
@@ -465,12 +501,28 @@ func (c *Client) GetContract(ctx context.Context, contractID string) (*Contract,
 
 // Settlement API
 
-type SettlementRequest struct {
-	ContractID string  `json:"contract_id"`
-	ConsumerID string  `json:"consumer_id"`
-	ProviderID string  `json:"provider_id"`
-	Amount     float64 `json:"amount"`
-	Currency   string  `json:"currency"`
+// ContractCompletedEvent is the event contract-engine sends to settlement
+// when a contract finishes. AgreedPrice is a decimal string.
+type ContractCompletedEvent struct {
+	ContractID  string    `json:"contract_id"`
+	WorkID      string    `json:"work_id"`
+	AgentID     string    `json:"agent_id,omitempty"`
+	ConsumerID  string    `json:"consumer_id"`
+	ProviderID  string    `json:"provider_id"`
+	Domain      string    `json:"domain,omitempty"`
+	StartedAt   time.Time `json:"started_at"`
+	CompletedAt time.Time `json:"completed_at"`
+	Success     bool      `json:"success"`
+	AgreedPrice string    `json:"agreed_price"`
+	Currency    string    `json:"currency,omitempty"`
+}
+
+// SettlementResult is settlement's response to a contract completion event.
+type SettlementResult struct {
+	Status      string `json:"status"`
+	ExecutionID string `json:"execution_id"`
+	ContractID  string `json:"contract_id"`
+	Charged     bool   `json:"charged"`
 }
 
 type DepositRequest struct {
@@ -484,13 +536,15 @@ type Balance struct {
 	Currency string  `json:"currency"`
 }
 
+// Transaction is a ledger entry as returned by /v1/usage/transactions.
+// Amounts are integer cents.
 type Transaction struct {
-	ID        string  `json:"id"`
-	TenantID  string  `json:"tenant_id"`
-	Type      string  `json:"type"`
-	Amount    float64 `json:"amount,string"`
-	Balance   float64 `json:"balance,string"`
-	Reference string  `json:"reference,omitempty"`
+	ID                string `json:"id"`
+	TenantID          string `json:"tenant_id"`
+	Type              string `json:"entry_type"`
+	AmountCents       int64  `json:"amount"`
+	BalanceAfterCents int64  `json:"balance_after"`
+	ReferenceID       string `json:"reference_id,omitempty"`
 }
 
 func (c *Client) Deposit(ctx context.Context, req *DepositRequest) error {
@@ -503,8 +557,11 @@ func (c *Client) GetBalance(ctx context.Context, tenantID string) (*Balance, err
 	return &result, err
 }
 
-func (c *Client) SettleContract(ctx context.Context, req *SettlementRequest) error {
-	return c.JSON(ctx, http.MethodPost, c.urls.Settlement+"/internal/v1/settle", req, nil)
+// SettleContract posts a contract completion event to settlement and returns
+// the HTTP status and raw body, so callers can check duplicate (409) and
+// rejection (400/402) responses.
+func (c *Client) SettleContract(ctx context.Context, event *ContractCompletedEvent) (int, []byte, error) {
+	return c.RequestWithStatus(ctx, http.MethodPost, c.urls.Settlement+"/internal/settlement/complete", event)
 }
 
 func (c *Client) GetTransactions(ctx context.Context, tenantID string) ([]Transaction, error) {
@@ -589,9 +646,9 @@ func (c *Client) ListSubscriptions(ctx context.Context, providerID string) ([]Su
 
 // Work Publisher extended API
 
-func (c *Client) CancelWork(ctx context.Context, workID string) (*WorkSpec, error) {
+func (c *Client) CancelWork(ctx context.Context, workID, consumerID string) (*WorkSpec, error) {
 	var result WorkSpec
-	err := c.JSON(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work/"+workID+"/cancel", nil, &result)
+	err := c.jsonWithHeaders(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work/"+workID+"/cancel", nil, &result, consumerHeaders(consumerID))
 	return &result, err
 }
 

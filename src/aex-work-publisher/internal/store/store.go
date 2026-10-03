@@ -7,6 +7,11 @@ import (
 	"github.com/parlakisik/agent-exchange/aex-work-publisher/internal/model"
 )
 
+// ErrWorkNotFound is returned when no work exists with the requested ID.
+// Callers must distinguish it from other store errors: only this one means
+// "the work does not exist".
+var ErrWorkNotFound = errors.New("work not found")
+
 // ErrVersionConflict is returned when a conditional update fails due to
 // a concurrent modification (optimistic concurrency control).
 var ErrVersionConflict = errors.New("version conflict")

@@ -123,6 +123,18 @@ http_both_auth() {
   _BODY="$(echo "$raw" | sed '$d')"
 }
 
+# http_both_consumer METHOD URL CONSUMER_ID DATA -> sets global _BODY and _STATUS
+# Sends X-Consumer-ID, which work-publisher requires on direct (non-gateway) calls.
+http_both_consumer() {
+  local method="$1" url="$2" consumer="$3" data="$4" raw
+  raw="$(curl -s -w '\n%{http_code}' -X "$method" \
+    -H 'Content-Type: application/json' \
+    -H "X-Consumer-ID: $consumer" \
+    -d "$data" "$url" 2>/dev/null || echo -e "\n000")"
+  _STATUS="$(echo "$raw" | tail -1)"
+  _BODY="$(echo "$raw" | sed '$d')"
+}
+
 assert_status() {
   local expected="$1" actual="$2" label="$3"
   if [ "$actual" = "$expected" ]; then
@@ -281,7 +293,7 @@ PROVIDER_B_KEY="$(echo "$_BODY" | jq -r '.api_key // empty')"
 log_info "Provider B ID=$PROVIDER_B_ID (no cert)"
 
 # 10.5b  Submit work spec
-http_both POST "$WORK_PUBLISHER_URL/v1/work" \
+http_both_consumer POST "$WORK_PUBLISHER_URL/v1/work" "consumer-${RUN_ID}" \
   "{
     \"category\": \"text-generation\",
     \"description\": \"Cert boost ranking test\",
@@ -388,7 +400,7 @@ assert_status "200" "$_STATUS" "10.6b: Verify revoked certificate"
 assert_json_field "$_BODY" '.valid' "false" "10.6b: Certificate is no longer valid"
 
 # 10.6c  Submit a new work spec and identical bids to re-evaluate
-http_both POST "$WORK_PUBLISHER_URL/v1/work" \
+http_both_consumer POST "$WORK_PUBLISHER_URL/v1/work" "consumer-${RUN_ID}" \
   "{
     \"category\": \"text-generation\",
     \"description\": \"Cert revoke boost test\",
