@@ -2,37 +2,48 @@ package clients
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/parlakisik/agent-exchange/internal/httpclient"
 )
 
-// WorkSpec represents a work specification from work-publisher
+// WorkSpec mirrors the work specification returned by work-publisher's
+// GET /v1/work/{work_id} (aex-work-publisher/internal/model.WorkSpec).
 type WorkSpec struct {
-	ID              string                 `json:"id"`
-	ConsumerID      string                 `json:"consumer_id"`
-	Category        string                 `json:"category"`
-	Description     string                 `json:"description"`
-	Constraints     map[string]interface{} `json:"constraints"`
-	Budget          Budget                 `json:"budget"`
-	SuccessCriteria []SuccessCriterion     `json:"success_criteria"`
-	BidWindowMs     int64                  `json:"bid_window_ms"`
-	State           string                 `json:"state"`
-	CreatedAt       string                 `json:"created_at"`
-	BidWindowEndsAt string                 `json:"bid_window_ends_at"`
+	ID              string             `json:"work_id"`
+	ConsumerID      string             `json:"consumer_id"`
+	Category        string             `json:"category"`
+	Description     string             `json:"description"`
+	Constraints     WorkConstraints    `json:"constraints"`
+	Budget          Budget             `json:"budget"`
+	SuccessCriteria []SuccessCriterion `json:"success_criteria"`
+	BidWindowMs     int64              `json:"bid_window_ms"`
+	State           string             `json:"status"`
+	CreatedAt       time.Time          `json:"created_at"`
+	BidWindowEndsAt time.Time          `json:"bid_window_ends_at"`
+}
+
+type WorkConstraints struct {
+	MaxLatencyMs   *int64   `json:"max_latency_ms,omitempty"`
+	RequiredFields []string `json:"required_fields,omitempty"`
+	MinTrustTier   *string  `json:"min_trust_tier,omitempty"`
+	InternalOnly   bool     `json:"internal_only"`
+	Regions        []string `json:"regions,omitempty"`
 }
 
 type Budget struct {
-	MaxPrice    float64 `json:"max_price"`
-	MaxCPABonus float64 `json:"max_cpa_bonus,omitempty"`
-	BidStrategy string  `json:"bid_strategy,omitempty"`
+	MaxPrice    float64  `json:"max_price"`
+	BidStrategy string   `json:"bid_strategy"`
+	MaxCPABonus *float64 `json:"max_cpa_bonus,omitempty"`
 }
 
 type SuccessCriterion struct {
-	Metric     string      `json:"metric"`
-	Threshold  interface{} `json:"threshold"`
-	Comparison string      `json:"comparison,omitempty"`
-	Bonus      float64     `json:"bonus,omitempty"`
+	Metric     string   `json:"metric"`
+	Type       string   `json:"type"`
+	Comparison *string  `json:"comparison,omitempty"`
+	Threshold  any      `json:"threshold"`
+	Bonus      *float64 `json:"bonus,omitempty"`
 }
 
 type WorkPublisherClient struct {
@@ -47,11 +58,12 @@ func NewWorkPublisherClient(baseURL string) *WorkPublisherClient {
 	}
 }
 
-// GetWork retrieves a work specification by ID
+// GetWork retrieves a work specification by ID. A non-2xx response is
+// returned as *httpclient.HTTPError so callers can inspect the status code.
 func (c *WorkPublisherClient) GetWork(ctx context.Context, workID string) (*WorkSpec, error) {
 	var work WorkSpec
 	err := httpclient.NewRequest("GET", c.baseURL).
-		Path("/v1/work/"+workID).
+		Path("/v1/work/"+url.PathEscape(workID)).
 		Context(ctx).
 		ExecuteJSON(c.client, &work)
 
@@ -65,7 +77,7 @@ func (c *WorkPublisherClient) GetWork(ctx context.Context, workID string) (*Work
 // CloseBidWindow notifies work-publisher to close the bid window
 func (c *WorkPublisherClient) CloseBidWindow(ctx context.Context, workID string) error {
 	return httpclient.NewRequest("POST", c.baseURL).
-		Path("/internal/work/"+workID+"/close-bids").
+		Path("/internal/work/"+url.PathEscape(workID)+"/close-bids").
 		Context(ctx).
 		ExecuteJSON(c.client, nil)
 }

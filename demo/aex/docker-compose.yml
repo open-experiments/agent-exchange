@@ -102,6 +102,7 @@ services:
       PORT: "8080"
       BID_GATEWAY_URL: "http://aex-bid-gateway:8080"
       TRUST_BROKER_URL: "http://aex-trust-broker:8080"
+      WORK_PUBLISHER_URL: "http://aex-work-publisher:8080"
       MONGO_URI: "mongodb://root:root@mongo:27017/?authSource=admin"
       MONGO_DB: "aex"
     ports:
