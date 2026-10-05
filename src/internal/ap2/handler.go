@@ -194,26 +194,3 @@ func (h *PaymentHandler) ProcessPayment(ctx context.Context, req ProcessPaymentR
 
 	return result, nil
 }
-
-// GetPaymentMethods returns available payment methods for a user.
-func (h *PaymentHandler) GetPaymentMethods(ctx context.Context, userID string) ([]PaymentMethod, error) {
-	return h.credentials.GetPaymentMethods(ctx, userID)
-}
-
-// ValidateMandates validates the mandate chain for a payment.
-func (h *PaymentHandler) ValidateMandates(cart *CartMandate, payment *PaymentMandate) error {
-	if err := h.generator.ValidateCartMandate(cart); err != nil {
-		return fmt.Errorf("invalid cart mandate: %w", err)
-	}
-
-	if err := h.generator.ValidatePaymentMandate(payment); err != nil {
-		return fmt.Errorf("invalid payment mandate: %w", err)
-	}
-
-	// Verify payment mandate references the cart
-	if payment.PaymentMandateContents.PaymentDetailsID != cart.Contents.PaymentRequest.Details.ID {
-		return fmt.Errorf("payment mandate does not reference cart")
-	}
-
-	return nil
-}

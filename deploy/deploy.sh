@@ -259,6 +259,7 @@ services:
       - PORT=8084
       - BID_GATEWAY_URL=http://aex-bid-gateway:8082
       - WORK_PUBLISHER_URL=http://aex-work-publisher:8081
+      - SETTLEMENT_URL=http://aex-settlement:8086
     depends_on:
       - aex-bid-gateway
       - aex-work-publisher

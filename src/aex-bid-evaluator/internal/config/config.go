@@ -9,9 +9,10 @@ import (
 type Config struct {
 	Port string
 
-	BidGatewayURL  string // required
-	TrustBrokerURL string // optional
-	CertAuthURL    string // optional
+	BidGatewayURL    string // required
+	TrustBrokerURL   string // optional
+	CertAuthURL      string // optional
+	WorkPublisherURL string // optional; when unset, evaluate requests must carry budget.max_price
 
 	// MongoDB (optional persistence)
 	MongoURI        string
@@ -25,16 +26,17 @@ type Config struct {
 
 func Load() Config {
 	cfg := Config{
-		Port:            getenv("PORT", "8080"),
-		BidGatewayURL:   strings.TrimRight(strings.TrimSpace(os.Getenv("BID_GATEWAY_URL")), "/"),
-		TrustBrokerURL:  strings.TrimRight(strings.TrimSpace(os.Getenv("TRUST_BROKER_URL")), "/"),
-		CertAuthURL:     strings.TrimRight(strings.TrimSpace(os.Getenv("CERTAUTH_URL")), "/"),
-		MongoURI:        strings.TrimSpace(os.Getenv("MONGO_URI")),
-		MongoDatabase:   getenv("MONGO_DB", "aex"),
-		MongoCollection: getenv("MONGO_COLLECTION_EVALUATIONS", "bid_evaluations"),
-		ReadTimeout:     10 * time.Second,
-		WriteTimeout:    20 * time.Second,
-		IdleTimeout:     60 * time.Second,
+		Port:             getenv("PORT", "8080"),
+		BidGatewayURL:    strings.TrimRight(strings.TrimSpace(os.Getenv("BID_GATEWAY_URL")), "/"),
+		TrustBrokerURL:   strings.TrimRight(strings.TrimSpace(os.Getenv("TRUST_BROKER_URL")), "/"),
+		CertAuthURL:      strings.TrimRight(strings.TrimSpace(os.Getenv("CERTAUTH_URL")), "/"),
+		WorkPublisherURL: strings.TrimRight(strings.TrimSpace(os.Getenv("WORK_PUBLISHER_URL")), "/"),
+		MongoURI:         strings.TrimSpace(os.Getenv("MONGO_URI")),
+		MongoDatabase:    getenv("MONGO_DB", "aex"),
+		MongoCollection:  getenv("MONGO_COLLECTION_EVALUATIONS", "bid_evaluations"),
+		ReadTimeout:      10 * time.Second,
+		WriteTimeout:     20 * time.Second,
+		IdleTimeout:      60 * time.Second,
 	}
 	return cfg
 }

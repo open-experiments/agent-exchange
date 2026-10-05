@@ -2,6 +2,8 @@
 
 **Version:** 1.0 | **Date:** January 2, 2026 | **Status:** APPROVED
 
+> **Superseded (Oct 2026):** the planned `src/internal/agentcard` and `src/internal/token` packages were never adopted. Provider-registry accepts pushed agent cards with its own types, and the unused `internal/agentcard` package was removed. This plan is kept as history.
+
 ---
 
 ## 1. Project Overview

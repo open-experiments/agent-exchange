@@ -402,7 +402,7 @@ func TestEvaluate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock clients - use empty URLs since we're testing with mock data
-			svc, err := New("http://localhost:8081", "http://localhost:8082", "http://localhost:8089", st)
+			svc, err := New("http://localhost:8081", "http://localhost:8082", "http://localhost:8089", "", st)
 			if err != nil {
 				t.Fatalf("Failed to create service: %v", err)
 			}

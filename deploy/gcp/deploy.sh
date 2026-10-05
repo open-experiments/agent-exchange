@@ -152,6 +152,13 @@ gcloud run deploy aex-settlement \
 
 SETTLEMENT_URL=$(gcloud run services describe aex-settlement --region "$REGION" --format 'value(status.url)')
 
+# Contract engine notifies settlement on completion; settlement is deployed
+# after it (it needs CONTRACT_ENGINE_URL), so set the URL now.
+gcloud run services update aex-contract-engine \
+    --region "$REGION" \
+    --update-env-vars "SETTLEMENT_URL=$SETTLEMENT_URL" \
+    --quiet
+
 # Identity
 gcloud run deploy aex-identity \
     --image "gcr.io/$PROJECT_ID/aex-identity:$COMMIT_SHA" \

@@ -26,7 +26,6 @@ jobs:
           - internal/telemetry
           - internal/certauth
           - internal/ap2
-          - internal/testutil
           - internal/toolgate
           # Services
           - aex-gateway

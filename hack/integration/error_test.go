@@ -54,7 +54,7 @@ func TestErrorMissingRequiredFields(t *testing.T) {
 	skipIfNoServices(t, c)
 
 	// Work without required fields
-	status, body, err := c.RequestWithStatus(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", map[string]any{})
+	status, body, err := c.SubmitWorkWithStatus(ctx, "missing-fields-consumer", map[string]any{})
 	if err != nil {
 		t.Logf("Empty work request error: %v", err)
 	} else {
@@ -181,7 +181,7 @@ func TestErrorInvalidDataTypes(t *testing.T) {
 	}
 
 	// Invalid bid window (negative)
-	status, body, err = c.RequestWithStatus(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", map[string]any{
+	status, body, err = c.SubmitWorkWithStatus(ctx, "test", map[string]any{
 		"category":        "test",
 		"task_type":       "test",
 		"description":     "Test",
@@ -338,12 +338,13 @@ func TestErrorLargePayloads(t *testing.T) {
 		largeDescription[i] = byte('A' + (i % 26))
 	}
 
-	status, body, err := c.RequestWithStatus(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", map[string]any{
+	consumerID := fmt.Sprintf("large-consumer-%d", timestamp)
+	status, body, err := c.SubmitWorkWithStatus(ctx, consumerID, map[string]any{
 		"category":        "large-test",
 		"task_type":       "test",
 		"description":     string(largeDescription),
 		"input":           map[string]any{"data": "test"},
-		"consumer_id":     fmt.Sprintf("large-consumer-%d", timestamp),
+		"consumer_id":     consumerID,
 		"bid_window_secs": 60,
 	})
 	if err != nil {
@@ -450,11 +451,11 @@ func TestErrorZeroBudget(t *testing.T) {
 	work, err := c.SubmitWork(ctx, &WorkSpec{
 		Category:    "zero-budget-test",
 		Description: "Zero budget test",
-		Payload:       map[string]any{"data": "test"},
+		Payload:     map[string]any{"data": "test"},
 		Budget: &Budget{
 			MaxPrice: 0.00,
 		},
-		ConsumerID:    fmt.Sprintf("zero-budget-consumer-%d", timestamp),
+		ConsumerID:  fmt.Sprintf("zero-budget-consumer-%d", timestamp),
 		BidWindowMs: 60000,
 	})
 	if err != nil {
@@ -508,4 +509,3 @@ func TestErrorExpiredBid(t *testing.T) {
 		t.Log("Expired bid was accepted (may be valid if server validates)")
 	}
 }
-

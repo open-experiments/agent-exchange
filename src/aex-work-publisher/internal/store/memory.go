@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"sync"
 
@@ -34,7 +33,7 @@ func (s *MemoryStore) GetWork(ctx context.Context, workID string) (model.WorkSpe
 
 	work, ok := s.works[workID]
 	if !ok {
-		return model.WorkSpec{}, errors.New("work not found")
+		return model.WorkSpec{}, ErrWorkNotFound
 	}
 	return work, nil
 }
@@ -45,7 +44,7 @@ func (s *MemoryStore) UpdateWork(ctx context.Context, work model.WorkSpec) error
 
 	existing, ok := s.works[work.ID]
 	if !ok {
-		return errors.New("work not found")
+		return ErrWorkNotFound
 	}
 
 	// Optimistic concurrency: reject if version doesn't match

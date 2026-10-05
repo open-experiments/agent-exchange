@@ -261,8 +261,8 @@ kubectl apply -k deploy/k8s/overlays/staging/
 | aex-provider-registry | MONGO_URI (optional) |
 | aex-work-publisher | PROVIDER_REGISTRY_URL |
 | aex-bid-gateway | PROVIDER_REGISTRY_URL |
-| aex-bid-evaluator | BID_GATEWAY_URL, TRUST_BROKER_URL |
-| aex-contract-engine | BID_GATEWAY_URL, WORK_PUBLISHER_URL |
+| aex-bid-evaluator | BID_GATEWAY_URL, TRUST_BROKER_URL, WORK_PUBLISHER_URL |
+| aex-contract-engine | BID_GATEWAY_URL, WORK_PUBLISHER_URL, SETTLEMENT_URL |
 | aex-settlement | CONTRACT_ENGINE_URL, TRUST_BROKER_URL |
 
 ### Demo Agents

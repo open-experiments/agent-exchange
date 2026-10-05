@@ -70,10 +70,13 @@ func main() {
 		slog.Info("mongo disabled (set MONGO_URI to enable)")
 	}
 
-	svc, err := service.New(cfg.BidGatewayURL, cfg.TrustBrokerURL, cfg.CertAuthURL, st)
+	svc, err := service.New(cfg.BidGatewayURL, cfg.TrustBrokerURL, cfg.CertAuthURL, cfg.WorkPublisherURL, st)
 	if err != nil {
 		slog.Error("failed to create service", "error", err)
 		os.Exit(1)
+	}
+	if cfg.WorkPublisherURL == "" {
+		slog.Info("work-publisher disabled (set WORK_PUBLISHER_URL to fetch work specs; requests must include budget.max_price)")
 	}
 
 	// Setup HTTP router with metrics endpoint

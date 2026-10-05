@@ -56,7 +56,7 @@ func NewRouter(cfg *config.Config) http.Handler {
 	// Apply global middleware
 	handler := applyMiddleware(mux,
 		middleware.Timeout(cfg.RequestTimeout),
-		middleware.CORSAllowAll,
+		middleware.CORS(cfg.AllowedOrigins),
 		middleware.Recovery,
 		middleware.Logging,
 		middleware.RequestID,

@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -113,31 +114,6 @@ func NewClient(serviceName string, timeout time.Duration) *Client {
 	}
 }
 
-// NewClientWithRetry creates a new HTTP client with custom retry config
-func NewClientWithRetry(serviceName string, timeout time.Duration, retryConfig RetryConfig) *Client {
-	cbCfg := DefaultCircuitBreakerConfig()
-	return &Client{
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		retryConfig: retryConfig,
-		serviceName: serviceName,
-		breaker:     newBreaker(serviceName, cbCfg),
-	}
-}
-
-// NewClientWithCircuitBreaker creates a new HTTP client with custom circuit breaker config
-func NewClientWithCircuitBreaker(serviceName string, timeout time.Duration, cbCfg CircuitBreakerConfig) *Client {
-	return &Client{
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
-		retryConfig: DefaultRetryConfig(),
-		serviceName: serviceName,
-		breaker:     newBreaker(serviceName, cbCfg),
-	}
-}
-
 // Do executes an HTTP request with circuit breaker and retry logic.
 // If the circuit breaker is open, it returns ErrCircuitOpen immediately
 // without attempting the request.
@@ -198,9 +174,17 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 }
 
 // doWithRetry executes an HTTP request with retry logic (called inside the circuit breaker).
+//
+// Each attempt sends a clone of req. A request body is consumed by the first
+// attempt, so retries obtain a fresh copy through req.GetBody. A request that
+// has a body but no GetBody cannot be replayed and is sent exactly once: its
+// first error or response is returned as-is instead of retrying with an empty
+// body.
 func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
 	var lastErr error
 	backoff := c.retryConfig.InitialBackoff
+	hasBody := req.Body != nil && req.Body != http.NoBody
+	replayable := !hasBody || req.GetBody != nil
 
 	for attempt := 0; attempt <= c.retryConfig.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -226,15 +210,30 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 			}
 		}
 
-		resp, err := c.httpClient.Do(req.WithContext(ctx))
+		attemptReq := req.Clone(ctx)
+		if attempt > 0 && hasBody {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, fmt.Errorf("rewind request body: %w", err)
+			}
+			attemptReq.Body = body
+		}
+
+		resp, err := c.httpClient.Do(attemptReq)
 		if err != nil {
 			lastErr = fmt.Errorf("request failed: %w", err)
+			if !replayable {
+				return nil, lastErr
+			}
 			continue
 		}
 
 		// Check if status is retryable
 		if c.isRetryableStatus(resp.StatusCode) {
-			resp.Body.Close()
+			if !replayable {
+				return resp, nil
+			}
+			drainAndClose(resp.Body)
 			lastErr = fmt.Errorf("retryable status code: %d", resp.StatusCode)
 			continue
 		}
@@ -244,6 +243,17 @@ func (c *Client) doWithRetry(ctx context.Context, req *http.Request) (*http.Resp
 	}
 
 	return nil, fmt.Errorf("max retries exceeded for %s: %w", req.URL.String(), lastErr)
+}
+
+// maxDrainBytes bounds how much of a discarded response body is read so the
+// underlying connection can be reused without stalling on a large payload.
+const maxDrainBytes = 64 << 10
+
+// drainAndClose discards the rest of a response body and closes it so the
+// connection returns to the pool before the next attempt.
+func drainAndClose(body io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(body, maxDrainBytes))
+	_ = body.Close()
 }
 
 // Get performs a GET request
@@ -332,12 +342,9 @@ func (c *Client) doJSON(ctx context.Context, method, url string, body interface{
 		if err != nil {
 			return nil, fmt.Errorf("encode body: %w", err)
 		}
-		pr, pw := io.Pipe()
-		go func() {
-			defer pw.Close()
-			pw.Write(encoded)
-		}()
-		bodyReader = pr
+		// A bytes.Reader lets http.NewRequest set GetBody so retries can
+		// replay the body.
+		bodyReader = bytes.NewReader(encoded)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)

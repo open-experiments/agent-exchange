@@ -2,7 +2,10 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
+	"net/http"
 	"testing"
 	"time"
 )
@@ -101,7 +104,7 @@ func TestSettlementTransactionHistory(t *testing.T) {
 	}
 
 	for i, tx := range transactions {
-		t.Logf("Transaction %d: %s - $%.2f (type: %s)", i, tx.ID, tx.Amount, tx.Type)
+		t.Logf("Transaction %d: %s - $%.2f (type: %s)", i, tx.ID, float64(tx.AmountCents)/100, tx.Type)
 	}
 }
 
@@ -209,7 +212,9 @@ func TestSettlementUsage(t *testing.T) {
 	}
 }
 
-// TestSettlementContractSettlement tests contract settlement flow
+// TestSettlementContractSettlement tests contract settlement flow: the
+// consumer is debited the agreed price, the provider is credited its payout,
+// and a duplicate completion event is rejected without moving money again.
 func TestSettlementContractSettlement(t *testing.T) {
 	c := getTestClient()
 	skipIfNoServices(t, c)
@@ -219,6 +224,7 @@ func TestSettlementContractSettlement(t *testing.T) {
 
 	consumerID := fmt.Sprintf("settle-consumer-%d", timestamp)
 	providerID := fmt.Sprintf("settle-provider-%d", timestamp)
+	const agreedPrice = 100.00
 
 	// Setup: deposit funds for consumer
 	err := c.Deposit(ctx, &DepositRequest{
@@ -229,35 +235,87 @@ func TestSettlementContractSettlement(t *testing.T) {
 		t.Fatalf("Failed to deposit for consumer: %v", err)
 	}
 
-	initialBalance, _ := c.GetBalance(ctx, consumerID)
-	t.Logf("Consumer initial balance: $%.2f", initialBalance.Balance)
-
-	// Settle a contract
-	err = c.SettleContract(ctx, &SettlementRequest{
-		ContractID: fmt.Sprintf("contract-%d", timestamp),
-		ConsumerID: consumerID,
-		ProviderID: providerID,
-		Amount:     100.00,
-		Currency:   "USD",
-	})
-	if err != nil {
-		t.Logf("Settlement not implemented or failed: %v", err)
-		return
-	}
-
-	// Check updated balances
-	consumerBalance, err := c.GetBalance(ctx, consumerID)
+	consumerBefore, err := c.GetBalance(ctx, consumerID)
 	if err != nil {
 		t.Fatalf("Failed to get consumer balance: %v", err)
 	}
-	t.Logf("Consumer balance after settlement: $%.2f", consumerBalance.Balance)
-
-	// Check provider balance if created
-	providerBalance, err := c.GetBalance(ctx, providerID)
+	providerBefore, err := c.GetBalance(ctx, providerID)
 	if err != nil {
-		t.Logf("Provider balance query failed: %v", err)
-	} else {
-		t.Logf("Provider balance: $%.2f", providerBalance.Balance)
+		t.Fatalf("Failed to get provider balance: %v", err)
+	}
+
+	startedAt := time.Now().UTC().Add(-time.Minute)
+	event := &ContractCompletedEvent{
+		ContractID:  fmt.Sprintf("contract-%d", timestamp),
+		WorkID:      fmt.Sprintf("work-%d", timestamp),
+		ConsumerID:  consumerID,
+		ProviderID:  providerID,
+		Domain:      "general",
+		StartedAt:   startedAt,
+		CompletedAt: startedAt.Add(30 * time.Second),
+		Success:     true,
+		AgreedPrice: "100.00",
+		Currency:    "USD",
+	}
+
+	status, body, err := c.SettleContract(ctx, event)
+	if err != nil {
+		t.Fatalf("Failed to settle contract: %v", err)
+	}
+	if status != http.StatusOK {
+		t.Fatalf("Expected 200 from settlement, got %d: %s", status, body)
+	}
+	var result SettlementResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatalf("Failed to decode settlement result: %v (%s)", err, body)
+	}
+	if result.Status != "settled" || !result.Charged {
+		t.Fatalf("Expected status=settled charged=true, got %+v", result)
+	}
+
+	consumerAfter, err := c.GetBalance(ctx, consumerID)
+	if err != nil {
+		t.Fatalf("Failed to get consumer balance: %v", err)
+	}
+	if got, want := consumerAfter.Balance, consumerBefore.Balance-agreedPrice; math.Abs(got-want) > 0.001 {
+		t.Errorf("Consumer balance after settlement = %.2f, want %.2f", got, want)
+	}
+
+	providerAfter, err := c.GetBalance(ctx, providerID)
+	if err != nil {
+		t.Fatalf("Failed to get provider balance: %v", err)
+	}
+	payout := providerAfter.Balance - providerBefore.Balance
+	if payout <= 0 || payout > agreedPrice {
+		t.Errorf("Provider credited %.2f, want a payout in (0, %.2f]", payout, agreedPrice)
+	}
+	t.Logf("Settled: consumer %.2f -> %.2f, provider credited %.2f",
+		consumerBefore.Balance, consumerAfter.Balance, payout)
+
+	// A second identical event must not settle again.
+	status, body, err = c.SettleContract(ctx, event)
+	if err != nil {
+		t.Fatalf("Failed to resend settlement: %v", err)
+	}
+	if status != http.StatusConflict {
+		t.Fatalf("Expected 409 for duplicate settlement, got %d: %s", status, body)
+	}
+
+	consumerFinal, err := c.GetBalance(ctx, consumerID)
+	if err != nil {
+		t.Fatalf("Failed to get consumer balance: %v", err)
+	}
+	if math.Abs(consumerFinal.Balance-consumerAfter.Balance) > 0.001 {
+		t.Errorf("Duplicate settlement changed consumer balance: %.2f -> %.2f",
+			consumerAfter.Balance, consumerFinal.Balance)
+	}
+	providerFinal, err := c.GetBalance(ctx, providerID)
+	if err != nil {
+		t.Fatalf("Failed to get provider balance: %v", err)
+	}
+	if math.Abs(providerFinal.Balance-providerAfter.Balance) > 0.001 {
+		t.Errorf("Duplicate settlement changed provider balance: %.2f -> %.2f",
+			providerAfter.Balance, providerFinal.Balance)
 	}
 }
 

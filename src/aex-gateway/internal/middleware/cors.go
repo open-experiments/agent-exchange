@@ -5,29 +5,48 @@ import (
 	"strings"
 )
 
+var corsAllowedHeaders = strings.Join([]string{
+	"Content-Type",
+	"Authorization",
+	"X-API-Key",
+	"X-Request-ID",
+	"X-Idempotency-Key",
+}, ", ")
+
+// CORS sets cross-origin headers for the configured origins. An entry of "*"
+// allows every origin with a literal "Access-Control-Allow-Origin: *" (no
+// credentials). Otherwise a request whose Origin is listed gets that origin
+// echoed back, with credentials allowed and "Vary: Origin" so caches keep
+// per-origin responses apart; an unlisted or missing Origin gets no CORS
+// headers, which makes the browser refuse the response. An empty list allows
+// no origin. Every OPTIONS request is answered 204 without reaching next, so
+// preflights never hit authentication.
 func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
+	allowAll := false
+	allowed := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		if o == "*" {
+			allowAll = true
+		}
+		allowed[o] = true
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
-
-			// Check if origin is allowed
-			allowed := false
-			for _, o := range allowedOrigins {
-				if o == "*" || o == origin {
-					allowed = true
-					break
+			h := w.Header()
+			if allowAll {
+				h.Set("Access-Control-Allow-Origin", "*")
+				setCORSCommonHeaders(h)
+			} else if origin := r.Header.Get("Origin"); origin != "" {
+				h.Add("Vary", "Origin")
+				if allowed[origin] {
+					h.Set("Access-Control-Allow-Origin", origin)
+					h.Set("Access-Control-Allow-Credentials", "true")
+					setCORSCommonHeaders(h)
 				}
 			}
 
-			if allowed && origin != "" {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Request-ID")
-				w.Header().Set("Access-Control-Max-Age", "86400")
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			}
-
-			// Handle preflight
+			// Handle preflight immediately
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return
@@ -38,25 +57,8 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	}
 }
 
-func CORSAllowAll(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", strings.Join([]string{
-			"Content-Type",
-			"Authorization",
-			"X-API-Key",
-			"X-Request-ID",
-			"X-Idempotency-Key",
-		}, ", "))
-		w.Header().Set("Access-Control-Max-Age", "86400")
-
-		// Handle preflight immediately
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+func setCORSCommonHeaders(h http.Header) {
+	h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	h.Set("Access-Control-Allow-Headers", corsAllowedHeaders)
+	h.Set("Access-Control-Max-Age", "86400")
 }

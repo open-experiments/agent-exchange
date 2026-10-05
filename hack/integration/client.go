@@ -64,6 +64,11 @@ func (c *Client) SetAPIKey(key string) {
 
 // Request makes an HTTP request
 func (c *Client) Request(ctx context.Context, method, url string, body any) (*http.Response, error) {
+	return c.requestWithHeaders(ctx, method, url, body, nil)
+}
+
+// requestWithHeaders makes an HTTP request with additional headers.
+func (c *Client) requestWithHeaders(ctx context.Context, method, url string, body any, headers map[string]string) (*http.Response, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -82,13 +87,22 @@ func (c *Client) Request(ctx context.Context, method, url string, body any) (*ht
 	if c.apiKey != "" {
 		req.Header.Set("X-API-Key", c.apiKey)
 	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 
 	return c.http.Do(req)
 }
 
 // JSON makes a request and decodes the JSON response
 func (c *Client) JSON(ctx context.Context, method, url string, body, result any) error {
-	resp, err := c.Request(ctx, method, url, body)
+	return c.jsonWithHeaders(ctx, method, url, body, result, nil)
+}
+
+// jsonWithHeaders makes a request with additional headers and decodes the
+// JSON response.
+func (c *Client) jsonWithHeaders(ctx context.Context, method, url string, body, result any, headers map[string]string) error {
+	resp, err := c.requestWithHeaders(ctx, method, url, body, headers)
 	if err != nil {
 		return err
 	}
@@ -119,53 +133,18 @@ func (c *Client) HealthCheck(ctx context.Context, url string) error {
 	return nil
 }
 
-// WaitForServices waits for all services to be healthy
-func (c *Client) WaitForServices(ctx context.Context, timeout time.Duration) error {
-	services := map[string]string{
-		"work-publisher":    c.urls.WorkPublisher,
-		"bid-gateway":       c.urls.BidGateway,
-		"bid-evaluator":     c.urls.BidEvaluator,
-		"contract-engine":   c.urls.ContractEngine,
-		"provider-registry": c.urls.ProviderRegistry,
-		"trust-broker":      c.urls.TrustBroker,
-		"identity":          c.urls.Identity,
-		"settlement":        c.urls.Settlement,
-	}
-
-	deadline := time.Now().Add(timeout)
-	for name, url := range services {
-		for {
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for %s", name)
-			}
-
-			err := c.HealthCheck(ctx, url)
-			if err == nil {
-				break
-			}
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(1 * time.Second):
-			}
-		}
-	}
-	return nil
-}
-
 // Work Publisher API
 
 type WorkSpec struct {
-	ID            string         `json:"work_id,omitempty"`
-	Category      string         `json:"category"`
-	Description   string         `json:"description"`
-	Payload       map[string]any `json:"payload,omitempty"`
-	Constraints   *Constraints   `json:"constraints,omitempty"`
-	Budget        *Budget        `json:"budget,omitempty"`
-	ConsumerID    string         `json:"consumer_id,omitempty"`
-	BidWindowMs   int64          `json:"bid_window_ms,omitempty"`
-	Status        string         `json:"status,omitempty"`
+	ID          string         `json:"work_id,omitempty"`
+	Category    string         `json:"category"`
+	Description string         `json:"description"`
+	Payload     map[string]any `json:"payload,omitempty"`
+	Constraints *Constraints   `json:"constraints,omitempty"`
+	Budget      *Budget        `json:"budget,omitempty"`
+	ConsumerID  string         `json:"consumer_id,omitempty"`
+	BidWindowMs int64          `json:"bid_window_ms,omitempty"`
+	Status      string         `json:"status,omitempty"`
 }
 
 type Constraints struct {
@@ -177,10 +156,32 @@ type Budget struct {
 	BidStrategy string  `json:"bid_strategy,omitempty"`
 }
 
+// consumerHeaders identifies the consumer to work-publisher on direct calls.
+// Through the gateway the authenticated tenant is used instead.
+func consumerHeaders(consumerID string) map[string]string {
+	return map[string]string{"X-Consumer-ID": consumerID}
+}
+
+// SubmitWork submits work directly to work-publisher as work.ConsumerID.
+// Work-publisher takes the consumer from the request headers, not the body,
+// and rejects submissions without one.
 func (c *Client) SubmitWork(ctx context.Context, work *WorkSpec) (*WorkSpec, error) {
 	var result WorkSpec
-	err := c.JSON(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", work, &result)
+	err := c.jsonWithHeaders(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", work, &result, consumerHeaders(work.ConsumerID))
 	return &result, err
+}
+
+// SubmitWorkWithStatus posts an arbitrary work body directly to
+// work-publisher as consumerID and returns the raw status and body.
+func (c *Client) SubmitWorkWithStatus(ctx context.Context, consumerID string, body any) (int, []byte, error) {
+	resp, err := c.requestWithHeaders(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work", body, consumerHeaders(consumerID))
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, bodyBytes, nil
 }
 
 func (c *Client) GetWork(ctx context.Context, workID string) (*WorkSpec, error) {
@@ -224,20 +225,20 @@ func (c *Client) CreateSubscription(ctx context.Context, sub *Subscription) (*Su
 // Bid Gateway API
 
 type Bid struct {
-	BidID            string            `json:"bid_id,omitempty"`
-	WorkID           string            `json:"work_id"`
-	ProviderID       string            `json:"provider_id,omitempty"`
-	Price            float64           `json:"price"`
+	BidID            string             `json:"bid_id,omitempty"`
+	WorkID           string             `json:"work_id"`
+	ProviderID       string             `json:"provider_id,omitempty"`
+	Price            float64            `json:"price"`
 	PriceBreakdown   map[string]float64 `json:"price_breakdown,omitempty"`
-	Confidence       float64           `json:"confidence,omitempty"`
-	Approach         string            `json:"approach,omitempty"`
-	EstimatedLatency int64             `json:"estimated_latency,omitempty"`
-	MVPSample        string            `json:"mvp_sample,omitempty"`
-	SLA              *SLA              `json:"sla,omitempty"`
-	A2AEndpoint      string            `json:"a2a_endpoint"`
-	ExpiresAt        string            `json:"expires_at"`
-	ReceivedAt       string            `json:"received_at,omitempty"`
-	Status           string            `json:"status,omitempty"`
+	Confidence       float64            `json:"confidence,omitempty"`
+	Approach         string             `json:"approach,omitempty"`
+	EstimatedLatency int64              `json:"estimated_latency,omitempty"`
+	MVPSample        string             `json:"mvp_sample,omitempty"`
+	SLA              *SLA               `json:"sla,omitempty"`
+	A2AEndpoint      string             `json:"a2a_endpoint"`
+	ExpiresAt        string             `json:"expires_at"`
+	ReceivedAt       string             `json:"received_at,omitempty"`
+	Status           string             `json:"status,omitempty"`
 }
 
 type SLA struct {
@@ -287,19 +288,12 @@ func (c *Client) SubmitBidWithAuth(ctx context.Context, providerAPIKey string, b
 	return &result, nil
 }
 
-// SubmitBid is deprecated - use SubmitBidWithAuth for proper authentication
-func (c *Client) SubmitBid(ctx context.Context, bid *Bid) (*Bid, error) {
-	var result Bid
-	err := c.JSON(ctx, http.MethodPost, c.urls.BidGateway+"/v1/bids", bid, &result)
-	return &result, err
-}
-
 // Bid Evaluator API
 
 type EvaluationRequest struct {
-	WorkID   string               `json:"work_id"`
-	Strategy string               `json:"strategy,omitempty"`
-	Budget   *EvaluationBudget    `json:"budget,omitempty"`
+	WorkID   string            `json:"work_id"`
+	Strategy string            `json:"strategy,omitempty"`
+	Budget   *EvaluationBudget `json:"budget,omitempty"`
 }
 
 type EvaluationBudget struct {
@@ -308,22 +302,22 @@ type EvaluationBudget struct {
 }
 
 type EvaluationResult struct {
-	ID               string           `json:"evaluation_id"`
-	WorkID           string           `json:"work_id"`
-	TotalBids        int              `json:"total_bids"`
-	ValidBids        int              `json:"valid_bids"`
-	RankedBids       []RankedBid      `json:"ranked_bids"`
+	ID               string            `json:"evaluation_id"`
+	WorkID           string            `json:"work_id"`
+	TotalBids        int               `json:"total_bids"`
+	ValidBids        int               `json:"valid_bids"`
+	RankedBids       []RankedBid       `json:"ranked_bids"`
 	DisqualifiedBids []DisqualifiedBid `json:"disqualified_bids,omitempty"`
-	EvaluatedAt      string           `json:"evaluated_at"`
+	EvaluatedAt      string            `json:"evaluated_at"`
 }
 
 type RankedBid struct {
-	Rank       int           `json:"rank"`
-	BidID      string        `json:"bid_id"`
-	ProviderID string        `json:"provider_id"`
-	Score      float64       `json:"total_score"`
+	Rank       int            `json:"rank"`
+	BidID      string         `json:"bid_id"`
+	ProviderID string         `json:"provider_id"`
+	Score      float64        `json:"total_score"`
 	Scores     BidScoreDetail `json:"scores"`
-	Price      float64       `json:"-"` // Not directly from API, computed if needed
+	Price      float64        `json:"-"` // Not directly from API, computed if needed
 }
 
 type BidScoreDetail struct {
@@ -505,23 +499,30 @@ func (c *Client) GetContract(ctx context.Context, contractID string) (*Contract,
 	return &result, err
 }
 
-// Deprecated methods kept for compatibility
-func (c *Client) UpdateProgress(ctx context.Context, req *ProgressRequest) error {
-	return fmt.Errorf("use UpdateProgressWithToken instead")
-}
-
-func (c *Client) CompleteContract(ctx context.Context, req *CompleteRequest) (*Contract, error) {
-	return nil, fmt.Errorf("use CompleteContractWithToken instead")
-}
-
 // Settlement API
 
-type SettlementRequest struct {
-	ContractID string  `json:"contract_id"`
-	ConsumerID string  `json:"consumer_id"`
-	ProviderID string  `json:"provider_id"`
-	Amount     float64 `json:"amount"`
-	Currency   string  `json:"currency"`
+// ContractCompletedEvent is the event contract-engine sends to settlement
+// when a contract finishes. AgreedPrice is a decimal string.
+type ContractCompletedEvent struct {
+	ContractID  string    `json:"contract_id"`
+	WorkID      string    `json:"work_id"`
+	AgentID     string    `json:"agent_id,omitempty"`
+	ConsumerID  string    `json:"consumer_id"`
+	ProviderID  string    `json:"provider_id"`
+	Domain      string    `json:"domain,omitempty"`
+	StartedAt   time.Time `json:"started_at"`
+	CompletedAt time.Time `json:"completed_at"`
+	Success     bool      `json:"success"`
+	AgreedPrice string    `json:"agreed_price"`
+	Currency    string    `json:"currency,omitempty"`
+}
+
+// SettlementResult is settlement's response to a contract completion event.
+type SettlementResult struct {
+	Status      string `json:"status"`
+	ExecutionID string `json:"execution_id"`
+	ContractID  string `json:"contract_id"`
+	Charged     bool   `json:"charged"`
 }
 
 type DepositRequest struct {
@@ -535,13 +536,15 @@ type Balance struct {
 	Currency string  `json:"currency"`
 }
 
+// Transaction is a ledger entry as returned by /v1/usage/transactions.
+// Amounts are integer cents.
 type Transaction struct {
-	ID        string  `json:"id"`
-	TenantID  string  `json:"tenant_id"`
-	Type      string  `json:"type"`
-	Amount    float64 `json:"amount,string"`
-	Balance   float64 `json:"balance,string"`
-	Reference string  `json:"reference,omitempty"`
+	ID                string `json:"id"`
+	TenantID          string `json:"tenant_id"`
+	Type              string `json:"entry_type"`
+	AmountCents       int64  `json:"amount"`
+	BalanceAfterCents int64  `json:"balance_after"`
+	ReferenceID       string `json:"reference_id,omitempty"`
 }
 
 func (c *Client) Deposit(ctx context.Context, req *DepositRequest) error {
@@ -554,8 +557,11 @@ func (c *Client) GetBalance(ctx context.Context, tenantID string) (*Balance, err
 	return &result, err
 }
 
-func (c *Client) SettleContract(ctx context.Context, req *SettlementRequest) error {
-	return c.JSON(ctx, http.MethodPost, c.urls.Settlement+"/internal/v1/settle", req, nil)
+// SettleContract posts a contract completion event to settlement and returns
+// the HTTP status and raw body, so callers can check duplicate (409) and
+// rejection (400/402) responses.
+func (c *Client) SettleContract(ctx context.Context, event *ContractCompletedEvent) (int, []byte, error) {
+	return c.RequestWithStatus(ctx, http.MethodPost, c.urls.Settlement+"/internal/settlement/complete", event)
 }
 
 func (c *Client) GetTransactions(ctx context.Context, tenantID string) ([]Transaction, error) {
@@ -640,9 +646,9 @@ func (c *Client) ListSubscriptions(ctx context.Context, providerID string) ([]Su
 
 // Work Publisher extended API
 
-func (c *Client) CancelWork(ctx context.Context, workID string) (*WorkSpec, error) {
+func (c *Client) CancelWork(ctx context.Context, workID, consumerID string) (*WorkSpec, error) {
 	var result WorkSpec
-	err := c.JSON(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work/"+workID+"/cancel", nil, &result)
+	err := c.jsonWithHeaders(ctx, http.MethodPost, c.urls.WorkPublisher+"/v1/work/"+workID+"/cancel", nil, &result, consumerHeaders(consumerID))
 	return &result, err
 }
 
@@ -788,8 +794,7 @@ func (c *Client) RequestWithStatus(ctx context.Context, method, url string, body
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, bodyBytes, nil
 }
-
