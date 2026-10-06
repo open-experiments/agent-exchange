@@ -470,6 +470,16 @@ func (h *Handlers) HandleTaskFailed(w http.ResponseWriter, r *http.Request) {
 
 ## API Endpoints
 
+### Tenant scoping
+
+The gateway forwards the authenticated tenant in `X-Tenant-ID` (replacing any
+client-supplied copy). When that header is present it decides whose data
+`GET /v1/usage`, `GET /v1/usage/transactions`, `GET /v1/balance` and
+`POST /v1/deposits` read or change: the `tenant_id` query parameter (or deposit
+body field) is optional, and one naming a different tenant is rejected with
+`403 TENANT_MISMATCH`. Direct internal calls without the header must pass
+`tenant_id`, or get `400` (`TENANT_ID_REQUIRED`, or `BAD_REQUEST` for a deposit).
+
 ### GET /v1/usage
 
 Get usage summary for authenticated tenant.
