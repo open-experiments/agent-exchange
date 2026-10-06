@@ -513,11 +513,10 @@ create_namespace_and_secrets() {
     # Namespace should already exist from step 5, but ensure it
     kubectl get namespace "$NAMESPACE" &> /dev/null || kubectl create namespace "$NAMESPACE"
 
-    # Sync secrets from GCP Secret Manager
-    local secret_args=()
-    local has_secrets=false
-
+    # Sync secrets from GCP Secret Manager. aex-jwt-secret feeds both the
+    # gateway's JWT_SECRET and aex-identity's JWT_SIGNING_KEY.
     local secrets_to_sync=(
+        "aex-jwt-secret:JWT_SECRET"
         "aex-jwt-secret:JWT_SIGNING_KEY"
         "aex-api-key-salt:API_KEY_SALT"
         "ANTHROPIC_API_KEY:ANTHROPIC_API_KEY"
@@ -526,26 +525,29 @@ create_namespace_and_secrets() {
     for mapping in "${secrets_to_sync[@]}"; do
         local gcp_secret="${mapping%%:*}"
         local k8s_key="${mapping##*:}"
+
+        # A value already exported by the caller wins over Secret Manager.
+        if [[ -n "${!k8s_key:-}" ]]; then
+            echo "  Using $k8s_key from the environment"
+            continue
+        fi
+
         local value=""
         value=$(gcloud secrets versions access latest --secret="$gcp_secret" --project="$PROJECT" 2>/dev/null) || true
 
-        if [[ -n "$value" ]]; then
-            secret_args+=("--from-literal=$k8s_key=$value")
-            has_secrets=true
+        if [[ -n "$value" ]] && [[ "$value" != placeholder* ]]; then
+            export "$k8s_key=$value"
             echo "  Synced: $gcp_secret -> $k8s_key"
         else
             echo "  Skipped: $gcp_secret (not found in Secret Manager)"
         fi
     done
 
-    if [[ "$has_secrets" == "true" ]]; then
-        kubectl delete secret aex-secrets -n "$NAMESPACE" 2>/dev/null || true
-        kubectl create secret generic aex-secrets -n "$NAMESPACE" "${secret_args[@]}"
-        echo "  K8s secrets created"
-    else
-        echo "  No secrets found in Secret Manager. Apply placeholder:"
-        echo "    kubectl apply -f deploy/k8s/base/secrets.yaml"
-    fi
+    # Creates or updates aex-secrets with every key the manifests reference,
+    # keeping values already in the cluster and generating random
+    # JWT/webhook/MongoDB secrets that are still missing.
+    bash "$PROJECT_ROOT/deploy/k8s/create-secrets.sh" --namespace "$NAMESPACE"
+    echo "  K8s secrets configured"
 }
 
 # ============================================================

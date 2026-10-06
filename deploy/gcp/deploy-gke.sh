@@ -238,6 +238,10 @@ deploy_manifests() {
         echo "No overlay found for '$ENVIRONMENT', using base manifests"
     fi
 
+    # The manifests do not render aex-secrets; make sure it exists with every
+    # key they reference. Values already in the cluster are kept.
+    bash "$PROJECT_ROOT/deploy/k8s/create-secrets.sh" --namespace "$NAMESPACE"
+
     # Apply manifests with Kustomize, setting the image registry
     echo "Applying manifests with image overrides..."
 

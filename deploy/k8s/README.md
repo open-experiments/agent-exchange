@@ -68,19 +68,62 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main
 
 ### 2. Set Up Secrets
 
-Before deploying, create the secrets with your actual values:
+No overlay ships Secret values. `kubectl apply -k` expects two Secrets to
+already exist in the `aex` namespace and never creates or overwrites them:
+
+- `aex-secrets`: credentials referenced by the services (keys below)
+- `mongodb-keyfile`: the replica set keyfile mounted by the MongoDB StatefulSet
+
+Create both with one command. It creates the namespace if needed, generates
+random values for everything it can, keeps values that already exist in the
+cluster (re-running it never rotates anything), and replaces known
+placeholders such as `REPLACE_ME`, `root`/`root` or `dev-api-key`:
 
 ```bash
-# Create namespace first
+ANTHROPIC_API_KEY="sk-ant-your-key-here" ./deploy/k8s/create-secrets.sh
+```
+
+Any key can be supplied through an environment variable of the same name,
+e.g. `MONGO_URI=...` to use an external MongoDB, or `AEX_API_KEY=...` once
+aex-identity has issued an API key for the demo agents.
+
+To create the Secret by hand instead, set every key the manifests reference:
+
+```bash
 kubectl apply -f deploy/k8s/namespace.yaml
 
-# Create the secret (replace placeholder values)
+MONGO_USERNAME=aex-admin
+MONGO_PASSWORD="$(openssl rand -hex 24)"
+
 kubectl create secret generic aex-secrets \
   --namespace aex \
+  --from-literal=JWT_SECRET="$(openssl rand -base64 48)" \
+  --from-literal=JWT_SIGNING_KEY="$(openssl rand -base64 48)" \
+  --from-literal=WEBHOOK_SECRET="$(openssl rand -base64 48)" \
+  --from-literal=MONGO_USERNAME="$MONGO_USERNAME" \
+  --from-literal=MONGO_PASSWORD="$MONGO_PASSWORD" \
+  --from-literal=MONGO_URI="mongodb://$MONGO_USERNAME:$MONGO_PASSWORD@mongodb.aex.svc.cluster.local:27017/?authSource=admin" \
+  --from-literal=AEX_API_KEY="<api key issued by aex-identity>" \
   --from-literal=ANTHROPIC_API_KEY="sk-ant-your-key-here" \
-  --from-literal=JWT_SIGNING_KEY="your-jwt-signing-key" \
-  --from-literal=MONGO_URI="mongodb://root:root@mongodb.aex.svc.cluster.local:27017/?authSource=admin"
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic mongodb-keyfile \
+  --namespace aex \
+  --from-literal=keyfile="$(openssl rand -base64 756 | tr -d '\n')"
 ```
+
+| Key | Used by | Value |
+|-----|---------|-------|
+| `JWT_SECRET` | aex-gateway (verifies HS256 JWTs) | Random, **at least 32 bytes**. Anyone who knows it can mint tokens for any tenant and scope; the gateway refuses to start outside `ENVIRONMENT=development` with an empty, short or placeholder value. |
+| `JWT_SIGNING_KEY` | aex-identity | Random, at least 32 bytes |
+| `WEBHOOK_SECRET` | work-publisher, settlement, certauth | Random, at least 32 bytes |
+| `MONGO_USERNAME` / `MONGO_PASSWORD` | MongoDB StatefulSet, backup CronJob | Generated password, never `root`/`root` |
+| `MONGO_URI` | all AEX services | Must embed the same credentials (or point at an external MongoDB) |
+| `AEX_API_KEY` | code review / orchestrator agents | API key issued by aex-identity |
+| `ANTHROPIC_API_KEY` | code review / orchestrator agents | Your Anthropic API key |
+
+`base/secrets.example.yaml` documents the same keys. It is not part of any
+kustomization; do not apply it.
 
 ### 3. Deploy with Kustomize
 
@@ -146,12 +189,13 @@ kubectl get ingress -n aex
 ```
 deploy/k8s/
 ├── README.md                              # This file
+├── create-secrets.sh                      # Creates/updates aex-secrets and mongodb-keyfile
 ├── namespace.yaml                         # aex namespace
 ├── base/                                  # Base Kustomize configuration
 │   ├── kustomization.yaml                 # Assembles all resources
 │   ├── namespace.yaml                     # Namespace definition
 │   ├── configmap.yaml                     # Shared env vars and service URLs
-│   └── secrets.yaml                       # Secret template (DO NOT commit real values)
+│   └── secrets.example.yaml               # Documents aex-secrets keys (not applied)
 ├── services/                              # AEX Core Services (Go microservices)
 │   ├── mongodb/
 │   │   ├── statefulset.yaml               # MongoDB StatefulSet with PVC
@@ -240,12 +284,44 @@ http://<service-name>.aex.svc.cluster.local:<port>
 
 ### Secrets Management
 
-The `base/secrets.yaml` is a template. **Never commit real secret values.**
+Secrets are never part of the Kustomize output, so every overlay (dev,
+staging, production) requires `aex-secrets` and `mongodb-keyfile` to be
+created first (see [Set Up Secrets](#2-set-up-secrets)). Because they are not
+Kustomize resources, `kubectl apply -k` never overwrites a Secret you created.
+**Never commit real secret values.**
 
-For production, use one of:
-- **Sealed Secrets**: Encrypt secrets in the repository
-- **External Secrets Operator**: Sync from AWS Secrets Manager, HashiCorp Vault, etc.
+For shared or production clusters, manage the Secret with one of:
+- **External Secrets Operator**: sync `aex-secrets` from AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault, etc.
+- **Sealed Secrets**: encrypt the Secret so it can live in the repository
 - **SOPS**: Mozilla SOPS for encrypted secrets in git
+
+Whatever produces it must create a Secret named `aex-secrets` with every key
+in the table above.
+
+### Rotate If You Deployed Before This Change
+
+Earlier versions of these manifests included a Secret in the base
+kustomization, so every `kubectl apply -k` (including the runs inside
+`deploy/aws/deploy-eks.sh` and `deploy/gcp/deploy-gke.sh`) reset `aex-secrets` to public placeholder
+values: `JWT_SECRET=REPLACE_ME`, MongoDB `root`/`root`,
+`AEX_API_KEY=dev-api-key`. Anyone could forge gateway tokens for any tenant.
+If you deployed one of those versions, treat these credentials as compromised:
+
+1. Rotate `JWT_SECRET`, `JWT_SIGNING_KEY` and `WEBHOOK_SECRET` (running
+   `./deploy/k8s/create-secrets.sh` replaces the placeholder values with random
+   ones; to rotate a real value pass a new one, e.g.
+   `JWT_SECRET="$(openssl rand -base64 48)" ./deploy/k8s/create-secrets.sh`).
+   Webhook receivers must be given the new `WEBHOOK_SECRET`.
+2. Change the MongoDB root password. MongoDB only reads
+   `MONGO_INITDB_ROOT_*` when its volume is first initialised, so after
+   updating the Secret also change the password inside MongoDB (the script
+   prints the `mongosh` command), or recreate the `mongodb` PVC if the data is
+   disposable.
+3. Revoke and reissue API keys (`AEX_API_KEY`, any tenant keys) and rotate
+   `ANTHROPIC_API_KEY` if it was ever stored in a shared cluster.
+4. Restart the workloads so they pick up the new values:
+   `kubectl rollout restart deployment -n aex && kubectl rollout restart statefulset -n aex`.
+5. Review gateway and data access logs for requests made with forged tokens.
 
 ### Image Configuration
 

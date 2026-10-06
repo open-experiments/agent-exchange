@@ -2,7 +2,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Production overlay: HPA (2-10), larger resources, node affinity, ECR images
-# Usage: kubectl apply -k deploy/k8s/overlays/production/
+# Usage:
+#   ./deploy/k8s/create-secrets.sh   # aex-secrets is never rendered by Kustomize
+#   kubectl apply -k deploy/k8s/overlays/production/
 
 namespace: aex
 
