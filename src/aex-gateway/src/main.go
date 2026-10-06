@@ -18,12 +18,14 @@ import (
 func main() {
 	cfg := config.Load()
 
-	// Require JWT_SECRET in non-development environments
-	if cfg.JWTSecret == "" && cfg.Environment != "development" {
-		log.Fatal("JWT_SECRET is required in production. Set JWT_SECRET environment variable.")
+	// Refuse an empty, short or placeholder JWT_SECRET outside development:
+	// with a guessable secret anyone can mint tokens for any tenant.
+	warning, err := config.ValidateJWTSecret(cfg.Environment, cfg.JWTSecret)
+	if err != nil {
+		log.Fatalf("refusing to start: %v", err)
 	}
-	if cfg.JWTSecret == "" {
-		log.Println("WARNING: JWT_SECRET is empty. JWT authentication is disabled. Set JWT_SECRET for production use.")
+	if warning != "" {
+		log.Printf("WARNING: %s. Set a random JWT_SECRET of at least %d bytes for any shared deployment.", warning, config.MinJWTSecretLength)
 	}
 
 	// Setup structured logging with trace correlation
