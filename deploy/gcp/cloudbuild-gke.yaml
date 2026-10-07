@@ -213,6 +213,10 @@ steps:
         # Ensure namespace exists
         kubectl get namespace ${_GKE_NAMESPACE} || kubectl create namespace ${_GKE_NAMESPACE}
 
+        # The manifests do not render aex-secrets; create any missing keys
+        # (values already in the cluster are kept, never overwritten)
+        bash deploy/k8s/create-secrets.sh --namespace ${_GKE_NAMESPACE}
+
         # Apply Kustomize manifests with image overrides
         kubectl kustomize deploy/k8s/base/ | \
           sed "s|\$${REGISTRY}|${_REGISTRY}|g" | \

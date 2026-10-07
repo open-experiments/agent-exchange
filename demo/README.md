@@ -450,6 +450,8 @@ K8s manifests at [`deploy/k8s/`](../deploy/k8s/) with Kustomize overlays for dev
 ```bash
 # Kind (local K8s)
 kind create cluster --config deploy/k8s/kind-config.yaml
+kubectl apply -f deploy/k8s/namespace.yaml
+./deploy/k8s/create-secrets.sh          # generates aex-secrets; no overlay ships one
 kubectl apply -k deploy/k8s/overlays/dev/
 ```
 

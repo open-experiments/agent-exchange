@@ -338,58 +338,43 @@ setup_workload_identity() {
 create_k8s_secrets() {
     echo "Creating K8s secrets from GCP Secret Manager..."
 
+    # GCP secret -> aex-secrets key. aex-jwt-secret feeds both the gateway's
+    # JWT_SECRET and aex-identity's JWT_SIGNING_KEY.
     local secrets_to_sync=(
+        "aex-jwt-secret:JWT_SECRET"
         "aex-jwt-secret:JWT_SIGNING_KEY"
         "aex-api-key-salt:API_KEY_SALT"
+        "ANTHROPIC_API_KEY:ANTHROPIC_API_KEY"
     )
-
-    # Build the secret data arguments
-    local secret_args=()
-    local has_secrets=false
 
     for secret_mapping in "${secrets_to_sync[@]}"; do
         local gcp_secret="${secret_mapping%%:*}"
         local k8s_key="${secret_mapping##*:}"
 
-        # Try to get the secret value from GCP Secret Manager
+        # A value already exported by the caller wins over Secret Manager.
+        if [[ -n "${!k8s_key:-}" ]]; then
+            echo "  Using $k8s_key from the environment"
+            continue
+        fi
+
         local value=""
         value=$(gcloud secrets versions access latest --secret="$gcp_secret" --project="$PROJECT_ID" 2>/dev/null) || true
 
-        if [[ -n "$value" ]]; then
-            secret_args+=("--from-literal=$k8s_key=$value")
-            has_secrets=true
+        if [[ -n "$value" ]] && [[ "$value" != placeholder* ]]; then
+            export "$k8s_key=$value"
             echo "  Synced: $gcp_secret -> $k8s_key"
         else
-            echo "  Warning: Secret '$gcp_secret' not found in Secret Manager (skipped)"
+            echo "  Not in Secret Manager: $gcp_secret (keeping any value already in the cluster)"
         fi
     done
 
-    # Also check for ANTHROPIC_API_KEY
-    local anthropic_key=""
-    anthropic_key=$(gcloud secrets versions access latest --secret="ANTHROPIC_API_KEY" --project="$PROJECT_ID" 2>/dev/null) || true
-    if [[ -n "$anthropic_key" ]]; then
-        secret_args+=("--from-literal=ANTHROPIC_API_KEY=$anthropic_key")
-        has_secrets=true
-        echo "  Synced: ANTHROPIC_API_KEY"
-    else
-        echo "  Warning: ANTHROPIC_API_KEY not found in Secret Manager"
-        echo "  Create it with: echo 'your-key' | gcloud secrets create ANTHROPIC_API_KEY --data-file=- --project=$PROJECT_ID"
+    if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+        echo "  Create the Anthropic key with: echo 'your-key' | gcloud secrets create ANTHROPIC_API_KEY --data-file=- --project=$PROJECT_ID"
     fi
 
-    if [[ "$has_secrets" == "true" ]]; then
-        # Delete existing secret if present
-        kubectl delete secret aex-secrets -n "$NAMESPACE" 2>/dev/null || true
-
-        # Create new secret
-        kubectl create secret generic aex-secrets \
-            -n "$NAMESPACE" \
-            "${secret_args[@]}"
-
-        echo "K8s secrets created in namespace '$NAMESPACE'"
-    else
-        echo "No secrets found in Secret Manager. Using placeholder secret."
-        kubectl apply -f "$PROJECT_ROOT/deploy/k8s/base/secrets.yaml" 2>/dev/null || true
-    fi
+    # Creates or updates aex-secrets with every key the manifests reference,
+    # generating random JWT/webhook/MongoDB secrets that are still missing.
+    bash "$PROJECT_ROOT/deploy/k8s/create-secrets.sh" --namespace "$NAMESPACE"
 }
 
 # ============================================================

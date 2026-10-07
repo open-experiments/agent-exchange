@@ -319,11 +319,23 @@ REDIS_PORT=6379
 # Auth
 FIREBASE_PROJECT_ID=aex-prod
 API_KEY_SECRET=projects/aex-prod/secrets/api-keys/versions/latest
+JWT_SECRET=<random, >= 32 bytes>  # HS256 key; see below
 
 # Observability
 LOG_LEVEL=info                    # debug|info|warn|error
 OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 ```
+
+### JWT_SECRET at startup
+
+The gateway verifies HS256 bearer tokens with `JWT_SECRET`, so anyone who
+knows it can mint a token for any tenant and scope. Unless `ENVIRONMENT` is
+`development` (the default when unset), the gateway refuses to start when
+`JWT_SECRET` is empty, shorter than 32 bytes, or a known placeholder such as
+`REPLACE_ME`, `CHANGE_ME`, `changeme`, `secret` or `your-jwt-secret` (compared
+case-insensitively; any value containing `replace_me` or `change_me` counts).
+In development the same cases only log a warning. The secret itself is never
+logged. Generate one with `openssl rand -base64 48`.
 
 ### Cloud Run Configuration
 

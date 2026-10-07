@@ -244,6 +244,10 @@ gcloud builds submit --config=deploy/gcp/cloudbuild-gke.yaml \
 If you prefer using `kubectl` directly:
 
 ```bash
+# Create aex-secrets and mongodb-keyfile first; the manifests do not include
+# them (values already in the cluster are kept)
+ANTHROPIC_API_KEY="sk-ant-..." ./deploy/k8s/create-secrets.sh
+
 # Apply base manifests
 kubectl apply -k deploy/k8s/base/
 

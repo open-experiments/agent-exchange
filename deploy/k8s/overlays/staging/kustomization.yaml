@@ -2,7 +2,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Staging overlay: 2 replicas, moderate resources, ECR images
-# Usage: kubectl apply -k deploy/k8s/overlays/staging/
+# Usage:
+#   ./deploy/k8s/create-secrets.sh   # aex-secrets is never rendered by Kustomize
+#   kubectl apply -k deploy/k8s/overlays/staging/
 
 namespace: aex
 

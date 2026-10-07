@@ -20,12 +20,40 @@ func NewHandlers(svc *service.Service) *Handlers {
 	return &Handlers{svc: svc}
 }
 
+// tenantHeader carries the tenant the gateway authenticated; the gateway
+// overwrites any client-supplied copy before forwarding.
+const tenantHeader = "X-Tenant-ID"
+
+// resolveTenant returns the tenant a request acts for and writes the error
+// response itself when it returns false. Behind the gateway X-Tenant-ID is
+// authoritative: requested (the tenant_id query or body field) may be omitted,
+// and naming a different tenant is rejected with 403 TENANT_MISMATCH. A direct
+// internal call without the header acts for requested, which is then required.
+func resolveTenant(w http.ResponseWriter, r *http.Request, requested string) (string, bool) {
+	authenticated := r.Header.Get(tenantHeader)
+	if authenticated == "" {
+		if requested == "" {
+			respondError(w, http.StatusBadRequest, "TENANT_ID_REQUIRED", "tenant_id is required")
+			return "", false
+		}
+		return requested, true
+	}
+	if requested != "" && requested != authenticated {
+		slog.WarnContext(r.Context(), "tenant_id does not match authenticated tenant",
+			"authenticated_tenant", authenticated,
+			"requested_tenant", requested,
+		)
+		respondError(w, http.StatusForbidden, "TENANT_MISMATCH", "tenant_id does not match the authenticated tenant")
+		return "", false
+	}
+	return authenticated, true
+}
+
 // GetUsage retrieves usage data for a tenant
 // GET /v1/usage?tenant_id={id}&limit={n}
 func (h *Handlers) GetUsage(w http.ResponseWriter, r *http.Request) {
-	tenantID := r.URL.Query().Get("tenant_id")
-	if tenantID == "" {
-		respondError(w, http.StatusBadRequest, "TENANT_ID_REQUIRED", "tenant_id is required")
+	tenantID, ok := resolveTenant(w, r, r.URL.Query().Get("tenant_id"))
+	if !ok {
 		return
 	}
 
@@ -50,9 +78,8 @@ func (h *Handlers) GetUsage(w http.ResponseWriter, r *http.Request) {
 // GetBalance retrieves balance for a tenant
 // GET /v1/balance?tenant_id={id}
 func (h *Handlers) GetBalance(w http.ResponseWriter, r *http.Request) {
-	tenantID := r.URL.Query().Get("tenant_id")
-	if tenantID == "" {
-		respondError(w, http.StatusBadRequest, "TENANT_ID_REQUIRED", "tenant_id is required")
+	tenantID, ok := resolveTenant(w, r, r.URL.Query().Get("tenant_id"))
+	if !ok {
 		return
 	}
 
@@ -69,9 +96,8 @@ func (h *Handlers) GetBalance(w http.ResponseWriter, r *http.Request) {
 // GetTransactions retrieves transaction history for a tenant
 // GET /v1/usage/transactions?tenant_id={id}&limit={n}
 func (h *Handlers) GetTransactions(w http.ResponseWriter, r *http.Request) {
-	tenantID := r.URL.Query().Get("tenant_id")
-	if tenantID == "" {
-		respondError(w, http.StatusBadRequest, "TENANT_ID_REQUIRED", "tenant_id is required")
+	tenantID, ok := resolveTenant(w, r, r.URL.Query().Get("tenant_id"))
+	if !ok {
 		return
 	}
 
@@ -94,7 +120,8 @@ func (h *Handlers) GetTransactions(w http.ResponseWriter, r *http.Request) {
 }
 
 // ProcessDeposit handles a deposit request
-// POST /v1/deposits
+// POST /v1/deposits {"tenant_id": "...", "amount": "..."}
+// tenant_id is optional behind the gateway, which supplies X-Tenant-ID.
 func (h *Handlers) ProcessDeposit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TenantID string `json:"tenant_id"`
@@ -106,12 +133,17 @@ func (h *Handlers) ProcessDeposit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.TenantID == "" || req.Amount == "" {
+	if req.Amount == "" || (req.TenantID == "" && r.Header.Get(tenantHeader) == "") {
 		respondError(w, http.StatusBadRequest, "BAD_REQUEST", "tenant_id and amount are required")
 		return
 	}
 
-	tx, err := h.svc.ProcessDeposit(r.Context(), req.TenantID, req.Amount)
+	tenantID, ok := resolveTenant(w, r, req.TenantID)
+	if !ok {
+		return
+	}
+
+	tx, err := h.svc.ProcessDeposit(r.Context(), tenantID, req.Amount)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "process deposit failed", "error", err)
 		if errors.Is(err, service.ErrInvalidAmount) {

@@ -687,6 +687,8 @@ aws ecs update-service \
 - Use Secret Manager (GCP) or Secrets Manager (AWS)
 - Rotate secrets regularly
 - Use separate secrets per environment
+- `JWT_SECRET` must be random and at least 32 bytes (`openssl rand -base64 48`); outside `ENVIRONMENT=development` the gateway refuses to start with an empty, short or placeholder value
+- Kubernetes (EKS/GKE/kind): the Kustomize manifests do not contain the `aex-secrets` Secret. Create it before `kubectl apply -k` with `./deploy/k8s/create-secrets.sh` (generates every key and never overwrites existing values) or an external secrets operator. On GKE, `aex-jwt-secret` from Secret Manager is synced to `JWT_SECRET` and `JWT_SIGNING_KEY`. See "Set Up Secrets" in `deploy/k8s/README.md`, including the rotation steps if you deployed manifests that still shipped placeholder secrets
 
 ---
 

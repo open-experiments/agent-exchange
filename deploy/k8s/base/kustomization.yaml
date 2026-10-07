@@ -6,7 +6,9 @@ namespace: aex
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secrets.yaml
+  # aex-secrets and mongodb-keyfile are intentionally NOT rendered here.
+  # Create them before 'kubectl apply -k' with deploy/k8s/create-secrets.sh
+  # (or an external secrets operator); see secrets.example.yaml and README.md.
 
   # --- MongoDB ---
   - ../services/mongodb/statefulset.yaml

@@ -628,6 +628,10 @@ make health                                          # Verify all services healt
 
 ### Kubernetes (Production)
 ```bash
+# Every overlay needs the aex-secrets Secret first; none of them ship one.
+kubectl apply -f deploy/k8s/namespace.yaml
+./deploy/k8s/create-secrets.sh
+
 # Dev (kind/minikube) - 1 replica per service
 kubectl apply -k deploy/k8s/overlays/dev
 

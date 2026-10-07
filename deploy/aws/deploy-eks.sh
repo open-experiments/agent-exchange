@@ -315,33 +315,33 @@ EOF
 # Create secrets from AWS Secrets Manager
 echo "Syncing secrets from AWS Secrets Manager..."
 
-# Fetch secrets and create K8s secret
-ANTHROPIC_KEY=$(aws secretsmanager get-secret-value \
-    --secret-id "${ENVIRONMENT_NAME}/anthropic-api-key" \
-    --query 'SecretString' --output text \
-    --region "$REGION" 2>/dev/null || echo '{"api_key":"placeholder-update-me"}')
+# read_aws_secret <secret-id> <json-field>
+# Prints the field of a JSON secret, or nothing when the secret is missing
+# or still holds the "placeholder-update-me" value infrastructure.yaml seeds.
+read_aws_secret() {
+    local raw value
+    raw=$(aws secretsmanager get-secret-value \
+        --secret-id "$1" \
+        --query 'SecretString' --output text \
+        --region "$REGION" 2>/dev/null) || return 0
+    value=$(printf '%s' "$raw" | python3 -c "import sys,json; print(json.load(sys.stdin).get('$2',''))" 2>/dev/null) || return 0
+    case "$value" in
+        placeholder*) return 0 ;;
+    esac
+    printf '%s' "$value"
+}
 
-MONGO_URI=$(aws secretsmanager get-secret-value \
-    --secret-id "${ENVIRONMENT_NAME}/mongo-uri" \
-    --query 'SecretString' --output text \
-    --region "$REGION" 2>/dev/null || echo '{"uri":"placeholder-update-me"}')
+# Values found in Secrets Manager (or already exported by the caller) are
+# passed through; create-secrets.sh keeps values already stored in the
+# cluster and generates random JWT/webhook/MongoDB secrets for anything
+# missing. It never falls back to a fixed default.
+ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-$(read_aws_secret "${ENVIRONMENT_NAME}/anthropic-api-key" api_key)}"
+MONGO_URI="${MONGO_URI:-$(read_aws_secret "${ENVIRONMENT_NAME}/mongo-uri" uri)}"
+JWT_SECRET="${JWT_SECRET:-$(read_aws_secret "${ENVIRONMENT_NAME}/jwt-signing-key" key)}"
+JWT_SIGNING_KEY="${JWT_SIGNING_KEY:-$JWT_SECRET}"
+export ANTHROPIC_API_KEY MONGO_URI JWT_SECRET JWT_SIGNING_KEY
 
-JWT_KEY=$(aws secretsmanager get-secret-value \
-    --secret-id "${ENVIRONMENT_NAME}/jwt-signing-key" \
-    --query 'SecretString' --output text \
-    --region "$REGION" 2>/dev/null || echo '{"key":"placeholder-update-me"}')
-
-# Extract values from JSON
-ANTHROPIC_API_KEY_VAL=$(echo "$ANTHROPIC_KEY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('api_key','placeholder'))" 2>/dev/null || echo "placeholder")
-MONGO_URI_VAL=$(echo "$MONGO_URI" | python3 -c "import sys,json; print(json.load(sys.stdin).get('uri','placeholder'))" 2>/dev/null || echo "placeholder")
-JWT_KEY_VAL=$(echo "$JWT_KEY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('key','placeholder'))" 2>/dev/null || echo "placeholder")
-
-kubectl create secret generic aex-secrets \
-    --namespace aex \
-    --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY_VAL" \
-    --from-literal=MONGO_URI="$MONGO_URI_VAL" \
-    --from-literal=JWT_SIGNING_KEY="$JWT_KEY_VAL" \
-    --dry-run=client -o yaml | kubectl apply -f -
+bash "$K8S_DIR/create-secrets.sh" --namespace aex
 
 echo "Namespace and secrets configured."
 
