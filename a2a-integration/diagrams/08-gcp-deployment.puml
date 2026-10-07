@@ -1,0 +1,143 @@
+@startuml GCP_Deployment
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+
+title GCP Deployment Architecture
+
+cloud "Internet" as inet {
+}
+
+package "Google Cloud Platform" {
+
+    node "Cloud Load Balancer" as clb #LightBlue {
+        [Global HTTP(S)\nLoad Balancer] as glb
+    }
+
+    package "Cloud Run Services" #LightYellow {
+
+        package "AEX Services" {
+            [aex-gateway] as gw
+            [aex-work-publisher] as wp
+            [aex-bid-gateway] as bg
+            [aex-bid-evaluator] as be
+            [aex-contract-engine] as ce
+            [aex-provider-registry] as pr
+            [aex-trust-broker] as tb
+            [aex-identity] as id
+            [aex-settlement] as st
+            [aex-telemetry] as tel
+        }
+
+        package "Demo Services" #LightGreen {
+            [demo-ui\n(Mesop)] as ui
+            [orchestrator\n(Claude)] as orch
+        }
+
+        package "Provider Agents" #LightPink {
+            [legal-agent-a\n(Claude)] as la
+            [legal-agent-b\n(Gemini)] as lagentb
+            [travel-agent\n(GPT-4)] as ta
+        }
+    }
+
+    package "Data Services" #LightCoral {
+        database "Firestore" as fs {
+            [work_specs]
+            [providers]
+            [bids]
+            [contracts]
+            [ledger_entries]
+            [trust_scores]
+        }
+
+        storage "Cloud Storage" as cs {
+            [Documents]
+            [Artifacts]
+        }
+
+        [Secret Manager] as sm
+    }
+
+    package "Observability" #Wheat {
+        [Cloud Logging] as log
+        [Cloud Monitoring] as mon
+        [Cloud Trace] as trace
+    }
+
+    package "Container Registry" {
+        [Artifact Registry] as ar
+    }
+}
+
+cloud "External APIs" as ext {
+    [Anthropic API\n(Claude)] as claude
+    [OpenAI API\n(GPT-4)] as openai
+    [Google AI\n(Gemini)] as gemini
+}
+
+' Connections
+inet --> glb
+
+glb --> gw : /v1/*
+glb --> ui : /demo/*
+glb --> la : /a2a (legal-a)
+glb --> lagentb : /a2a (legal-b)
+glb --> ta : /a2a (travel)
+
+gw --> wp
+gw --> bg
+gw --> be
+gw --> ce
+gw --> pr
+gw --> tb
+gw --> st
+gw --> id
+
+wp --> fs
+bg --> fs
+ce --> fs
+pr --> fs
+tb --> fs
+st --> fs
+
+orch --> gw : AEX API
+orch --> la : A2A
+orch --> lagentb : A2A
+orch --> ta : A2A
+
+la --> claude
+lagentb --> gemini
+ta --> openai
+orch --> claude
+
+la --> sm : API keys
+lagentb --> sm : API keys
+ta --> sm : API keys
+
+gw --> log
+wp --> log
+ce --> log
+
+note right of fs
+  **Firestore Collections:**
+  - work_specs (Work Publisher)
+  - providers (Provider Registry)
+  - bids (Bid Gateway)
+  - evaluations (Bid Evaluator)
+  - contracts (Contract Engine)
+  - ledger_entries (Settlement)
+  - trust_scores (Trust Broker)
+  - tenants (Identity)
+end note
+
+note bottom of sm
+  **Secrets:**
+  - ANTHROPIC_API_KEY
+  - OPENAI_API_KEY
+  - GOOGLE_AI_API_KEY
+  - JWT_SIGNING_KEY
+  - MONGO_URI (if using MongoDB)
+end note
+
+@enduml

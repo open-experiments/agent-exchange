@@ -1,0 +1,45 @@
+@startuml Work Submission Flow
+skinparam backgroundColor #FEFEFE
+
+title Work Submission Flow
+
+actor Consumer as C
+participant "Gateway" as GW
+participant "Work-Publisher" as WP
+participant "Provider-Registry" as PR
+actor Provider as P
+
+C -> GW : POST /v1/work\n{category, description, budget}
+activate GW
+
+GW -> GW : Validate JWT/API Key
+
+GW -> WP : Route request
+activate WP
+
+WP -> WP : Generate work_id\n(work_xxxx)
+WP -> WP : Store work spec\n(status: OPEN)
+
+WP -> PR : GET /internal/v1/providers/subscribed\n?category={category}
+activate PR
+PR --> WP : Return subscribed\nproviders list
+deactivate PR
+
+WP -> WP : Start bid window\ntimer (30s default)
+
+WP -> P : Notify via webhook\n(async)
+
+WP --> GW : {work_id, status: OPEN,\nbid_window_ms}
+deactivate WP
+
+GW --> C : 201 Created\n{work_id, status}
+deactivate GW
+
+note right of WP
+  Bid window starts
+  Providers can now submit bids
+end note
+
+@enduml
+
+
